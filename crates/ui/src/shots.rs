@@ -899,7 +899,7 @@ mod tests {
         let argv: Vec<String> = [
             "sh",
             "-c",
-            "echo 'progress 3/8' >&2; echo 'cannot write' >&2; echo 'progress 5/8' >&2; sleep 30",
+            "echo 'progress 3/8' >&2; echo 'cannot write' >&2; echo 'progress 5/8' >&2; exec sleep 30",
         ]
         .map(str::to_string)
         .to_vec();

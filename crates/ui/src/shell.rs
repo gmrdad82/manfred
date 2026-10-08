@@ -4839,6 +4839,7 @@ heading = 0.0
     }
 
     #[test]
+    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
     fn c3_and_d1_show_the_samples_of_a_running_render() {
         let mut bench = bench("shell-progress");
         bench.process(vec![]);
