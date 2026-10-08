@@ -1,0 +1,7 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "c"
+kind = "card"
+size = [1.0, 1.0]

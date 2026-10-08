@@ -1,0 +1,5 @@
+# click the right cell to make it active, then hover the middle one
+click 500 70
+frame
+move 300 70
+frame

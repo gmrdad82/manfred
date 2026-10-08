@@ -1,0 +1,6 @@
+manfred = 1
+name = "t"
+
+[sky]
+kind = "hdr"
+path = "sky.hdr"

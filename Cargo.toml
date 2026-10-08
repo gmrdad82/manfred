@@ -1,0 +1,134 @@
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.19.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+authors = ["Gamer Dad"]
+repository = "https://github.com/gmrdad82/manfred"
+
+[workspace.dependencies]
+glam = "0.33"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+clap = { version = "4.6", features = ["derive"] }
+toml_edit = { version = "0.25", features = ["serde"] }
+i_overlay = "9"
+gltf-json = "1.4"
+gltf = "1.4"
+png = "0.18"
+exr = "1.74"
+egui = { version = "=0.33.3", default-features = false }
+egui-wgpu = { version = "=0.33.3", default-features = false }
+egui-winit = { version = "=0.33.3", default-features = false }
+pfx = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0", default-features = false }
+pfx-core = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-gpu = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-live = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-load = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-geom = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-materials = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-text = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-post = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-trace = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-bake = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-editor-style = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-editor-shell = { git = "https://github.com/gmrdad82/pfx", tag = "v0.25.0" }
+pfx-scene = { git = "https://github.com/gmrdad82/pfx-scene", tag = "v0.1.0" }
+manfred-recipe = { path = "crates/recipe" }
+manfred-mesh = { path = "crates/mesh" }
+manfred-glb = { path = "crates/glb" }
+manfred-ui = { path = "crates/ui" }
+manfred-build = { path = "crates/build" }
+manfred-scene = { path = "crates/scene" }
+manfred-generators = { path = "crates/generators" }
+manfred-render = { path = "crates/render" }
+manfred-runtime = { path = "crates/runtime" }
+
+[package]
+name = "manfred"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Manfred: a lighter Blender; scenes as recipes, GLB headless, a live window and path-traced stills"
+
+[lib]
+name = "manfred"
+path = "src/lib.rs"
+
+[[bin]]
+name = "manfred"
+path = "src/main.rs"
+
+[[example]]
+name = "app_build"
+test = true
+
+[[example]]
+name = "wordmark"
+test = true
+
+[dependencies]
+manfred-recipe.workspace = true
+manfred-mesh.workspace = true
+manfred-glb.workspace = true
+manfred-ui.workspace = true
+manfred-build.workspace = true
+manfred-scene.workspace = true
+manfred-generators.workspace = true
+manfred-render.workspace = true
+manfred-runtime.workspace = true
+serde_json.workspace = true
+clap.workspace = true
+pfx-report = { git = "https://github.com/gmrdad82/pfx-report", tag = "v0.1.0" }
+
+[dev-dependencies]
+pfx.workspace = true
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
+
+[profile.dev.package.manfred-render]
+opt-level = 2
+
+[profile.dev.package.pfx-core]
+opt-level = 2
+
+[profile.dev.package.pfx-geom]
+opt-level = 2
+
+[profile.dev.package.pfx-gpu]
+opt-level = 2
+
+[profile.dev.package.pfx-live]
+opt-level = 2
+
+[profile.dev.package.pfx-load]
+opt-level = 2
+
+[profile.dev.package.pfx-materials]
+opt-level = 2
+
+[profile.dev.package.pfx-trace]
+opt-level = 2
+
+[profile.dev.package.naga]
+opt-level = 2
+
+[profile.dev.package.wgpu-core]
+opt-level = 2
+
+[profile.dev.package.wgpu-hal]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = "debuginfo"
+debug = false

@@ -1,0 +1,10 @@
+manfred = 1
+name = "t"
+
+[[camera]]
+name = "flat"
+kind = "orthographic"
+position = [0.0, 0.0, 1.0]
+target = [0.0, 0.0, 0.0]
+ortho_height = 2.0
+shift = [0.0, 0.5]

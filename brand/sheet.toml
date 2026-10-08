@@ -1,0 +1,14 @@
+manfred = 1
+name = "manfred-sheet"
+include = ["rig.toml"]
+
+[[use]]
+file = "parts/a.toml"
+at = [-0.2, 0.0, 0.0]
+
+[[use]]
+file = "parts/b.toml"
+
+[[use]]
+file = "parts/c.toml"
+at = [0.2, 0.0, 0.0]

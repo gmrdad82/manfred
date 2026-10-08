@@ -1,0 +1,29 @@
+[package]
+name = "manfred-scene"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Manfred's recipe to engine scene: cameras, sun, sky, lights, materials by preset, text, and the headless still"
+
+[dependencies]
+manfred-recipe.workspace = true
+manfred-build.workspace = true
+pfx.workspace = true
+pfx-live.workspace = true
+pfx-load.workspace = true
+pfx-geom.workspace = true
+pfx-gpu.workspace = true
+pfx-materials.workspace = true
+pfx-text.workspace = true
+pfx-post.workspace = true
+pfx-core.workspace = true
+png.workspace = true
+manfred-glb.workspace = true
+manfred-mesh.workspace = true
+serde_json.workspace = true
+zune-jpeg = "0.5"
+ttf-parser = { version = "0.25", default-features = false, features = ["std"] }

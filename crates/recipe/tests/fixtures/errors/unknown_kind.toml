@@ -1,0 +1,6 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "a"
+kind = "cube"

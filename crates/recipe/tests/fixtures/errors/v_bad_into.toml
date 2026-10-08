@@ -1,0 +1,9 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "hole"
+kind = "pocket"
+into = "wall"
+depth = 0.1
+outline = { rect = [0.0, 0.0, 1.0, 1.0] }

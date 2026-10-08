@@ -1,0 +1,106 @@
+manfred = 1
+name = "start"
+
+[[light]]
+name = "key"
+position = [0.5, 1.1, 1.0]
+color = [1.0, 0.98, 0.95]
+intensity = 7.0
+radius = 0.35
+shadow = true
+
+[sky]
+kind = "room"
+intensity = 0.18
+
+[sky.room]
+floor = [0.05, 0.05, 0.06]
+wall = [0.3, 0.3, 0.32]
+ceiling = [0.04, 0.04, 0.05]
+
+[[sky.room.lights]]
+name = "softbox"
+az = 200.0
+el = 50.0
+width = 44.0
+height = 30.0
+power = 14.0
+color = [1.0, 0.98, 0.95]
+soft = 0.12
+
+[[sky.room.lights]]
+name = "fill"
+az = 30.0
+el = 38.0
+width = 60.0
+height = 20.0
+power = 5.0
+color = [1.0, 1.0, 1.0]
+soft = 0.2
+
+[look]
+view = "standard"
+exposure = 1.0
+
+[materials.ground]
+base = [0.0006, 0.0103, 0.0409]
+roughness = 0.9
+specular = 0.0
+
+[materials.blueprint]
+family = "lacquer"
+base = [0.0006, 0.0194, 0.0685]
+roughness = 0.12
+specular = 0.05
+
+[materials.amber]
+family = "lacquer"
+base = [0.8879, 0.521, 0.0976]
+roughness = 0.14
+specular = 0.05
+
+[[object]]
+name = "ground"
+kind = "plane"
+size = [40.0, 40.0]
+material = "ground"
+
+[[object]]
+name = "manfred"
+kind = "box"
+size = [0.001, 0.001, 0.001]
+at = [0.0, 0.064, 0.0]
+hidden = true
+
+[[object]]
+name = "badge"
+kind = "mesh"
+path = "start/badge.glb"
+at = [-0.1574, 0.0, 0.00344]
+parent = "manfred"
+smooth_angle = 50.0
+flat_faces = true
+
+[[object]]
+name = "wordmark"
+kind = "mesh"
+path = "start/wordmark.glb"
+at = [0.079, -0.0381, 0.00344]
+parent = "manfred"
+smooth_angle = 40.0
+flat_faces = true
+
+[[object]]
+name = "version"
+kind = "text"
+at = [0.2294, -0.0677, 0.00344]
+parent = "manfred"
+anchor = "bottom_left"
+spans = [{ text = "vX.Y.Z", size = 0.014, color = [0.1301, 0.2832, 0.4179] }]
+
+[[camera]]
+name = "view"
+kind = "perspective"
+position = [-0.2263, 0.3407, 0.5082]
+target = [0.0, 0.0576, 0.0]
+fov_y_deg = 35.0

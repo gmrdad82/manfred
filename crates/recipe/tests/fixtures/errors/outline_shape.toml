@@ -1,0 +1,9 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "a"
+kind = "outline"
+front = 0.0
+back = 0.1
+outline = { rect = [0.0, 0.0, 1.0, 1.0], circle = [0.0, 0.0, 1.0] }

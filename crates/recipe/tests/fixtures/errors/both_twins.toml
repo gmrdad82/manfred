@@ -1,0 +1,14 @@
+manfred = 1
+name = "t"
+
+[plate]
+width = 100
+height = 100
+metres_per_pixel = 0.001
+
+[[object]]
+name = "a"
+kind = "box"
+size = [1.0, 1.0, 1.0]
+at = [0.0, 0.0, 0.0]
+at_px = [1, 2]

@@ -1,0 +1,145 @@
+manfred = 1
+name = "desk"
+seed = 11
+
+[output]
+glb = "scene/desk.glb"
+bake = "bake.toml"
+scene = "scene/desk.scene.toml"
+
+[[object]]
+name = "top"
+kind = "box"
+size = [0.6, 0.04, 0.4]
+material = "wood"
+
+[[object]]
+name = "ball"
+kind = "sphere"
+at = [0.1, 0.07, 0.0]
+radius = 0.05
+segments = 16
+rings = 8
+material = "wood"
+proxy = "hull"
+
+[[object]]
+name = "mv_lid"
+kind = "box"
+at = [-0.1, 0.06, 0.0]
+size = [0.1, 0.02, 0.1]
+material = "wood"
+
+[[object]]
+name = "pinned"
+kind = "box"
+at = [-0.2, 0.04, 0.1]
+size = [0.04, 0.04, 0.04]
+material = "wood"
+dynamic = false
+
+[[object]]
+name = "cup"
+kind = "cylinder"
+at = [0.2, 0.06, 0.1]
+radius = 0.03
+depth = 0.08
+material = "wood"
+dynamic = true
+
+[[object]]
+name = "saucer"
+kind = "cylinder"
+parent = "cup"
+at = [0.0, -0.04, 0.0]
+radius = 0.04
+depth = 0.005
+material = "wood"
+
+[[object]]
+name = "tag"
+kind = "card"
+at = [0.0, 0.2, 0.0]
+size = [0.05, 0.03]
+slot = "tag"
+face_camera = true
+keep_transform = true
+material = "wood"
+
+[[object]]
+name = "label"
+kind = "text"
+on = "top"
+spans = [{ text = "desk", size = 0.02 }]
+
+[[object]]
+name = "clock"
+kind = "text"
+at = [0.0, 0.1, -0.15]
+spans = [{ text = "12:00", size = 0.02 }]
+dynamic = true
+
+[[object]]
+name = "price"
+kind = "text"
+on = "cup"
+spans = [{ text = "4", size = 0.01 }]
+
+[[mover]]
+group = "lid"
+pivot = [-0.15, 0.07, 0.0]
+axis = [0.0, 0.0, 1.0]
+travel = 0.5
+parts = ["pinned"]
+
+[[camera]]
+name = "main"
+position = [0.0, 0.4, 1.0]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 30.0
+shift = [0.0, -0.1]
+
+[[camera]]
+name = "plan"
+kind = "orthographic"
+position = [0.0, 2.0, 0.0]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 0.0, -1.0]
+ortho_height = 1.0
+
+[sun]
+model = "authored"
+toward = [0.45, 0.62, 0.64]
+color = [1.0, 0.86, 0.66]
+irradiance = 4.5
+
+[bake]
+product = "sample"
+anchors = [8.0, 12.0, 16.0]
+samples = 4
+[[bake.volume]]
+name = "desk"
+min = [-0.3, 0.0, -0.2]
+max = [0.3, 0.4, 0.2]
+spacing = 0.1
+
+[bake.plates]
+size = [1920, 1080]
+overscan = 0.2
+scale = 1.25
+anchors = [12.0, 16.0]
+layers = ["color", "depth", "normal", "id", "sun"]
+max_samples = 256
+key = "desk-v1"
+dir = "plates/desk"
+casters = "proxies"
+
+[[bake.plates.view]]
+name = "desk"
+camera = "main"
+
+[[bake.plates.view]]
+name = "side"
+at = [1.0, 0.4, 0.0]
+look_at = [0.0, 0.05, 0.0]
+fov = 40.0

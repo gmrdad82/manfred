@@ -1,0 +1,79 @@
+[[light]]
+name = "key"
+position = [-0.9, 1.6, -0.75]
+color = [1.0, 0.98, 0.95]
+intensity = 7.0
+radius = 0.35
+shadow = true
+
+[sky]
+kind = "room"
+intensity = 0.18
+
+[sky.room]
+floor = [0.05, 0.05, 0.06]
+wall = [0.3, 0.3, 0.32]
+ceiling = [0.04, 0.04, 0.05]
+
+[[sky.room.lights]]
+name = "softbox"
+az = 200.0
+el = 50.0
+width = 44.0
+height = 30.0
+power = 14.0
+color = [1.0, 0.98, 0.95]
+soft = 0.12
+
+[[sky.room.lights]]
+name = "fill"
+az = 30.0
+el = 38.0
+width = 60.0
+height = 20.0
+power = 5.0
+color = [1.0, 1.0, 1.0]
+soft = 0.2
+
+[look]
+view = "standard"
+exposure = 1.0
+
+[[camera]]
+name = "front"
+kind = "orthographic"
+position = [0.0, 1.0, 0.0]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 0.0, -1.0]
+ortho_height = 0.2
+
+[[camera]]
+name = "sheet"
+kind = "orthographic"
+position = [0.0, 1.0, 0.0]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 0.0, -1.0]
+ortho_height = 0.2
+
+[materials.ground]
+base = [0.0006, 0.0103, 0.0409]
+roughness = 0.9
+specular = 0.0
+
+[materials.blueprint]
+family = "lacquer"
+base = [0.0006, 0.0194, 0.0685]
+roughness = 0.12
+specular = 0.05
+
+[materials.amber]
+family = "lacquer"
+base = [0.8879, 0.521, 0.0976]
+roughness = 0.14
+specular = 0.05
+
+[[object]]
+name = "ground"
+kind = "plane"
+size = [8.0, 8.0]
+material = "ground"

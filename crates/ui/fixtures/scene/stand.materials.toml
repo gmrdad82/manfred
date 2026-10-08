@@ -1,0 +1,18 @@
+format = 1
+
+[materials.felt]
+base = [0.32, 0.36, 0.40]
+roughness = 0.9
+id = "6adxkatcf5"
+
+[materials.clay]
+base = [0.70, 0.32, 0.22]
+roughness = 0.85
+specular = 0.02
+id = "krxssptzas"
+
+[materials.brass]
+base = [0.85, 0.62, 0.30]
+roughness = 0.3
+metalness = 1.0
+id = "ce9zprznx3"

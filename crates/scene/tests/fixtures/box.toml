@@ -1,0 +1,51 @@
+manfred = 1
+name = "box"
+seed = 7
+
+[[object]]
+name = "box"
+kind = "box"
+at = [0.0, 0.1, 0.0]
+size = [0.2, 0.2, 0.2]
+material = "orange"
+
+[[object]]
+name = "floor"
+kind = "plane"
+size = [1.6, 1.2]
+material = "wood"
+
+[[camera]]
+name = "main"
+kind = "perspective"
+position = [0.45, 0.42, 0.62]
+target = [0.0, 0.08, 0.0]
+up = [0.0, 1.0, 0.0]
+fov_y_deg = 32.0
+
+[[camera]]
+name = "plan"
+kind = "orthographic"
+position = [0.0, 2.0, 0.0]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 0.0, -1.0]
+ortho_height = 0.8
+
+[sun]
+model = "authored"
+toward = [-0.45, 0.82, 0.35]
+radius_deg = 0.8
+color = [1.0, 0.9, 0.78]
+irradiance = 2.2
+
+[materials.orange]
+family = "lacquer"
+base = [0.73, 0.06, 0.0]
+roughness = 0.45
+clearcoat = 1.0
+clearcoat_roughness = 0.07
+
+[materials.wood]
+family = "wood"
+base = [0.11, 0.042, 0.016]
+roughness = 0.42

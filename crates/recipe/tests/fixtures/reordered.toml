@@ -1,0 +1,42 @@
+# deck, annotated by Claude
+manfred = 1   # schema
+name = "annotated"
+seed   =   5
+
+# The plate.
+[plate]
+width = 100
+height   = 50
+metres_per_pixel = 0.001 # one millimetre
+origin = "centre"
+
+# Objects
+
+[[object]]
+name = "lid"
+kind = "box"
+size = [0.2, 0.01, 0.2]
+at = [0.0, 0.1, 0.0]
+materials = ["steel", "rubber"]
+
+[[object]]
+name = "mv_knob"
+kind = "cylinder"
+radius = 0.01
+depth = 0.02
+at = [0.1, 0.1, 0.0]    # knob
+# trailing note
+
+[[object]]
+# the main box
+name = "crate"
+kind = "box"
+at = [0.0, 0.05, 0.0]   # sits on the floor
+size = [0.2, 0.1, 0.2]
+bevel = { width = 0.004 , segments = 2 }
+
+[[camera]]
+name = "main"
+position = [0.0, 0.0, 1.0]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 20.0

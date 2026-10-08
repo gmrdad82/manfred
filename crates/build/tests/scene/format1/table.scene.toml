@@ -1,0 +1,178 @@
+format = 1
+
+materials = ["scenes/table.materials.toml"]
+
+[mesh.ball]
+id = "7edmrtm9qk"
+file = "scenes/table.glb"
+node = "ball"
+
+[mesh.crate]
+id = "zgmva79x4c"
+file = "scenes/table.glb"
+node = "crate"
+
+[mesh.dial]
+id = "6rx3kwv8dq"
+file = "scenes/table.glb"
+node = "dial"
+
+[mesh.lamp]
+id = "dtvbmdr9sv"
+file = "scenes/table.glb"
+node = "lamp"
+
+[mesh.note]
+id = "2nhjjwh617"
+file = "scenes/table.glb"
+node = "note"
+
+[mesh.rod]
+id = "68we23drpc"
+file = "scenes/table.glb"
+node = "rod"
+
+[mesh.tile_a]
+id = "bx74man96q"
+file = "scenes/table.glb"
+node = "tile_a"
+
+[mesh.tile_b]
+id = "jmmq5491c4"
+file = "scenes/table.glb"
+node = "tile_b"
+
+[mesh.top]
+id = "chrbxmt0vg"
+file = "scenes/table.glb"
+node = "top"
+
+[mesh.tray]
+id = "1a9m026k9s"
+file = "scenes/table.glb"
+node = "tray"
+
+[mesh.wall]
+id = "1mc55aq39k"
+file = "scenes/table.glb"
+node = "wall"
+
+[[object]]
+id = "y2f2rjm66c"
+name = "top"
+mesh = "top"
+material = "oak"
+pick = 1
+
+[[object]]
+id = "6sx88p235r"
+name = "wall"
+mesh = "wall"
+material = "plaster"
+pick = 2
+
+[[object]]
+id = "fe9qn6jggh"
+name = "crate"
+mesh = "crate"
+material = "lacquer_blue"
+pick = 3
+
+[[object]]
+id = "g5nhr6sfg7"
+name = "dial"
+mesh = "dial"
+material = "brass"
+pick = 4
+
+[[object]]
+id = "snr2chp35v"
+name = "ball"
+mesh = "ball"
+material = "mirror"
+pick = 5
+
+[[object]]
+id = "38zxza92qc"
+name = "note"
+mesh = "note"
+material = "card"
+pick = 6
+
+[[object]]
+id = "4zwws8a62f"
+name = "rod"
+mesh = "rod"
+material = "rubber"
+pick = 7
+
+[[object]]
+id = "fptp39w5v5"
+name = "tile_a"
+mesh = "tile_a"
+material = "lacquer_green"
+pick = 8
+
+[[object]]
+id = "efy999fhd0"
+name = "tile_b"
+mesh = "tile_b"
+material = "lacquer_blue"
+pick = 9
+
+[[object]]
+id = "y1gx1psr4h"
+name = "lamp"
+mesh = "lamp"
+material = "glow"
+pick = 10
+
+[[object]]
+id = "dspxv3zqbn"
+name = "tray"
+mesh = "tray"
+material = "mirror"
+pick = 11
+
+[sun]
+model = "authored"
+hour = 16.0
+reference_hour = 16.0
+toward = [-0.45, 0.82, 0.35]
+color = [1.0, 0.92, 0.82]
+irradiance = 2.2
+radius = 0.8
+
+[sky]
+kind = "analytic"
+ambient = 0.9
+
+[camera]
+projection = "perspective"
+at = [0.0, 0.34, 0.62]
+look_at = [0.0, 0.03, -0.02]
+up = [0.0, 1.0, 0.0]
+fov = 32.0
+near = 0.00014108067
+far = 1.4108068
+
+[[finish.pass]]
+exposure = 1.0
+
+[[finish.pass]]
+bloom = { down = 2.0, kind = "box", knee = 0.7, knee_width = 0.6, radius = 12.0, sigma = 50.0, soft = 0.15, strength = 0.0, threshold = 0.9 }
+
+[[finish.pass]]
+vignette = { aspect = 0.8, kind = "power", power = 2.4, scale = 1.28, strength = 0.0 }
+
+[[finish.pass]]
+saturation = 1.0
+
+[[finish.pass]]
+warmth = { amount = 0.0, kind = "linear" }
+
+[[finish.pass]]
+tone = "aces"
+
+[authoring]
+recipe = "recipes/table.toml"

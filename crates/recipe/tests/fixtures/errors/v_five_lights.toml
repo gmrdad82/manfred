@@ -1,0 +1,27 @@
+manfred = 1
+name = "t"
+
+[[light]]
+name = "l0"
+position = [0.0, 0.0, 0.0]
+intensity = 1.0
+
+[[light]]
+name = "l1"
+position = [0.0, 1.0, 0.0]
+intensity = 1.0
+
+[[light]]
+name = "l2"
+position = [0.0, 2.0, 0.0]
+intensity = 1.0
+
+[[light]]
+name = "l3"
+position = [0.0, 3.0, 0.0]
+intensity = 1.0
+
+[[light]]
+name = "l4"
+position = [0.0, 4.0, 0.0]
+intensity = 1.0

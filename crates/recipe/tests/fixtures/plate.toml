@@ -1,0 +1,93 @@
+manfred = 1
+name = "panel"
+seed = 3
+
+[plate]
+width = 1586
+height = 992
+metres_per_pixel = 0.00037831
+origin = "top_left"
+
+[output]
+glb = "scene/panel.glb"
+sidecar = "scene/panel.json"
+sidecar_dialect = "facts"
+order = "natural"
+
+[[object]]
+name = "body"
+kind = "outline"
+front = 0.0
+back = 0.03
+outline = { rect_px = [0, 0, 1586, 992], radius_px = 40 }
+profile = { kind = "chamfer", width = 0.002 }
+uv = "plate"
+material = "anodised"
+
+[[object]]
+name = "screen_well"
+kind = "pocket"
+into = "body"
+outline = { rect_px = [200, 120, 1000, 600], radius_px = 12 }
+depth = 0.004
+rim = { width = 0.0008, segments = 2 }
+floor = { width = 0.0004, segments = 2 }
+
+[[object]]
+name = "mv_knob"
+kind = "outline"
+front = 0.0
+back = 0.012
+outline = { circle_px = [1300, 400, 60], segments = 48 }
+profile = { width = 0.001, segments = 2 }
+uv = "plate"
+material = "knob"
+
+[[object]]
+name = "mv_knob__cap"
+kind = "disc"
+at_px = [1300, 400]
+radius = 0.01
+material = "knob"
+
+[[object]]
+name = "label"
+kind = "card"
+at_px = [800, 800, 0.031]
+size_px = [400, 60]
+image = "label.png"
+
+[[camera]]
+name = "main"
+position = [0.0, 0.0, 1.6]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 13.3778
+shift = [0.0, -0.6395]
+focus_m = 1.6
+
+[sun]
+model = "authored"
+toward = [0.3, 0.8, 0.5]
+irradiance = 3.0
+
+[sky]
+kind = "hdr"
+path = "sky/window.hdr"
+source = "Manfred's own test sky"
+
+[sky.prepare]
+cap = 60.0
+mean = 0.3
+
+[[mover]]
+group = "knob"
+pivot = [0.0, 0.0, 0.0]
+axis = [0.0, 0.0, 1.0]
+travel = 0.003
+
+[variant.bare]
+drop = ["label"]
+set = { "sun.irradiance" = 0.0 }
+
+[look]
+exposure = 1.1

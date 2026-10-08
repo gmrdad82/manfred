@@ -1,0 +1,28 @@
+Manfred
+Copyright (c) 2026 Cătălin Ilinca
+
+The code is under the MIT licence in LICENSE. These are the files in this
+repository that are not code, where each comes from, and what covers it.
+
+The Manfred brand, © Catalin Ilinca, all rights reserved and not covered by
+the MIT licence (TRADEMARKS.md):
+- .github/icon.png: the README's icon, from the brand masters (assets/marks/SOURCE)
+- brand/start/badge.glb: the badge in 3D, built by Manfred from brand/start/badge.toml
+- brand/start/wordmark.glb: the wordmark in 3D, built by Manfred from brand/start/wordmark.toml
+
+Pictures rendered by Manfred from this repository's own recipes, under the MIT
+licence like the code, except the Manfred mark docs/images/start.png shows,
+which stays reserved as above:
+- docs/images/hero.png: manfred render of showcase/hero.toml
+- docs/images/window.png: manfred gui --shot of showcase/workshop.toml
+- docs/images/start.png: manfred gui --shot --start, the start scene of brand/start.toml
+- docs/images/tour.gif: manfred gui --clip of showcase/tour.tape on showcase/, made a GIF by pconv
+
+Test data written by Manfred's own code for its tests, under the MIT licence:
+- crates/glb/tests/golden/two.glb
+- crates/scene/tests/fixtures/halves.jpg: a 16x8 image of two flat colours
+- crates/ui/fixtures/scene/ball.gltf
+- crates/ui/fixtures/scene/block.gltf
+
+The bundled JetBrains Mono Nerd Font is under the SIL Open Font License
+(assets/fonts/OFL.txt).

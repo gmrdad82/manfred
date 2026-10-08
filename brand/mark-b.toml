@@ -1,0 +1,6 @@
+manfred = 1
+name = "manfred-b"
+include = ["rig.toml"]
+
+[[use]]
+file = "parts/b.toml"

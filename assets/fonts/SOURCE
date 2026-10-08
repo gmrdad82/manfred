@@ -1,0 +1,6 @@
+JetBrainsMonoNerdFont-Regular.ttf and JetBrainsMonoNerdFont-Bold.ttf: JetBrains Mono by JetBrains, SIL Open Font License 1.1, patched with the Nerd Fonts icon glyphs (Nerd Fonts 3.5.1, OFL-1.1-no-RFN), taken from the Arch package ttf-jetbrains-mono-nerd-basic 3.5.1-1 on 2026-10-03.
+https://github.com/JetBrains/JetBrainsMono
+https://github.com/ryanoasis/nerd-fonts
+Regular: md5 f20bd29f740659e99d2258b55d250410, 2,571,596 bytes. Bold: md5 fe61854b05399b974fffe355609f1ca1, 2,575,364 bytes.
+Manfred's one family, embedded in the binary.
+The licence, SIL Open Font License 1.1, is OFL.txt beside the fonts, copied from the package's own /usr/share/licenses/ttf-jetbrains-mono-nerd-basic/OFL.txt.

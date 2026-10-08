@@ -1,0 +1,275 @@
+# Every kind and table of docs/recipe.md, in one recipe.
+manfred = 1
+name = "everything"
+seed = 7
+
+[plate]
+width = 1586
+height = 992
+metres_per_pixel = 0.000378310
+origin = "centre"
+
+[output]
+glb = "out/everything.glb"
+sidecar = "out/everything.json"
+sidecar_dialect = "facts"
+order = "natural"
+bake = "out/bake.toml"
+hierarchy = true
+
+[[object]]
+name = "crate"
+kind = "box"
+at = [0.0, 0.05, 0.0]
+size = [0.2, 0.1, 0.2]
+scale = 1.5
+material = "oak"
+smooth_angle = 30.0
+flat_faces = true
+bevel = { width = 0.004, segments = 2 }
+uv = "local"
+
+[[object]]
+name = "drum"
+kind = "cylinder"
+at = [0.3, 0.0, 0.0]
+rotate = [0.0, 45.0, 0.0]
+radius = 0.04
+depth = 0.1
+segments = 32
+caps = "none"
+materials = ["steel", "rubber"]
+parent = "crate"
+smooth = true
+two_sided = true
+
+[[object]]
+name = "ball"
+kind = "sphere"
+radius = 0.03
+shadow = "only"
+
+[[object]]
+name = "sheet"
+kind = "plane"
+size = [1.0, 0.5]
+grid = [8, 4]
+bend = { radius = 0.2 }
+uv = "plate"
+material = "card"
+
+[[object]]
+name = "button"
+kind = "disc"
+radius = 0.01
+segments = 24
+hidden = true
+
+[[object]]
+name = "ring"
+kind = "torus"
+major = 0.05
+minor = 0.01
+keep_transform = true
+
+[[object]]
+name = "pill"
+kind = "capsule"
+radius = 0.01
+length = 0.05
+
+[[object]]
+name = "slab"
+kind = "outline"
+front = 0.0
+back = 0.02
+outline = { union = [
+  { rect = [-0.1, -0.05, 0.1, 0.05], radius = 0.01, turned = 10.0 },
+  { circle = [0.1, 0.0, 0.04], segments = 48 },
+  { points = [[0.0, 0.0], [0.05, 0.0, 0.01], [0.05, 0.05]] },
+  { difference = [{ rect = [0.0, 0.0, 0.02, 0.02] }, { circle = [0.01, 0.01, 0.004] }] },
+] }
+profile = { kind = "round", width = 0.002, segments = 3 }
+uv = { kind = "cylinder", degrees = 180.0, atlas = [0.0, 0.0, 0.5, 1.0] }
+
+[[object]]
+name = "slot"
+kind = "pocket"
+into = "slab"
+outline = { rect_px = [100, 40, 200, 80], radius_px = 8 }
+depth = 0.004
+rim = { width = 0.001, segments = 2 }
+floor = { width = 0.0005 }
+
+[[object]]
+name = "vase"
+kind = "lathe"
+profile = [[0.0, 0.0], [0.04, 0.0], [0.05, 0.08], [0.03, 0.12]]
+segments = 64
+weld = 1e-6
+
+[[object]]
+name = "wire"
+kind = "sweep"
+path = [[0.0, 0.0, 0.0], [0.1, 0.0, 0.0], [0.1, 0.1, 0.0]]
+radii = [0.002, 0.003, 0.002]
+ring = 12
+closed = false
+caps = true
+
+[[object]]
+name = "imported"
+kind = "mesh"
+path = "parts/handle.glb"
+node = "Handle"
+
+[[object]]
+name = "birds"
+kind = "generator"
+generator = "app/birds"
+params = { count = 12, spread = 0.5, tag = "flock" }
+
+[[object]]
+name = "photo"
+kind = "card"
+size_px = [200, 100]
+at_px = [-300, 120]
+image = "parts/photo.png"
+face_camera = true
+alpha_cutoff = 0.4
+
+[[object]]
+name = "note"
+kind = "text"
+on = "crate"
+wrap = 0.1
+anchor = "top_left"
+space = "lit"
+spans = [
+  { text = "manfred ", family = "mono", size = 0.01, weight = 700 },
+  { text = "recipe", size = 0.01, italic = true, color = [1.0, 0.8, 0.2] },
+]
+
+[[object]]
+name = "mv_knob"
+kind = "cylinder"
+radius = 0.01
+depth = 0.02
+
+[[object]]
+name = "mv_strip__card0"
+kind = "box"
+size = [0.01, 0.01, 0.01]
+
+[[camera]]
+name = "main"
+kind = "perspective"
+position = [0.0, 0.12, 1.6]
+target = [0.0, 0.12, 0.0]
+up = [0.0, 1.0, 0.0]
+fov_y_deg = 13.3778
+shift = [0.0, -0.6395]
+focus_m = 1.6
+fstop = 2.8
+
+[[camera]]
+name = "wide"
+position = [0.0, 0.5, 2.0]
+target = [0.0, 0.0, 0.0]
+focal_mm = 35.0
+sensor_mm = 24.0
+
+[[camera]]
+name = "plan"
+kind = "orthographic"
+position = [0.0, 10.0, 0.0]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 0.0, -1.0]
+ortho_height = 2.2
+
+[sun]
+model = "authored"
+toward = [0.3, 0.8, 0.5]
+radius_deg = 2.5
+color = [1.0, 0.97, 0.92]
+irradiance = 3.0
+
+[sky]
+kind = "mix"
+path = "sky/window.hdr"
+source = "Manfred's own test sky"
+rotation_deg = 40.0
+intensity = 1.0
+[sky.prepare]
+cap = 60.0
+balance = [1.0, 1.0, 1.0]
+mean = 0.3
+[sky.shade]
+hours = { 6 = [0.6, 0.6, 0.7], 12 = [1.0, 1.0, 1.0], 20 = [0.8, 0.6, 0.4] }
+[sky.room]
+width = 1024
+floor = [0.2, 0.2, 0.2]
+wall = [0.5, 0.5, 0.5]
+ceiling = [0.8, 0.8, 0.8]
+[[sky.room.lights]]
+name = "key"
+az = 35.0
+el = 40.0
+width = 30.0
+height = 30.0
+power = 60.0
+color = [1.0, 0.98, 0.95]
+soft = 0.3
+
+[[light]]
+name = "lamp"
+position = [0.2, 0.3, 0.1]
+color = [1.0, 0.8, 0.6]
+intensity = 20.0
+radius = 0.02
+range = 3.0
+shadow = true
+
+[[light]]
+name = "fill"
+position = [-0.4, 0.2, 0.3]
+intensity = 5.0
+
+[[mover]]
+group = "knob"
+pivot = [0.1, 0.05, 0.0]
+axis = [0.0, 1.0, 0.0]
+travel = 0.003
+clip = [0.0, 0.0, 1.0, 0.0]
+
+[[mover]]
+group = "strip"
+pivot = [0.0, 0.0, 0.0]
+axis = [1.0, 0.0, 0.0]
+travel = 0.05
+clip = [0.0, 0.0, 1.0, 0.0]
+clip2 = [0.0, 0.0, -1.0, 0.1]
+parts = ["ball"]
+
+[variant.bare]
+drop = ["mv_*", "note"]
+set = { "sun.irradiance" = 0.0, "camera.main.fov_y_deg" = 20.0 }
+remove = ["look"]
+
+[look]
+exposure = 1.0
+grade = { vignette = 0.2, saturation = 1.0, warmth = 0.1, bloom = 0.1, haze = 0.0 }
+
+[bake]
+product = "sample"
+anchors = [8.0, 12.0, 16.0, 20.0]
+samples = 16
+[[bake.volume]]
+name = "desk"
+min = [-0.5, 0.0, -0.5]
+max = [0.5, 0.5, 0.5]
+spacing = 0.25
+
+[materials.oak]
+base = [0.6, 0.4, 0.2]
+roughness = 0.7

@@ -1,0 +1,35 @@
+manfred = 1
+name = "cards"
+
+[output]
+glb = "out/cards.glb"
+
+[[camera]]
+name = "flat"
+kind = "orthographic"
+position = [0.0, 0.0, 5.0]
+target = [0.0, 0.0, 0.0]
+ortho_height = 2.0
+
+[[object]]
+name = "back"
+kind = "card"
+size = [4.0, 2.0]
+slot = "background"
+shadow = "none"
+
+[[object]]
+name = "sprite"
+kind = "card"
+at = [0.5, 0.2, 0.1]
+size = [0.4, 0.4]
+image = "sprite.png"
+face_camera = true
+alpha_cutoff = 0.3
+
+[[object]]
+name = "title"
+kind = "text"
+on = "back"
+spans = [{ text = "Hello", size = 0.2 }]
+space = "overlay"

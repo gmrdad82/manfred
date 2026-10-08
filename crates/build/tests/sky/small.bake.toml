@@ -1,0 +1,69 @@
+scene = "scene/small.glb"
+app = "sample"
+materials = "bake-materials.toml"
+anchors = [8.0, 12.0]
+samples = 4
+seed = 11
+shadow_only_nodes = ["blocker"]
+
+[sky]
+kind = "room"
+rotation_deg = 30.0
+intensity = 1.5
+
+[sky.shade]
+"8.0" = [0.5, 0.5, 0.6]
+"12.0" = [0.75, 0.75, 0.8]
+
+[sky.room]
+width = 64
+floor = [0.22, 0.135, 0.068]
+wall = [0.19, 0.13, 0.07]
+ceiling = [0.28, 0.23, 0.16]
+
+[[sky.room.lights]]
+name = "window"
+az = -64.0
+el = 14.0
+power = 10.5
+color = [1.0, 0.86, 0.66]
+width = 37.5
+height = 29.0
+soft = 0.05
+slats = 6.0
+open = 0.7
+
+[[sky.room.lights]]
+az = 62.0
+el = 30.0
+power = 1.7
+color = [1.0, 0.9, 0.78]
+width = 30.0
+height = 20.0
+soft = 0.08
+slats = 0.0
+open = 1.0
+
+[sun]
+model = "authored"
+toward = [0.45, 0.62, 0.64]
+color = [1.0, 0.86, 0.66]
+irradiance = 4.5
+
+[[volumes]]
+name = "desk"
+min = [-0.3, 0.0, -0.2]
+max = [0.3, 0.4, 0.2]
+spacing = 0.1
+
+[[volumes]]
+name = "lamp-side"
+min = [0.0, 0.2, 0.0]
+max = [0.2, 0.4, 0.2]
+spacing = 0.1
+
+[[emitter]]
+position = [0.2, 0.3, 0.1]
+radius = 0.02
+color = [1.0, 0.8, 0.6]
+intensity = 0.2

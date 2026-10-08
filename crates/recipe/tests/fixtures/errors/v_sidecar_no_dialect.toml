@@ -1,0 +1,11 @@
+manfred = 1
+name = "t"
+
+[[camera]]
+name = "main"
+position = [0.0, 0.0, 1.0]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 20.0
+
+[output]
+sidecar = "x.json"

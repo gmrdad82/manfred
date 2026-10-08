@@ -1,0 +1,395 @@
+# Manfred's own feature scene: a toy box on a backdrop, in plate pixels with depth along -Z.
+# It belongs to no app; every material is its own.
+manfred = 1
+name = "toybox"
+seed = 7
+
+[plate]
+width = 1600
+height = 1000
+metres_per_pixel = 0.0004
+origin = "top_left"
+
+[output]
+glb = "toybox.glb"
+sidecar = "toybox.json"
+sidecar_dialect = "facts"
+order = "natural"
+
+[[object]]
+name = "body"
+kind = "outline"
+outline = { rect_px = [40, 40, 1560, 960], radius_px = 48, segments = 12 }
+front = 0.0
+back = 0.12
+profile = { kind = "round", width = 0.012, segments = 8 }
+material = "lacquer_red"
+uv = "plate"
+smooth_angle = 35.0
+
+[[object]]
+name = "well_tray"
+kind = "pocket"
+into = "body"
+outline = { points_px = [
+  [120, 120, 30], [900, 120, 30], [900, 520, 12], [700, 520, 24],
+  [700, 600, 12], [120, 600, 30],
+], segments = 8 }
+depth = 0.01
+rim = { width = 0.002, segments = 4 }
+floor = { width = 0.002, segments = 4 }
+
+[[object]]
+name = "well_dial"
+kind = "pocket"
+into = "body"
+outline = { circle_px = [1250, 330, 160], segments = 64 }
+depth = 0.008
+rim = { width = 0.002, segments = 4 }
+floor = { width = 0.002, segments = 4 }
+
+[[object]]
+name = "well_slot"
+kind = "pocket"
+into = "body"
+outline = { rect_px = [1000, 760, 1480, 860], radius_px = 20, segments = 8 }
+depth = 0.012
+rim = { width = 0.0015, segments = 3 }
+floor = { width = 0.0015, segments = 3 }
+
+[[object]]
+name = "lip_tray"
+kind = "sweep"
+along = { outline = { points_px = [
+  [120, 120, 30], [900, 120, 30], [900, 520, 12], [700, 520, 24],
+  [700, 600, 12], [120, 600, 30],
+], segments = 12 }, offset = 0.0008, depth = 0.0009 }
+radius = 0.002
+ring = 12
+material = "brass"
+uv = "plate"
+smooth_angle = 35.0
+
+[[object]]
+name = "lip_dial"
+kind = "sweep"
+along = { outline = { circle_px = [1250, 330, 160], segments = 64 }, offset = 0.0008, depth = 0.0009 }
+radius = 0.002
+ring = 12
+material = "brass"
+uv = "plate"
+smooth_angle = 35.0
+
+[[object]]
+name = "cable"
+kind = "sweep"
+path = [[-0.3, -0.18, -0.02], [-0.34, -0.22, 0.02], [-0.3, -0.26, 0.06], [-0.2, -0.27, 0.08]]
+radii = [0.004, 0.004, 0.0035, 0.003]
+ring = 10
+material = "rubber"
+smooth_angle = 60.0
+
+[[object]]
+name = "mv_lid"
+kind = "outline"
+outline = { rect_px = [130, 130, 890, 510], radius_px = 24, segments = 8 }
+front = -0.002
+back = -0.008
+profile = { kind = "round", width = 0.002, segments = 4 }
+material = "lacquer_cream"
+uv = "plate"
+smooth_angle = 35.0
+
+[[object]]
+name = "mv_lid__handle"
+kind = "cylinder"
+at_px = [510, 320, 0.004]
+rotate = [0.0, 0.0, 90.0]
+radius_px = 12
+depth_px = 260
+segments = 32
+bevel = { width = 0.0008, segments = 2 }
+material = "steel"
+uv = "plate"
+smooth_angle = 35.0
+
+[[object]]
+name = "mv_knob"
+kind = "cylinder"
+at_px = [1250, 330, 0.01]
+rotate = [90.0, 0.0, 0.0]
+radius_px = 120
+depth = 0.036
+segments = 96
+bevel = { width = 0.003, segments = 4 }
+material = "lacquer_cream"
+uv = "plate"
+smooth_angle = 30.0
+
+[[object]]
+name = "mv_knob__dot"
+kind = "sphere"
+at_px = [1250, 240, 0.028]
+radius = 0.008
+segments = 32
+rings = 16
+material = "brass"
+smooth_angle = 80.0
+
+[[object]]
+name = "drawer_front"
+kind = "box"
+at_px = [1240, 810, -0.004]
+size_px = [460, 80, 0.012]
+bevel = { width = 0.002, segments = 3 }
+material = "lacquer_cream"
+uv = "plate"
+smooth_angle = 40.0
+
+[[object]]
+name = "drawer_pull"
+kind = "torus"
+at_px = [1240, 810, 0.004]
+major = 0.016
+minor = 0.003
+segments = 32
+rings = 12
+material = "steel"
+smooth_angle = 60.0
+
+[[object]]
+name = "mv_roller"
+kind = "cylinder"
+at_px = [510, 660, -0.0012]
+rotate = [0.0, 0.0, 90.0]
+radius_px = 10
+depth_px = 700
+segments = 48
+bevel = { width = 0.0005, segments = 2 }
+material = "steel"
+uv = "plate"
+smooth_angle = 35.0
+
+[[object]]
+name = "card"
+kind = "plane"
+at_px = [1250, 640, -0.0012]
+rotate = [90.0, 0.0, 0.0]
+size_px = [300, 140]
+grid = [24, 12]
+bend = { radius = 0.12, form = "lift" }
+curl = { width_px = 12, depth = 0.003 }
+cup = { from = 0.7, depth = 0.002 }
+jag_px = [0.6, 0.4]
+material = "card"
+uv = { kind = "rect", rect_px = [1100, 570, 1400, 710], facing = 0.0, clamp = true, atlas = [0.0, 0.0, 0.25, 0.125] }
+smooth_angle = 35.0
+
+[[object]]
+name = "vase"
+kind = "lathe"
+at = [-0.2, -0.17, 0.12]
+profile = [
+  [0.0, 0.0], [0.03, 0.0], [0.031, 0.002], [0.036, 0.03], [0.03, 0.07],
+  [0.022, 0.09], [0.024, 0.1], [0.021, 0.1], [0.019, 0.09], [0.027, 0.07],
+  [0.033, 0.03], [0.028, 0.004], [0.0, 0.004],
+]
+segments = 64
+material = "glaze"
+uv = { kind = "cylinder", degrees = -30.0, atlas = [0.0, 0.5, 0.5, 0.25], band = [0.004, 0.09], wall = [0.002, 0.098] }
+smooth_angle = 35.0
+
+[[object]]
+name = "coin"
+kind = "disc"
+at = [0.05, -0.17, 0.11]
+rotate = [90.0, 0.0, 0.0]
+radius = 0.02
+segments = 48
+material = "brass"
+smooth_angle = 35.0
+
+[[object]]
+name = "block"
+kind = "box"
+at = [0.16, -0.15, 0.04]
+size = [0.06, 0.06, 0.06]
+bevel = { width = 0.006, segments = 4 }
+material = "felt"
+smooth_angle = 40.0
+
+[[object]]
+name = "pill"
+kind = "capsule"
+at = [0.26, -0.16, 0.04]
+rotate = [0.0, 0.0, 90.0]
+radius = 0.012
+length = 0.05
+material = "glaze"
+smooth = true
+
+[[object]]
+name = "backdrop"
+kind = "plane"
+at = [0.0, 0.0, -0.125]
+rotate = [90.0, 0.0, 0.0]
+size = [1.6, 1.0]
+material = "wood"
+uv = "plate"
+detail_uv = { texels_per_m = 400 }
+smooth_angle = 35.0
+
+[[object]]
+name = "shade"
+kind = "box"
+at = [0.0, 0.32, 0.3]
+size = [0.8, 0.01, 0.3]
+material = "occluder"
+shadow = "only"
+
+[[object]]
+name = "guide"
+kind = "box"
+at = [0.0, 0.0, 0.2]
+size = [0.01, 0.01, 0.01]
+material = "occluder"
+hidden = true
+
+[[camera]]
+name = "main"
+kind = "perspective"
+position = [0.0, 0.0, 1.6]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 1.0, 0.0]
+fov_y_deg = 15.0
+shift = [0.0, -0.05]
+focus_m = 1.6
+fstop = 0.0
+
+[[camera]]
+name = "high"
+kind = "perspective"
+position = [0.6, 0.9, 1.2]
+target = [0.0, -0.05, 0.0]
+up = [0.0, 1.0, 0.0]
+focal_mm = 50.0
+sensor_mm = 36.0
+fstop = 4.0
+
+[[camera]]
+name = "flat"
+kind = "orthographic"
+position = [0.0, 0.0, 2.0]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 1.0, 0.0]
+ortho_height = 0.45
+
+[sun]
+model = "authored"
+toward = [0.45, 0.62, 0.64]
+radius_deg = 0.8
+color = [1.0, 0.9, 0.8]
+irradiance = 3.0
+
+[sky]
+kind = "analytic"
+intensity = 0.9
+rotation_deg = 0.0
+
+[look]
+exposure = 1.0
+grade = { vignette = 0.2, saturation = 1.0, warmth = 0.05, bloom = 0.08, haze = 0.0 }
+
+[[mover]]
+group = "lid"
+pivot_px = [510, 130, -0.008]
+axis = [1.0, 0.0, 0.0]
+travel = 0.6
+clip_px = [0, 1, 0, 120]
+clip2_px = [0, -1, 0, 520]
+
+[[mover]]
+group = "knob"
+pivot_px = [1250, 330, 0.01]
+axis = [0.0, 0.0, 1.0]
+travel = 3.1
+
+[[mover]]
+group = "drawer"
+pivot_px = [1240, 810, 0.0]
+axis = [0.0, 0.0, 1.0]
+travel = 0.08
+parts = ["drawer_front", "drawer_pull"]
+
+[[mover]]
+group = "roller"
+pivot_px = [510, 660, -0.0012]
+axis = [1.0, 0.0, 0.0]
+travel_px = 1
+clip_px = [0, 1, 0, 640]
+
+[sidecar.motion]
+cup = [-0.2, -0.07, 0.12]
+radius = 0.02
+box_lo = [-0.3, -0.2, 0.0]
+box_hi = [0.3, 0.2, 0.2]
+density = 1.2
+
+[variant.bare]
+drop = ["vase", "card", "coin"]
+remove = ["sidecar.motion"]
+
+[variant.bare.set]
+"sun.irradiance" = 0.0
+
+[materials.lacquer_red]
+family = "lacquer"
+base = [0.62, 0.08, 0.05]
+roughness = 0.3
+clearcoat = 0.8
+
+[materials.lacquer_cream]
+family = "lacquer"
+base = [0.86, 0.8, 0.68]
+roughness = 0.35
+clearcoat = 0.6
+
+[materials.brass]
+family = "metal"
+base = [0.85, 0.66, 0.35]
+roughness = 0.3
+metalness = 1.0
+
+[materials.steel]
+family = "metal"
+base = [0.7, 0.7, 0.72]
+roughness = 0.25
+metalness = 1.0
+
+[materials.rubber]
+base = [0.04, 0.04, 0.04]
+roughness = 0.8
+
+[materials.card]
+base = [0.92, 0.9, 0.84]
+roughness = 0.85
+
+[materials.glaze]
+base = [0.2, 0.42, 0.55]
+roughness = 0.15
+clearcoat = 1.0
+
+[materials.felt]
+family = "cloth"
+base = [0.2, 0.35, 0.22]
+roughness = 0.95
+
+[materials.wood]
+family = "wood"
+base = [0.45, 0.3, 0.18]
+roughness = 0.6
+
+[materials.occluder]
+family = "occluder"
+base = [0.0, 0.0, 0.0]
+roughness = 1.0

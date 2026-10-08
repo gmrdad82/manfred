@@ -1,0 +1,314 @@
+# The README's hero: a still life on a blue cove under a low warm sun, built from generic kinds and its own materials.
+manfred = 1
+name = "hero"
+seed = 11
+
+[[object]]
+name = "cove"
+kind = "outline"
+outline = { points = [[-1.2, 0.0, 0.0], [0.45, 0.0, 0.35], [0.45, 1.2, 0.0], [0.47, 1.2, 0.0], [0.47, -0.02, 0.37], [-1.2, -0.02, 0.0]], segments = 24 }
+front = -1.4
+back = 1.4
+rotate = [0.0, 90.0, 0.0]
+material = "backdrop"
+smooth_angle = 30.0
+
+[[object]]
+name = "flag"
+kind = "box"
+at = [0.0, 0.6, -0.35]
+rotate = [0.0, 20.0, 0.0]
+size = [3.0, 0.01, 0.7]
+material = "rubber"
+
+[[object]]
+name = "case"
+kind = "outline"
+outline = { rect = [-0.2, 0.0, 0.2, 0.2], radius = 0.025, segments = 8 }
+front = 0.0
+back = 0.09
+profile = { kind = "round", width = 0.008, segments = 6 }
+at = [-0.14, 0.0, -0.12]
+rotate = [0.0, 14.0, 0.0]
+material = "lacquer_blue"
+smooth_angle = 35.0
+
+[[object]]
+name = "case_screen"
+kind = "pocket"
+into = "case"
+outline = { rect = [-0.17, 0.035, 0.025, 0.165], radius = 0.012, segments = 6 }
+depth = 0.03
+rim = { width = 0.002, segments = 3 }
+floor = { width = 0.002, segments = 3 }
+
+[[object]]
+name = "case_dial_well"
+kind = "pocket"
+into = "case"
+outline = { circle = [0.105, 0.1, 0.055], segments = 64 }
+depth = 0.02
+rim = { width = 0.002, segments = 3 }
+floor = { width = 0.002, segments = 3 }
+
+[[object]]
+name = "case_lip"
+kind = "sweep"
+along = { outline = { circle = [0.105, 0.1, 0.055], segments = 64 }, offset = 0.0008, depth = 0.0 }
+radius = 0.0022
+ring = 12
+parent = "case"
+material = "brass"
+smooth_angle = 35.0
+
+[[object]]
+name = "knob"
+kind = "cylinder"
+parent = "case"
+at = [0.105, 0.1, -0.001]
+rotate = [90.0, 0.0, 0.0]
+radius = 0.04
+depth = 0.036
+segments = 64
+bevel = { width = 0.004, segments = 4 }
+material = "lacquer_amber"
+smooth_angle = 30.0
+
+[[object]]
+name = "knob_mark"
+kind = "box"
+parent = "case"
+at = [0.105, 0.125, 0.0175]
+size = [0.005, 0.022, 0.004]
+bevel = { width = 0.001, segments = 2 }
+material = "brass"
+
+[[object]]
+name = "screen_text"
+kind = "text"
+parent = "case"
+at = [-0.07, 0.1, -0.0285]
+spans = [{ text = "manfred = 1", size = 0.02, weight = 700, color = [0.888, 0.521, 0.098] }]
+
+[[object]]
+name = "plinth"
+kind = "outline"
+outline = { circle = [0.0, 0.0, 0.09], segments = 96 }
+front = 0.0
+back = 0.025
+profile = { kind = "round", width = 0.006, segments = 4 }
+at = [0.3, 0.025, -0.13]
+rotate = [-90.0, 0.0, 0.0]
+material = "oak"
+smooth_angle = 35.0
+
+[[object]]
+name = "vase"
+kind = "lathe"
+at = [0.3, 0.0255, -0.13]
+profile = [
+  [0.0000, 0.0000], [0.0500, 0.0000], [0.0510, 0.0011], [0.0524, 0.0022], [0.0541, 0.0040],
+  [0.0560, 0.0071], [0.0580, 0.0120], [0.0605, 0.0191], [0.0635, 0.0280], [0.0664, 0.0382],
+  [0.0688, 0.0491], [0.0700, 0.0600], [0.0699, 0.0714], [0.0688, 0.0836], [0.0670, 0.0961],
+  [0.0647, 0.1084], [0.0620, 0.1200], [0.0586, 0.1309], [0.0545, 0.1414], [0.0500, 0.1516],
+  [0.0457, 0.1611], [0.0420, 0.1700], [0.0388, 0.1782], [0.0359, 0.1858], [0.0333, 0.1928],
+  [0.0313, 0.1992], [0.0300, 0.2050], [0.0296, 0.2101], [0.0300, 0.2146], [0.0309, 0.2184],
+  [0.0320, 0.2219], [0.0330, 0.2250], [0.0340, 0.2278], [0.0351, 0.2302], [0.0363, 0.2322],
+  [0.0373, 0.2338], [0.0380, 0.2350], [0.0344, 0.2360], [0.0340, 0.2350], [0.0333, 0.2338],
+  [0.0323, 0.2322], [0.0311, 0.2302], [0.0300, 0.2278], [0.0290, 0.2250], [0.0280, 0.2219],
+  [0.0269, 0.2184], [0.0260, 0.2146], [0.0256, 0.2101], [0.0260, 0.2050], [0.0273, 0.1992],
+  [0.0293, 0.1928], [0.0319, 0.1858], [0.0348, 0.1782], [0.0380, 0.1700], [0.0417, 0.1611],
+  [0.0460, 0.1516], [0.0505, 0.1414], [0.0546, 0.1309], [0.0580, 0.1200], [0.0607, 0.1084],
+  [0.0630, 0.0961], [0.0648, 0.0836], [0.0659, 0.0714], [0.0660, 0.0600], [0.0648, 0.0491],
+  [0.0624, 0.0382], [0.0595, 0.0280], [0.0565, 0.0191], [0.0000, 0.0140],
+]
+segments = 128
+material = "porcelain"
+smooth_angle = 60.0
+
+[[object]]
+name = "glass"
+kind = "lathe"
+at = [0.43, 0.0005, 0.05]
+profile = [
+  [0.0, 0.0], [0.04, 0.0], [0.042, 0.004], [0.042, 0.012], [0.006, 0.02],
+  [0.005, 0.07], [0.012, 0.08], [0.045, 0.11], [0.05, 0.17], [0.047, 0.17],
+  [0.042, 0.112], [0.01, 0.084], [0.0, 0.084],
+]
+segments = 128
+material = "glass"
+smooth_angle = 40.0
+
+[[object]]
+name = "ball"
+kind = "sphere"
+at = [0.12, 0.0505, 0.08]
+radius = 0.05
+segments = 96
+rings = 48
+material = "chrome"
+smooth = true
+
+[[object]]
+name = "ring"
+kind = "torus"
+at = [-0.04, 0.0135, 0.17]
+major = 0.042
+minor = 0.013
+segments = 96
+rings = 32
+material = "gold"
+smooth = true
+
+[[object]]
+name = "pill"
+kind = "capsule"
+at = [0.24, 0.0165, 0.2]
+rotate = [0.0, -35.0, 90.0]
+radius = 0.016
+length = 0.07
+material = "lacquer_amber"
+smooth = true
+
+[[object]]
+name = "cable"
+kind = "sweep"
+path = [
+  [-0.3300, 0.0500, -0.1000], [-0.3375, 0.0447, -0.0926], [-0.3485, 0.0370, -0.0826], [-0.3613, 0.0280, -0.0706],
+  [-0.3737, 0.0190, -0.0574], [-0.3839, 0.0113, -0.0436], [-0.3900, 0.0060, -0.0300], [-0.3922, 0.0060, -0.0156],
+  [-0.3922, 0.0060, 0.0004], [-0.3900, 0.0060, 0.0169], [-0.3856, 0.0060, 0.0330], [-0.3789, 0.0060, 0.0477],
+  [-0.3700, 0.0060, 0.0600], [-0.3578, 0.0060, 0.0706], [-0.3422, 0.0060, 0.0804], [-0.3244, 0.0060, 0.0887],
+  [-0.3056, 0.0060, 0.0952], [-0.2870, 0.0060, 0.0991], [-0.2700, 0.0060, 0.1000], [-0.2543, 0.0060, 0.0962],
+  [-0.2389, 0.0060, 0.0878], [-0.2238, 0.0060, 0.0769], [-0.2089, 0.0060, 0.0656], [-0.1943, 0.0060, 0.0559],
+  [-0.1800, 0.0060, 0.0500], [-0.1655, 0.0060, 0.0475], [-0.1507, 0.0060, 0.0467], [-0.1363, 0.0060, 0.0475],
+  [-0.1226, 0.0060, 0.0500], [-0.1103, 0.0060, 0.0542], [-0.1000, 0.0060, 0.0600], [-0.0918, 0.0060, 0.0690],
+  [-0.0852, 0.0060, 0.0815], [-0.0800, 0.0060, 0.0956], [-0.0759, 0.0060, 0.1096], [-0.0727, 0.0060, 0.1217],
+  [-0.0700, 0.0060, 0.1300],
+]
+radius = 0.006
+ring = 14
+material = "rubber"
+smooth_angle = 60.0
+
+[[object]]
+name = "note"
+kind = "plane"
+at = [-0.27, 0.002, 0.22]
+rotate = [0.0, 14.0, 0.0]
+size = [0.16, 0.1]
+grid = [16, 12]
+cup = { from = 0.55, depth = 0.004 }
+material = "paper"
+smooth_angle = 35.0
+
+[[object]]
+name = "note_text"
+kind = "text"
+space = "lit"
+on = "note"
+at = [0.0, 0.0, 0.0]
+spans = [{ text = "hero.toml", size = 0.022, weight = 700, color = [0.02, 0.05, 0.1] }]
+
+[[camera]]
+name = "hero"
+position = [0.15, 0.4, 1.35]
+target = [0.03, 0.075, -0.02]
+fov_y_deg = 25.0
+focus_m = 1.38
+fstop = 5.6
+
+[sun]
+model = "authored"
+toward = [-0.78, 0.32, 0.54]
+radius_deg = 6.0
+color = [1.0, 0.68, 0.38]
+irradiance = 6.0
+
+[sky]
+kind = "room"
+intensity = 0.5
+
+[sky.room]
+width = 1024
+floor = [0.01, 0.014, 0.025]
+wall = [0.02, 0.03, 0.06]
+ceiling = [0.05, 0.065, 0.11]
+
+[[sky.room.lights]]
+name = "fill"
+az = 55.0
+el = 25.0
+width = 60.0
+height = 40.0
+power = 1.2
+color = [0.55, 0.7, 1.0]
+soft = 0.4
+
+[trace]
+transmissive_shadows = true
+filter_glossy = 0.25
+clamp_indirect = 4.0
+
+[look]
+exposure = 1.1
+grade = { vignette = 0.25, saturation = 1.05, warmth = 0.03, bloom = 0.06, haze = 0.0 }
+
+[materials.backdrop]
+base = [0.035, 0.075, 0.15]
+roughness = 0.8
+
+[materials.lacquer_blue]
+family = "lacquer"
+base = [0.0012, 0.022, 0.075]
+roughness = 0.25
+clearcoat = 1.0
+
+[materials.lacquer_amber]
+family = "lacquer"
+base = [0.888, 0.521, 0.098]
+roughness = 0.3
+clearcoat = 0.8
+
+[materials.brass]
+family = "metal"
+base = [0.85, 0.66, 0.35]
+roughness = 0.45
+metalness = 1.0
+
+[materials.gold]
+family = "metal"
+base = [1.0, 0.77, 0.34]
+roughness = 0.3
+metalness = 1.0
+
+[materials.chrome]
+family = "chrome"
+base = [0.95, 0.95, 0.95]
+roughness = 0.05
+metalness = 1.0
+
+[materials.porcelain]
+base = [0.82, 0.78, 0.7]
+roughness = 0.18
+clearcoat = 1.0
+
+[materials.oak]
+family = "wood"
+base = [0.42, 0.27, 0.15]
+roughness = 0.5
+
+[materials.glass]
+family = "glass"
+base = [0.95, 0.97, 1.0]
+roughness = 0.01
+transmission = 1.0
+ior = 1.5
+thickness = 0.003
+
+[materials.rubber]
+base = [0.03, 0.03, 0.035]
+roughness = 0.6
+
+[materials.paper]
+base = [0.9, 0.87, 0.8]
+roughness = 0.9

@@ -1,0 +1,337 @@
+# Manfred's own showcase: a workbench under a lamp room, built from generic kinds and its own materials.
+manfred = 1
+name = "workshop"
+seed = 5
+
+[[object]]
+name = "bench_top"
+kind = "outline"
+outline = { rect = [-0.6, -0.35, 0.6, 0.35], radius = 0.02, segments = 8 }
+front = 0.0
+back = 0.05
+profile = { kind = "round", width = 0.006, segments = 4 }
+rotate = [-90.0, 0.0, 0.0]
+material = "oak"
+smooth_angle = 35.0
+
+[[object]]
+name = "wall"
+kind = "plane"
+at = [0.0, 0.6, -0.4]
+rotate = [90.0, 0.0, 0.0]
+size = [2.4, 1.2]
+material = "plaster"
+
+[[object]]
+name = "floor"
+kind = "plane"
+at = [0.0, -0.75, 0.0]
+size = [3.0, 3.0]
+material = "slate"
+
+[[object]]
+name = "case"
+kind = "outline"
+outline = { rect = [-0.18, 0.0, 0.18, 0.16], radius = 0.02, segments = 8 }
+front = 0.0
+back = 0.14
+profile = { kind = "round", width = 0.008, segments = 6 }
+at = [-0.26, 0.05, -0.1]
+material = "lacquer_teal"
+smooth_angle = 35.0
+
+[[object]]
+name = "case_well"
+kind = "pocket"
+into = "case"
+outline = { rect = [-0.15, 0.03, 0.05, 0.13], radius = 0.012, segments = 6 }
+depth = 0.008
+rim = { width = 0.0015, segments = 3 }
+floor = { width = 0.0015, segments = 3 }
+
+[[object]]
+name = "case_dial_well"
+kind = "pocket"
+into = "case"
+outline = { circle = [0.11, 0.08, 0.04], segments = 48 }
+depth = 0.006
+rim = { width = 0.0015, segments = 3 }
+floor = { width = 0.0015, segments = 3 }
+
+[[object]]
+name = "case_lip"
+kind = "sweep"
+along = { outline = { circle = [0.11, 0.08, 0.04], segments = 48 }, offset = 0.0006, depth = -0.0008 }
+radius = 0.0016
+ring = 10
+at = [-0.26, 0.05, -0.1]
+material = "brass"
+smooth_angle = 35.0
+
+[[object]]
+name = "mv_dial"
+kind = "cylinder"
+at = [-0.15, 0.13, -0.095]
+rotate = [90.0, 0.0, 0.0]
+radius = 0.032
+depth = 0.02
+segments = 64
+bevel = { width = 0.002, segments = 3 }
+material = "lacquer_cream"
+smooth_angle = 30.0
+
+[[object]]
+name = "mv_dial__mark"
+kind = "box"
+at = [-0.15, 0.155, -0.085]
+size = [0.004, 0.014, 0.004]
+material = "brass"
+
+[[object]]
+name = "mv_lid"
+kind = "box"
+at = [-0.31, 0.18, -0.07]
+size = [0.2, 0.004, 0.11]
+bevel = { width = 0.0015, segments = 2 }
+material = "lacquer_cream"
+smooth_angle = 40.0
+
+[[object]]
+name = "vase"
+kind = "lathe"
+at = [0.22, 0.05, -0.1]
+profile = [
+  [0.0, 0.0], [0.045, 0.0], [0.047, 0.003], [0.055, 0.05], [0.04, 0.12],
+  [0.028, 0.16], [0.032, 0.175], [0.029, 0.175], [0.025, 0.16], [0.037, 0.12],
+  [0.052, 0.05], [0.043, 0.005], [0.0, 0.005],
+]
+segments = 96
+material = "glaze"
+smooth_angle = 35.0
+
+[[object]]
+name = "jar"
+kind = "lathe"
+at = [0.38, 0.05, 0.02]
+profile = [
+  [0.0, 0.0], [0.035, 0.0], [0.035, 0.09], [0.03, 0.1], [0.0, 0.1],
+]
+segments = 64
+material = "glass"
+smooth_angle = 35.0
+
+[[object]]
+name = "cable"
+kind = "sweep"
+path = [[-0.08, 0.06, -0.12], [0.0, 0.055, -0.02], [0.08, 0.055, 0.05], [0.16, 0.055, 0.08], [0.24, 0.07, 0.12]]
+radius = 0.004
+ring = 10
+material = "rubber"
+smooth_angle = 60.0
+
+[[object]]
+name = "spool"
+kind = "torus"
+at = [0.05, 0.065, 0.16]
+major = 0.03
+minor = 0.012
+segments = 64
+rings = 24
+material = "brass"
+smooth = true
+
+[[object]]
+name = "ball"
+kind = "sphere"
+at = [-0.05, 0.085, 0.14]
+radius = 0.035
+segments = 64
+rings = 32
+material = "mirror"
+smooth = true
+
+[[object]]
+name = "pill"
+kind = "capsule"
+at = [0.16, 0.065, 0.2]
+rotate = [0.0, 30.0, 90.0]
+radius = 0.014
+length = 0.06
+material = "lacquer_teal"
+smooth = true
+
+[[object]]
+name = "note"
+kind = "plane"
+at = [-0.42, 0.052, 0.15]
+rotate = [0.0, 12.0, 0.0]
+size = [0.12, 0.16]
+grid = [12, 16]
+cup = { from = 0.6, depth = 0.003 }
+material = "card"
+smooth_angle = 35.0
+
+[[object]]
+name = "label"
+kind = "text"
+on = "case"
+at = [0.0, -0.05, 0.0]
+spans = [{ text = "manfred", size = 0.03, weight = 700, color = [0.95, 0.92, 0.85] }]
+
+[[object]]
+name = "title"
+kind = "text"
+space = "overlay"
+at = [24.0, 24.0, 0.0]
+spans = [{ text = "workshop", size = 28.0, color = [0.12, 0.12, 0.15] }]
+
+[[camera]]
+name = "hero"
+position = [0.55, 0.45, 0.95]
+target = [0.0, 0.1, 0.0]
+fov_y_deg = 32.0
+focus_m = 1.1
+fstop = 4.0
+
+[[camera]]
+name = "top"
+position = [0.0, 1.4, 0.05]
+target = [0.0, 0.05, 0.0]
+fov_y_deg = 40.0
+
+[[camera]]
+name = "detail"
+position = [-0.05, 0.25, 0.3]
+target = [-0.2, 0.12, -0.08]
+fov_y_deg = 28.0
+
+[[camera]]
+name = "orbit"
+position = [0.0, 0.4, 1.0]
+target = [0.0, 0.1, 0.0]
+fov_y_deg = 34.0
+
+[camera.path]
+kind = "orbit"
+target = [0.0, 0.1, 0.0]
+turns = 1.0
+rise_deg = 8.0
+
+[sun]
+model = "daylight"
+hour = 15.0
+latitude = 47.0
+heading = 30.0
+
+[sky]
+kind = "room"
+rotation_deg = 20.0
+intensity = 1.2
+ambient = "authored"
+
+[sky.room]
+width = 1024
+floor = [0.12, 0.11, 0.1]
+wall = [0.22, 0.21, 0.2]
+ceiling = [0.5, 0.5, 0.52]
+
+[[sky.room.lights]]
+name = "window"
+az = -60.0
+el = 18.0
+width = 36.0
+height = 28.0
+power = 9.0
+color = [1.0, 0.9, 0.78]
+soft = 0.05
+slats = 6.0
+open = 0.7
+
+[[sky.room.lights]]
+name = "fill"
+az = 70.0
+el = 30.0
+power = 1.5
+
+[[light]]
+name = "lamp"
+position = [0.35, 0.55, 0.2]
+color = [1.0, 0.85, 0.65]
+intensity = 0.6
+radius = 0.03
+
+[look]
+exposure = 1.0
+grade = { vignette = 0.2, saturation = 1.0, warmth = 0.05, bloom = 0.08, haze = 0.0 }
+
+[[mover]]
+group = "dial"
+pivot = [-0.15, 0.13, -0.095]
+axis = [0.0, 0.0, 1.0]
+travel = 3.1
+
+[[mover]]
+group = "lid"
+pivot = [-0.31, 0.18, -0.125]
+axis = [1.0, 0.0, 0.0]
+travel = 0.8
+
+[materials.oak]
+family = "wood"
+base = [0.45, 0.3, 0.18]
+roughness = 0.55
+
+[materials.plaster]
+family = "plaster"
+base = [0.72, 0.7, 0.66]
+roughness = 0.9
+
+[materials.slate]
+family = "stone"
+base = [0.18, 0.19, 0.21]
+roughness = 0.7
+
+[materials.lacquer_teal]
+family = "lacquer"
+base = [0.05, 0.32, 0.34]
+roughness = 0.3
+clearcoat = 0.8
+
+[materials.lacquer_cream]
+family = "lacquer"
+base = [0.86, 0.8, 0.68]
+roughness = 0.35
+clearcoat = 0.6
+
+[materials.brass]
+family = "metal"
+base = [0.85, 0.66, 0.35]
+roughness = 0.3
+metalness = 1.0
+
+[materials.mirror]
+family = "chrome"
+base = [0.92, 0.92, 0.92]
+roughness = 0.04
+metalness = 1.0
+
+[materials.glaze]
+base = [0.62, 0.2, 0.12]
+roughness = 0.15
+clearcoat = 1.0
+
+[materials.glass]
+family = "glass"
+base = [0.92, 0.96, 1.0]
+roughness = 0.02
+transmission = 1.0
+ior = 1.5
+thickness = 0.004
+
+[materials.rubber]
+base = [0.04, 0.04, 0.04]
+roughness = 0.8
+
+[materials.card]
+base = [0.93, 0.91, 0.86]
+roughness = 0.85

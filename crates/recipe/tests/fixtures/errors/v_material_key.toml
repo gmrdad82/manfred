@@ -1,0 +1,6 @@
+manfred = 1
+name = "t"
+
+[materials.lamp]
+base = [1.0, 1.0, 1.0]
+emissive = [1, 0, 0]

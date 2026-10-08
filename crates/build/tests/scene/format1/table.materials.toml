@@ -1,0 +1,463 @@
+format = 1
+
+[materials.brass]
+id = "2jh2jc49sx"
+family = "metal"
+base = [0.85, 0.66, 0.35]
+roughness = 0.3
+metalness = 1.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.brass.normal]
+source = "flat"
+strength = 0.0
+
+[materials.brass.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.brass.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.brass.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.card]
+id = "wtwvscdyfc"
+family = "plain"
+base = [0.92, 0.9, 0.84]
+roughness = 0.85
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.card.normal]
+source = "flat"
+strength = 0.0
+
+[materials.card.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.card.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.card.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.glow]
+id = "x8xp12jhwz"
+family = "emissive"
+base = [1.0, 0.5, 0.2]
+roughness = 0.5
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [4.0, 2.0, 0.8]
+fresnel_power = 5.0
+content = "none"
+
+[materials.glow.normal]
+source = "flat"
+strength = 0.0
+
+[materials.glow.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.glow.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.glow.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.lacquer_blue]
+id = "hfwxj78byg"
+family = "lacquer"
+base = [0.08, 0.2, 0.5]
+roughness = 0.3
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.8
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.lacquer_blue.normal]
+source = "flat"
+strength = 0.0
+
+[materials.lacquer_blue.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.lacquer_blue.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.lacquer_blue.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.lacquer_green]
+id = "dp8ew9we9z"
+family = "lacquer"
+base = [0.1, 0.4, 0.2]
+roughness = 0.3
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.8
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.lacquer_green.normal]
+source = "flat"
+strength = 0.0
+
+[materials.lacquer_green.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.lacquer_green.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.lacquer_green.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.mirror]
+id = "8fg97vdt9w"
+family = "chrome"
+base = [0.9, 0.9, 0.9]
+roughness = 0.05
+metalness = 1.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.mirror.normal]
+source = "flat"
+strength = 0.0
+
+[materials.mirror.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.mirror.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.mirror.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.oak]
+id = "8pahfdpbky"
+family = "wood"
+base = [0.42, 0.28, 0.16]
+roughness = 0.55
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.oak.normal]
+source = "flat"
+strength = 0.0
+
+[materials.oak.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.oak.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.oak.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.plaster]
+id = "0ts6gj8wrh"
+family = "plaster"
+base = [0.7, 0.68, 0.64]
+roughness = 0.9
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.plaster.normal]
+source = "flat"
+strength = 0.0
+
+[materials.plaster.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.plaster.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.plaster.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.rubber]
+id = "jsjsftdw6m"
+family = "plain"
+base = [0.04, 0.04, 0.04]
+roughness = 0.8
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.rubber.normal]
+source = "flat"
+strength = 0.0
+
+[materials.rubber.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.rubber.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.rubber.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[authoring]
+recipe = "recipes/table.toml"

@@ -1,0 +1,275 @@
+format = 1
+
+materials = ["scenes/toybox.materials.toml"]
+
+[mesh.backdrop]
+id = "634pe5zbvr"
+file = "scenes/toybox.glb"
+node = "backdrop"
+
+[mesh.block]
+id = "8f9menna8n"
+file = "scenes/toybox.glb"
+node = "block"
+
+[mesh.body]
+id = "s5cafe8bj3"
+file = "scenes/toybox.glb"
+node = "body"
+
+[mesh.cable]
+id = "nj58tzy50q"
+file = "scenes/toybox.glb"
+node = "cable"
+
+[mesh.card]
+id = "cntevgpg93"
+file = "scenes/toybox.glb"
+node = "card"
+
+[mesh.coin]
+id = "cz92d00p69"
+file = "scenes/toybox.glb"
+node = "coin"
+
+[mesh.drawer_front]
+id = "2m8agkf4s9"
+file = "scenes/toybox.glb"
+node = "drawer_front"
+
+[mesh.drawer_pull]
+id = "4a1kskjcb9"
+file = "scenes/toybox.glb"
+node = "drawer_pull"
+
+[mesh.lip_dial]
+id = "49nmdv9t8p"
+file = "scenes/toybox.glb"
+node = "lip_dial"
+
+[mesh.lip_tray]
+id = "ezr8v7fymf"
+file = "scenes/toybox.glb"
+node = "lip_tray"
+
+[mesh.mv_knob]
+id = "z4x2hr1y1h"
+file = "scenes/toybox.glb"
+node = "mv_knob"
+
+[mesh.mv_knob__dot]
+id = "3r4y0fb6bv"
+file = "scenes/toybox.glb"
+node = "mv_knob__dot"
+
+[mesh.mv_lid]
+id = "1nwkb6e4wv"
+file = "scenes/toybox.glb"
+node = "mv_lid"
+
+[mesh.mv_lid__handle]
+id = "98cdhzmjfy"
+file = "scenes/toybox.glb"
+node = "mv_lid__handle"
+
+[mesh.mv_roller]
+id = "9vz5a7htx6"
+file = "scenes/toybox.glb"
+node = "mv_roller"
+
+[mesh.pill]
+id = "k7zcwnaf3f"
+file = "scenes/toybox.glb"
+node = "pill"
+
+[mesh.shade]
+id = "0he0k4p7k4"
+file = "scenes/toybox.glb"
+node = "shade"
+
+[mesh.vase]
+id = "7hbabqrwba"
+file = "scenes/toybox.glb"
+node = "vase"
+
+[[object]]
+id = "cmrk0a0bkq"
+name = "body"
+mesh = "body"
+material = "lacquer_red"
+pick = 1
+
+[[object]]
+id = "x87y6m9m1q"
+name = "lip_tray"
+mesh = "lip_tray"
+material = "brass"
+pick = 5
+
+[[object]]
+id = "p6vtahe6jy"
+name = "lip_dial"
+mesh = "lip_dial"
+material = "brass"
+pick = 6
+
+[[object]]
+id = "80bgdwyh33"
+name = "cable"
+mesh = "cable"
+material = "rubber"
+pick = 7
+
+[[object]]
+id = "s0ztqdryah"
+name = "mv_lid"
+mesh = "mv_lid"
+material = "lacquer_cream"
+clip = [[0.0, 1.0, 0.0, 0.152], [0.0, -1.0, 0.0, 0.008]]
+pick = 8
+dynamic = true
+
+[[object]]
+id = "tnzpryanw0"
+name = "mv_lid__handle"
+mesh = "mv_lid__handle"
+material = "steel"
+clip = [[0.0, 1.0, 0.0, 0.152], [0.0, -1.0, 0.0, 0.008]]
+pick = 9
+dynamic = true
+
+[[object]]
+id = "d6yt70x18g"
+name = "mv_knob"
+mesh = "mv_knob"
+material = "lacquer_cream"
+pick = 10
+dynamic = true
+
+[[object]]
+id = "ha90kkjn2f"
+name = "mv_knob__dot"
+mesh = "mv_knob__dot"
+material = "brass"
+pick = 11
+dynamic = true
+
+[[object]]
+id = "vcq5v87te8"
+name = "drawer_front"
+mesh = "drawer_front"
+material = "lacquer_cream"
+pick = 12
+dynamic = true
+
+[[object]]
+id = "1h6e8qw63c"
+name = "drawer_pull"
+mesh = "drawer_pull"
+material = "steel"
+pick = 13
+dynamic = true
+
+[[object]]
+id = "yky09z4ad3"
+name = "mv_roller"
+mesh = "mv_roller"
+material = "steel"
+clip = [[0.0, 1.0, 0.0, -0.056]]
+pick = 14
+dynamic = true
+
+[[object]]
+id = "1vyxqsehg6"
+name = "card"
+mesh = "card"
+material = "card"
+pick = 15
+
+[[object]]
+id = "m62xc7wg1d"
+name = "vase"
+mesh = "vase"
+material = "glaze"
+pick = 16
+
+[[object]]
+id = "b844rqvnke"
+name = "coin"
+mesh = "coin"
+material = "brass"
+pick = 17
+
+[[object]]
+id = "s22526b89a"
+name = "block"
+mesh = "block"
+material = "felt"
+pick = 18
+
+[[object]]
+id = "593eqr4qd3"
+name = "pill"
+mesh = "pill"
+material = "glaze"
+pick = 19
+
+[[object]]
+id = "77jdx8zss5"
+name = "backdrop"
+mesh = "backdrop"
+material = "wood"
+pick = 20
+
+[[object]]
+id = "yecc74dfyx"
+name = "shade"
+mesh = "shade"
+material = "occluder"
+shadow = "only"
+pick = 21
+
+[sun]
+model = "authored"
+hour = 16.0
+reference_hour = 16.0
+toward = [0.45, 0.62, 0.64]
+color = [1.0, 0.9, 0.8]
+irradiance = 3.0
+radius = 0.8
+
+[sky]
+kind = "analytic"
+ambient = 0.9
+
+[camera]
+projection = "perspective"
+at = [0.6, 0.9, 1.2]
+look_at = [0.0, -0.05, 0.0]
+up = [0.0, 1.0, 0.0]
+focal = 50.0
+sensor = 22.5
+near = 0.626548
+far = 2.3672833
+fstop = 4.0
+
+[[finish.pass]]
+exposure = 1.0
+
+[[finish.pass]]
+bloom = { down = 2.0, kind = "box", knee = 0.7, knee_width = 0.6, radius = 12.0, sigma = 50.0, soft = 0.15, strength = 0.08, threshold = 0.9 }
+
+[[finish.pass]]
+vignette = { aspect = 0.8, kind = "power", power = 2.4, scale = 1.28, strength = 0.2 }
+
+[[finish.pass]]
+saturation = 1.0
+
+[[finish.pass]]
+warmth = { amount = 0.05, kind = "linear" }
+
+[[finish.pass]]
+tone = "aces"
+
+[authoring]
+recipe = "recipes/toybox.toml"

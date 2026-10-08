@@ -1,0 +1,82 @@
+{
+  "cameras": [
+    {
+      "fov_y_deg": 28.0,
+      "fstop": 0.0,
+      "name": "main",
+      "orthographic": false,
+      "position": [
+        0.0,
+        0.0,
+        2.0
+      ],
+      "shift": [
+        0.0,
+        0.0
+      ],
+      "target": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    },
+    {
+      "fstop": 0.0,
+      "name": "flat",
+      "ortho_height": 0.9,
+      "orthographic": true,
+      "position": [
+        0.0,
+        0.0,
+        2.0
+      ],
+      "shift": [
+        0.0,
+        0.0
+      ],
+      "target": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "up": [
+        0.0,
+        1.0,
+        0.0
+      ]
+    }
+  ],
+  "look": {
+    "exposure": 1.0,
+    "grade": {
+      "bloom": 0.0,
+      "haze": 0.0,
+      "saturation": 1.0,
+      "vignette": 0.0,
+      "warmth": 0.0
+    }
+  },
+  "sky": {
+    "intensity": 0.8,
+    "rotation_deg": 0.0
+  },
+  "sun": {
+    "color": [
+      1.0,
+      1.0,
+      1.0
+    ],
+    "irradiance": 3.0,
+    "radius_deg": 0.6,
+    "toward": [
+      0.3,
+      0.6,
+      0.75
+    ]
+  }
+}

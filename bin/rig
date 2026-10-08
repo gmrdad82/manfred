@@ -1,0 +1,580 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+APP=manfred
+
+die() {
+  echo "rig: $*" >&2
+  exit 2
+}
+
+rig_path() {
+  local name=${1:?rig name required} dir
+  [[ $name =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "invalid rig name [$name]"
+  dir=$(realpath -m "$PWD/tmp/rig-$name")
+  case "$dir" in
+    "$PWD"/tmp/?*) ;;
+    *) die "the rig folder must sit under the tree tmp/, got [$dir]" ;;
+  esac
+  printf '%s\n' "$dir"
+}
+
+existing_rig() {
+  local rig
+  rig=$(rig_path "$1")
+  [[ -d $rig ]] || die "no rig named [$1]; expected $rig"
+  printf '%s\n' "$rig"
+}
+
+read_pid() {
+  local file=$1 label=$2 pid
+  [[ -f $file ]] || return 1
+  read -r pid < "$file"
+  [[ $pid =~ ^[0-9]+$ ]] || die "invalid $label pid [$pid]"
+  printf '%s\n' "$pid"
+}
+
+pid_is() {
+  local pid=$1 name=$2
+  [[ -r /proc/$pid/comm ]] && [[ $(<"/proc/$pid/comm") == "$name" ]]
+}
+
+in_rig() {
+  local pid=$1 rig=$2
+  [[ -r /proc/$pid/environ ]] || return 1
+  grep -zFxq "RIG=$rig" "/proc/$pid/environ" 2>/dev/null
+}
+
+pid_is_rig_app() {
+  pid_is "$1" "$APP" && in_rig "$1" "$2"
+}
+
+compositor_of() {
+  local rig=$1 name=cage
+  [[ -f $rig/compositor ]] && read -r name < "$rig/compositor"
+  printf '%s\n' "$name"
+}
+
+pid_is_rig_compositor() {
+  pid_is "$1" "$(compositor_of "$2")" && in_rig "$1" "$2"
+}
+
+pid_is_rig_launcher() {
+  pid_is "$1" unshare && in_rig "$1" "$2"
+}
+
+find_rig_pid() {
+  local comm=$1 rig=$2 pid found=""
+  while read -r pid; do
+    [[ -n $pid ]] || continue
+    in_rig "$pid" "$rig" && found=$pid
+  done < <(pgrep -x "$comm" || true)
+  printf '%s\n' "$found"
+}
+
+read_socket() {
+  local rig=$1 app_pid shell_socket socket
+  app_pid=$(read_pid "$rig/app.pid" "$APP") || die "missing $APP pid at $rig/app.pid"
+  pid_is_rig_app "$app_pid" "$rig" || die "$APP pid $app_pid is not running"
+  [[ -f $rig/wayland ]] || die "missing Wayland socket record at $rig/wayland"
+  [[ -f $rig/shell-wayland ]] || die "missing shell Wayland socket record at $rig/shell-wayland"
+  read -r shell_socket < "$rig/shell-wayland" || true
+  [[ ${WAYLAND_DISPLAY:-} == "$shell_socket" ]] ||
+    die "refusing caller Wayland display [${WAYLAND_DISPLAY:-}]; expected shell display [$shell_socket]"
+  read -r socket < "$rig/wayland"
+  [[ -n $socket ]] || die "empty Wayland socket record"
+  [[ $socket != "${WAYLAND_DISPLAY:-}" ]] || die "refusing the shell's Wayland display [$socket]"
+  printf '%s\n' "$socket"
+}
+
+compositors() {
+  echo $(( $(pgrep -c -x cage) + $(pgrep -c -x labwc) ))
+}
+
+wait_for_compositor_slot() {
+  local waited=0
+  local wait_limit=${RIG_SLOT_WAIT:-600} slots=${RIG_SLOTS:-4}
+  [[ $wait_limit =~ ^[0-9]+$ ]] || die "RIG_SLOT_WAIT must be a non-negative integer, got [$wait_limit]"
+  [[ $slots =~ ^[1-9][0-9]*$ ]] || die "RIG_SLOTS must be a positive integer, got [$slots]"
+  if (( $(compositors) >= slots )); then
+    echo "rig: $(compositors) compositors hold the ${slots} slots; waiting up to ${wait_limit}s for one"
+    while (( $(compositors) >= slots )); do
+      if (( waited >= wait_limit )); then
+        echo "rig: the ${slots} compositor slots are still held after ${waited}s; not starting" >&2
+        pgrep -a -x cage >&2 || true
+        pgrep -a -x labwc >&2 || true
+        exit 2
+      fi
+      sleep 5
+      waited=$((waited + 5))
+    done
+    echo "rig: a slot freed after ${waited}s"
+  fi
+}
+
+pid_is_rig_holder() {
+  pid_is "$1" python3 && in_rig "$1" "$2"
+}
+
+stop_recorded() {
+  local rig=$1 app_pid="" comp_pid="" launcher_pid="" holder_pid="" attempt
+  holder_pid=$(read_pid "$rig/pointer.pid" holder 2>/dev/null || true)
+  if [[ -n $holder_pid ]] && pid_is_rig_holder "$holder_pid" "$rig"; then
+    kill "$holder_pid" 2>/dev/null || true
+    for attempt in {1..50}; do
+      pid_is_rig_holder "$holder_pid" "$rig" || break
+      sleep 0.1
+    done
+  fi
+  rm -f "$rig/pointer.pid" "$rig/pointer.fifo" "$rig/pointer.ready"
+  app_pid=$(read_pid "$rig/app.pid" "$APP" 2>/dev/null || true)
+  comp_pid=$(read_pid "$rig/compositor.pid" compositor 2>/dev/null || true)
+  launcher_pid=$(read_pid "$rig/launcher.pid" launcher 2>/dev/null || true)
+
+  if [[ -n $app_pid ]] && pid_is_rig_app "$app_pid" "$rig"; then
+    kill "$app_pid" 2>/dev/null || true
+    for attempt in {1..100}; do
+      pid_is_rig_app "$app_pid" "$rig" || break
+      sleep 0.1
+    done
+    ! pid_is_rig_app "$app_pid" "$rig" || kill -9 "$app_pid" 2>/dev/null || true
+  fi
+  [[ -z $comp_pid ]] || ! pid_is_rig_compositor "$comp_pid" "$rig" || kill "$comp_pid" 2>/dev/null || true
+  [[ -z $launcher_pid ]] || ! pid_is_rig_launcher "$launcher_pid" "$rig" || kill "$launcher_pid" 2>/dev/null || true
+
+  for attempt in {1..100}; do
+    { [[ -z $app_pid ]] || ! pid_is_rig_app "$app_pid" "$rig"; } &&
+      { [[ -z $comp_pid ]] || ! pid_is_rig_compositor "$comp_pid" "$rig"; } &&
+      { [[ -z $launcher_pid ]] || ! pid_is_rig_launcher "$launcher_pid" "$rig"; } && break
+    sleep 0.1
+  done
+}
+
+check_recipe() {
+  local recipe=$1
+  [[ -n $recipe ]] || die "usage: bin/rig up <recipe> <name>"
+  [[ -f $recipe ]] || die "no recipe at [$recipe]"
+  realpath "$recipe"
+}
+
+check_binary() {
+  local binary=$1 newer
+  [[ -x $binary ]] || die "build first; missing $binary"
+  newer=$(find src crates -type f -newer "$binary" -print -quit)
+  [[ -z $newer ]] || die "$binary is older than $newer; build it first: cargo build --release"
+}
+
+up() {
+  local recipe=${1-}
+  local name=${2:?usage: bin/rig up <recipe> <name>}
+  local binary="$PWD/target/release/$APP"
+  local compositor=${RIG_COMPOSITOR:-cage}
+  local app_pid="" socket="" comp_pid="" launcher_pid="" attempt rig live
+
+  rig=$(rig_path "$name")
+  recipe=$(check_recipe "$recipe")
+  check_binary "$binary"
+  [[ $compositor == cage || $compositor == labwc ]] || die "RIG_COMPOSITOR must be cage or labwc, got [$compositor]"
+
+  if [[ -f $rig/app.pid ]]; then
+    live=$(read_pid "$rig/app.pid" "$APP" 2>/dev/null || true)
+    [[ -z $live ]] || ! pid_is_rig_app "$live" "$rig" || die "rig [$name] is already up; bin/rig down $name first"
+  fi
+
+  wait_for_compositor_slot
+
+  export RIG=$rig
+  mkdir -p "$RIG/tmp" "$RIG/config" "$RIG/cache" "$RIG/state" "$RIG/data"
+  rm -f "$RIG/app.pid" "$RIG/compositor.pid" "$RIG/launcher.pid" "$RIG/wayland" "$RIG/extent"
+  printf '%s\n' 'pcm.!default { type null }' 'ctl.!default { type null }' > "$RIG/asound-null.conf"
+  printf '%s\n' "${WAYLAND_DISPLAY:-}" > "$RIG/shell-wayland"
+  printf '%s\n' "$compositor" > "$RIG/compositor"
+  printf '%s\n' "$recipe" > "$RIG/recipe"
+  export APP_BINARY=$binary RECIPE=$recipe
+
+  cat > "$RIG/app.sh" <<'EOS'
+#!/bin/sh
+exec env TMPDIR=/tmp PIPEWIRE_RUNTIME_DIR=/nonexistent PULSE_SERVER=/nonexistent ALSA_CONFIG_PATH="$RIG/asound-null.conf" XDG_CONFIG_HOME="$RIG/config" XDG_CACHE_HOME="$RIG/cache" XDG_STATE_HOME="$RIG/state" XDG_DATA_HOME="$RIG/data" "$APP_BINARY" gui "$RECIPE"
+EOS
+  chmod +x "$RIG/app.sh"
+
+  if [[ $compositor == labwc ]]; then
+    mkdir -p "$RIG/labwc"
+    cat > "$RIG/labwc/rc.xml" <<'EOS'
+<?xml version="1.0"?>
+<labwc_config>
+  <windowRules>
+    <windowRule identifier="*" serverDecoration="no"/>
+  </windowRules>
+</labwc_config>
+EOS
+    export RIG_MODE=${RIG_MODE:-1520x960@60Hz}
+    [[ ${RIG_SCALE:-1} =~ ^[12]$ ]] || die "RIG_SCALE must be 1 or 2, got [${RIG_SCALE:-1}]"
+    [[ $RIG_MODE =~ ^([0-9]+)x([0-9]+) ]] || die "RIG_MODE must read like 1520x960@60Hz, got [$RIG_MODE]"
+    printf '%s %s\n' "$(( BASH_REMATCH[1] / ${RIG_SCALE:-1} ))" "$(( BASH_REMATCH[2] / ${RIG_SCALE:-1} ))" > "$RIG/extent"
+    cat > "$RIG/labwc-session.sh" <<'EOS'
+#!/bin/sh
+for attempt in $(seq 1 100); do
+  output=$(wlr-randr 2>/dev/null | sed -n '1s/^\([^ ]*\).*/\1/p')
+  if [ -n "$output" ]; then
+    echo "$output" > "$RIG/output"
+    wlr-randr --output "$output" --custom-mode "$RIG_MODE" --scale "${RIG_SCALE:-1}" >"$RIG/wlr-randr.log" 2>&1 && break
+  fi
+  sleep 0.1
+done
+wlr-randr >>"$RIG/wlr-randr.log" 2>&1
+exec "$RIG/app.sh"
+EOS
+    chmod +x "$RIG/labwc-session.sh"
+  fi
+
+  # shellcheck disable=SC2016 # The isolated inner shell expands the exported rig inputs.
+  if [[ $compositor == cage ]]; then
+    unshare -Urm sh -c 'case "$RIG" in "$PWD"/tmp/?*) ;; *) echo "rig: RIG must sit under the tree tmp/, got [$RIG]" >&2; exit 2;; esac; echo "$RIG" >"$RIG/tmp/.rig" && mount --bind "$RIG/tmp" /tmp && [ "$(cat /tmp/.rig)" = "$RIG" ] || { echo "rig: /tmp is not $RIG/tmp" >&2; exit 2; }; exec env WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_XWAYLAND=/nonexistent cage -- "$RIG/app.sh"' >"$RIG/rig.log" 2>&1 &
+  else
+    unshare -Urm sh -c 'case "$RIG" in "$PWD"/tmp/?*) ;; *) echo "rig: RIG must sit under the tree tmp/, got [$RIG]" >&2; exit 2;; esac; echo "$RIG" >"$RIG/tmp/.rig" && mount --bind "$RIG/tmp" /tmp && [ "$(cat /tmp/.rig)" = "$RIG" ] || { echo "rig: /tmp is not $RIG/tmp" >&2; exit 2; }; exec env WLR_BACKENDS=headless WLR_LIBINPUT_NO_DEVICES=1 WLR_XWAYLAND=/nonexistent labwc -C "$RIG/labwc" -S "$RIG/labwc-session.sh"' >"$RIG/rig.log" 2>&1 &
+  fi
+  launcher_pid=$!
+  printf '%s\n' "$launcher_pid" > "$RIG/launcher.pid"
+
+  for ((attempt = 0; attempt < 600; attempt++)); do
+    comp_pid=$(find_rig_pid "$compositor" "$RIG")
+    app_pid=$(find_rig_pid "$APP" "$RIG")
+    if [[ -n $app_pid ]] && pid_is_rig_app "$app_pid" "$RIG"; then
+      socket=$(grep -aEo 'WAYLAND_DISPLAY=[^[:cntrl:]]+' "/proc/$app_pid/environ" 2>/dev/null | cut -d= -f2- || true)
+      [[ -n $socket ]] && break
+    fi
+    kill -0 "$launcher_pid" 2>/dev/null || break
+    sleep 0.1
+  done
+
+  [[ -z $comp_pid ]] || printf '%s\n' "$comp_pid" > "$RIG/compositor.pid"
+  [[ -z $app_pid ]] || printf '%s\n' "$app_pid" > "$RIG/app.pid"
+
+  if [[ -z $comp_pid ]] || ! pid_is_rig_compositor "$comp_pid" "$RIG"; then
+    echo "rig: $compositor did not come up; $APP pid=${app_pid:-none}; socket=${socket:-none}; rig fault before product boot" >&2
+    tail -n 20 "$RIG/rig.log" >&2 || true
+    stop_recorded "$RIG"
+    exit 1
+  fi
+  if [[ -z $app_pid ]] || ! pid_is_rig_app "$app_pid" "$RIG" || [[ -z $socket ]]; then
+    echo "rig: $APP did not come up; app pid=${app_pid:-none}; socket=${socket:-none}; compositor pid=$comp_pid; product or launch fault" >&2
+    tail -n 20 "$RIG/rig.log" >&2 || true
+    stop_recorded "$RIG"
+    exit 1
+  fi
+  if [[ $socket == "${WAYLAND_DISPLAY:-}" ]]; then
+    echo "rig: discovered the shell's Wayland display [$socket]; refusing" >&2
+    stop_recorded "$RIG"
+    exit 2
+  fi
+
+  printf '%s\n' "$socket" > "$RIG/wayland"
+  printf '%s pid=%s\n%s pid=%s\nwayland=%s\nrig=%s\n' "$compositor" "$comp_pid" "$APP" "$app_pid" "$socket" "$RIG"
+}
+
+shot() {
+  local name=${1:?usage: bin/rig shot <name> <file>}
+  local file=${2:?usage: bin/rig shot <name> <file>}
+  local rig socket output
+  [[ $file =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "invalid capture name [$file]"
+  rig=$(existing_rig "$name")
+  socket=$(read_socket "$rig")
+  output="$rig/tmp/$file.png"
+  WAYLAND_DISPLAY=$socket grim "$output"
+  printf '%s\n' "$output"
+  magick identify "$output"
+}
+
+keys() {
+  local name=${1:?usage: bin/rig keys <name> <wtype args...>}
+  local rig socket
+  shift
+  (( $# > 0 )) || die "usage: bin/rig keys <name> <wtype args...>"
+  rig=$(existing_rig "$name")
+  socket=$(read_socket "$rig")
+  WAYLAND_DISPLAY=$socket wtype -k F24 -s 800 "$@"
+}
+
+pointer() {
+  local name=${1:?usage: bin/rig pointer <name> <wlrctl pointer args...>}
+  local rig socket
+  shift
+  (( $# > 0 )) || die "usage: bin/rig pointer <name> <wlrctl pointer args...>"
+  rig=$(existing_rig "$name")
+  [[ $(compositor_of "$rig") == labwc ]] ||
+    die "the pointer needs labwc, and rig [$name] runs cage; never run wlrctl by hand: RIG_COMPOSITOR=labwc bin/rig up ..."
+  socket=$(read_socket "$rig")
+  WAYLAND_DISPLAY=$socket wlrctl pointer "$@"
+}
+
+pointer_holder() {
+  python3 - "$@" <<'PY'
+import os
+import select
+import socket
+import struct
+import sys
+import time
+
+display, fifo, ready, width, height, button, x, y = sys.argv[1:9]
+width, height, x, y = int(width), int(height), int(x), int(y)
+buttons = {"left": 0x110, "right": 0x111, "middle": 0x112}
+runtime = os.environ["XDG_RUNTIME_DIR"]
+path = display if display.startswith("/") else os.path.join(runtime, display)
+wire = socket.socket(socket.AF_UNIX)
+wire.connect(path)
+pending = b""
+next_id = 2
+
+
+def new_id():
+    global next_id
+    next_id += 1
+    return next_id
+
+
+def send(obj, opcode, payload=b""):
+    wire.sendall(struct.pack("<II", obj, ((8 + len(payload)) << 16) | opcode) + payload)
+
+
+def string(text):
+    data = text.encode() + b"\0"
+    return struct.pack("<I", len(data)) + data + b"\0" * (-len(data) % 4)
+
+
+def events():
+    global pending
+    pending += wire.recv(65536)
+    while len(pending) >= 8:
+        obj, word = struct.unpack_from("<II", pending)
+        size, opcode = word >> 16, word & 0xFFFF
+        if len(pending) < size:
+            return
+        body = pending[8:size]
+        pending = pending[size:]
+        yield obj, opcode, body
+
+
+def roundtrip(globals_=None):
+    callback = new_id()
+    send(1, 0, struct.pack("<I", callback))
+    while True:
+        for obj, opcode, body in events():
+            if obj == 1 and opcode == 0:
+                target, code = struct.unpack_from("<II", body)
+                length = struct.unpack_from("<I", body, 8)[0]
+                sys.exit("rig: wayland error %d on object %d: %s" % (code, target, body[12:12 + length - 1].decode()))
+            if obj == 2 and opcode == 0 and globals_ is not None:
+                name, length = struct.unpack_from("<II", body)
+                interface = body[8:8 + length - 1].decode()
+                version = struct.unpack_from("<I", body, 8 + length + (-length % 4))[0]
+                globals_[interface] = (name, version)
+            if obj == callback and opcode == 0:
+                return
+
+
+def stamp():
+    return int(time.monotonic() * 1000) & 0xFFFFFFFF
+
+
+send(1, 1, struct.pack("<I", 2))
+found = {}
+roundtrip(found)
+if "zwlr_virtual_pointer_manager_v1" not in found:
+    sys.exit("rig: the compositor has no zwlr_virtual_pointer_manager_v1")
+name, version = found["zwlr_virtual_pointer_manager_v1"]
+version = min(version, 2)
+manager = new_id()
+send(2, 0, struct.pack("<I", name) + string("zwlr_virtual_pointer_manager_v1") + struct.pack("<II", version, manager))
+pointer = new_id()
+send(manager, 0, struct.pack("<II", 0, pointer))
+
+
+def move(x, y):
+    send(pointer, 1, struct.pack("<IIIII", stamp(), x, y, width, height))
+    send(pointer, 4)
+
+
+def click(down):
+    send(pointer, 2, struct.pack("<III", stamp(), buttons[button], 1 if down else 0))
+    send(pointer, 4)
+
+
+move(x, y)
+roundtrip()
+time.sleep(0.2)
+click(True)
+roundtrip()
+os.mkfifo(fifo) if not os.path.exists(fifo) else None
+commands = os.open(fifo, os.O_RDWR | os.O_NONBLOCK)
+with open(ready, "w") as marker:
+    marker.write("%d\n" % os.getpid())
+deadline = time.monotonic() + 300
+text = b""
+done = False
+while not done and time.monotonic() < deadline:
+    if not select.select([commands], [], [], 0.2)[0]:
+        continue
+    text += os.read(commands, 4096)
+    while b"\n" in text:
+        line, text = text.split(b"\n", 1)
+        words = line.decode().split()
+        if words[:1] == ["move"]:
+            move(int(words[1]), int(words[2]))
+            roundtrip()
+        elif words[:1] == ["release"]:
+            if len(words) == 3:
+                move(int(words[1]), int(words[2]))
+            click(False)
+            roundtrip()
+            done = True
+            break
+if not done:
+    click(False)
+    roundtrip()
+send(pointer, 8)
+send(manager, 1)
+roundtrip()
+PY
+}
+
+holder_of() {
+  local rig=$1 pid
+  pid=$(read_pid "$rig/pointer.pid" holder 2>/dev/null || true)
+  [[ -n $pid ]] && pid_is_rig_holder "$pid" "$rig" || return 1
+  printf '%s\n' "$pid"
+}
+
+need_pointer() {
+  local name=$1 rig
+  rig=$(existing_rig "$name")
+  [[ $(compositor_of "$rig") == labwc ]] ||
+    die "the pointer needs labwc, and rig [$name] runs cage: RIG_COMPOSITOR=labwc bin/rig up ..."
+  printf '%s\n' "$rig"
+}
+
+press() {
+  local name=${1:?usage: bin/rig press <name> <x> <y> [left|middle|right]}
+  local x=${2:?usage: bin/rig press <name> <x> <y> [left|middle|right]}
+  local y=${3:?usage: bin/rig press <name> <x> <y> [left|middle|right]}
+  local button=${4:-left} rig socket width height attempt
+  [[ $x =~ ^[0-9]+$ && $y =~ ^[0-9]+$ ]] || die "x and y are whole points from the output's top left, got [$x] [$y]"
+  [[ $button == left || $button == middle || $button == right ]] || die "the button is left, middle or right, got [$button]"
+  rig=$(need_pointer "$name")
+  socket=$(read_socket "$rig")
+  ! holder_of "$rig" > /dev/null || die "rig [$name] already holds a button; bin/rig release $name first"
+  [[ -f $rig/extent ]] || die "no output size recorded at $rig/extent; bin/rig up it again"
+  read -r width height < "$rig/extent"
+  (( x < width && y < height )) || die "[$x] [$y] is outside the ${width}x${height} output"
+  rm -f "$rig/pointer.ready" "$rig/pointer.fifo"
+  mkfifo "$rig/pointer.fifo"
+  RIG=$rig WAYLAND_DISPLAY=$socket setsid bash -c "$(declare -f pointer_holder); pointer_holder \"\$@\"" _ \
+    "$socket" "$rig/pointer.fifo" "$rig/pointer.ready" "$width" "$height" "$button" "$x" "$y" \
+    > "$rig/pointer.log" 2>&1 &
+  for ((attempt = 0; attempt < 100; attempt++)); do
+    [[ -f $rig/pointer.ready ]] && break
+    kill -0 $! 2>/dev/null || break
+    sleep 0.1
+  done
+  if [[ ! -f $rig/pointer.ready ]]; then
+    echo "rig: the pointer holder did not come up; the rig's fault, not the product's" >&2
+    cat "$rig/pointer.log" >&2 || true
+    exit 1
+  fi
+  cp "$rig/pointer.ready" "$rig/pointer.pid"
+  printf 'holding %s at %s %s\n' "$button" "$x" "$y"
+}
+
+release() {
+  local name=${1:?usage: bin/rig release <name> [<x> <y>]}
+  local rig pid attempt
+  rig=$(need_pointer "$name")
+  pid=$(holder_of "$rig") || die "rig [$name] holds no button"
+  shift
+  if (( $# == 2 )); then
+    [[ $1 =~ ^[0-9]+$ && $2 =~ ^[0-9]+$ ]] || die "x and y are whole points, got [$1] [$2]"
+    printf 'release %s %s\n' "$1" "$2" > "$rig/pointer.fifo"
+  elif (( $# == 0 )); then
+    printf 'release\n' > "$rig/pointer.fifo"
+  else
+    die "usage: bin/rig release <name> [<x> <y>]"
+  fi
+  for attempt in {1..100}; do
+    pid_is_rig_holder "$pid" "$rig" || break
+    sleep 0.1
+  done
+  if pid_is_rig_holder "$pid" "$rig"; then
+    echo "rig: the pointer holder $pid did not finish releasing" >&2
+    exit 1
+  fi
+  rm -f "$rig/pointer.pid" "$rig/pointer.fifo" "$rig/pointer.ready"
+  echo "released"
+}
+
+drag_to() {
+  local name=${1:?usage: bin/rig drag-to <name> <x> <y>}
+  local x=${2:?usage: bin/rig drag-to <name> <x> <y>}
+  local y=${3:?usage: bin/rig drag-to <name> <x> <y>}
+  local rig
+  rig=$(need_pointer "$name")
+  holder_of "$rig" > /dev/null || die "rig [$name] holds no button"
+  [[ $x =~ ^[0-9]+$ && $y =~ ^[0-9]+$ ]] || die "x and y are whole points, got [$x] [$y]"
+  printf 'move %s %s\n' "$x" "$y" > "$rig/pointer.fifo"
+}
+
+down() {
+  local name=${1:?usage: bin/rig down <name>}
+  local rig app_pid="" comp_pid="" launcher_pid="" live=0
+  rig=$(existing_rig "$name")
+  stop_recorded "$rig"
+
+  app_pid=$(read_pid "$rig/app.pid" "$APP" 2>/dev/null || true)
+  comp_pid=$(read_pid "$rig/compositor.pid" compositor 2>/dev/null || true)
+  launcher_pid=$(read_pid "$rig/launcher.pid" launcher 2>/dev/null || true)
+  if [[ -n $app_pid ]] && pid_is_rig_app "$app_pid" "$rig"; then
+    echo "rig: teardown left recorded $APP pid $app_pid running" >&2
+    live=1
+  fi
+  if [[ -n $comp_pid ]] && pid_is_rig_compositor "$comp_pid" "$rig"; then
+    echo "rig: teardown left recorded compositor pid $comp_pid running" >&2
+    live=1
+  fi
+  if [[ -n $launcher_pid ]] && pid_is_rig_launcher "$launcher_pid" "$rig"; then
+    echo "rig: teardown left recorded launcher pid $launcher_pid running" >&2
+    live=1
+  fi
+  (( live == 0 )) || exit 1
+  echo "rig: recorded processes for [$name] are gone"
+}
+
+ls_rigs() {
+  local rig app_pid comp_pid recipe name
+  for rig in "$PWD"/tmp/rig-*/; do
+    rig=${rig%/}
+    [[ -f $rig/app.pid ]] || continue
+    app_pid=$(read_pid "$rig/app.pid" "$APP" 2>/dev/null || true)
+    [[ -n $app_pid ]] || continue
+    pid_is_rig_app "$app_pid" "$rig" || continue
+    comp_pid=$(read_pid "$rig/compositor.pid" compositor 2>/dev/null || true)
+    recipe=""
+    [[ -f $rig/recipe ]] && read -r recipe < "$rig/recipe"
+    name=${rig##*/rig-}
+    printf '%s\t%s pid=%s\t%s pid=%s\t%s\n' "$name" "$(compositor_of "$rig")" "${comp_pid:-none}" "$APP" "$app_pid" "$recipe"
+  done
+}
+
+case ${1-} in
+  up) shift; up "$@" ;;
+  shot) shift; shot "$@" ;;
+  keys) shift; keys "$@" ;;
+  pointer) shift; pointer "$@" ;;
+  press) shift; press "$@" ;;
+  drag-to) shift; drag_to "$@" ;;
+  release) shift; release "$@" ;;
+  down) shift; down "$@" ;;
+  ls) ls_rigs ;;
+  *) die "usage: bin/rig {up <recipe> <name>|shot <name> <file>|keys <name> <wtype args>|pointer <name> <wlrctl args>|press <name> <x> <y> [button]|drag-to <name> <x> <y>|release <name> [<x> <y>]|down <name>|ls}" ;;
+esac

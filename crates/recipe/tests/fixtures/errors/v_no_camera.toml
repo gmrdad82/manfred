@@ -1,0 +1,6 @@
+manfred = 1
+name = "t"
+
+[output]
+sidecar = "x.json"
+sidecar_dialect = "facts"

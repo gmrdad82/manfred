@@ -1,0 +1,483 @@
+use crate::text::Overlay;
+use pfx_post::{Chain, Image, Pass};
+use pfx_trace::denoise;
+use std::path::Path;
+
+const RLE_LEAST: usize = 8;
+const RLE_MOST: usize = 32767;
+const RUN_LEAST: usize = 4;
+const RUN_MOST: usize = 127;
+const LITERAL_MOST: usize = 128;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Format {
+    Png,
+    Exr,
+    Hdr,
+}
+
+impl Format {
+    pub fn of(path: &Path) -> Option<Format> {
+        let extension = path.extension()?.to_str()?.to_ascii_lowercase();
+        match extension.as_str() {
+            "png" => Some(Format::Png),
+            "exr" => Some(Format::Exr),
+            "hdr" => Some(Format::Hdr),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Film {
+    pub size: [u32; 2],
+    pub color: Vec<[f32; 4]>,
+    pub albedo: Vec<[f32; 4]>,
+    pub normal: Vec<[f32; 4]>,
+    pub samples: u32,
+}
+
+impl Film {
+    pub fn mean(&self) -> [f64; 3] {
+        let mut sum = [0.0f64; 3];
+        for pixel in &self.color {
+            for (total, value) in sum.iter_mut().zip(pixel) {
+                *total += f64::from(*value);
+            }
+        }
+        let count = self.color.len().max(1) as f64;
+        sum.map(|total| total / count)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Look<'a> {
+    pub chain: &'a Chain,
+    pub overlay: Option<&'a Overlay>,
+}
+
+impl<'a> From<&'a Chain> for Look<'a> {
+    fn from(chain: &'a Chain) -> Look<'a> {
+        Look {
+            chain,
+            overlay: None,
+        }
+    }
+}
+
+impl<'a> From<(&'a Chain, &'a Overlay)> for Look<'a> {
+    fn from((chain, overlay): (&'a Chain, &'a Overlay)) -> Look<'a> {
+        Look {
+            chain,
+            overlay: Some(overlay).filter(|overlay| !overlay.is_empty()),
+        }
+    }
+}
+
+pub fn looked<'a>(film: &Film, finish: impl Into<Look<'a>>) -> Result<Vec<u8>, String> {
+    looked_with(film, finish, true)
+}
+
+pub fn looked_with<'a>(
+    film: &Film,
+    finish: impl Into<Look<'a>>,
+    denoised: bool,
+) -> Result<Vec<u8>, String> {
+    let look = finish.into();
+    let [width, height] = film.size;
+    let pixels = if denoised {
+        denoise::filter(
+            width,
+            height,
+            &film.color,
+            &film.albedo,
+            &film.normal,
+            film.samples.max(1),
+        )?
+    } else {
+        film.color.clone()
+    };
+    let image = Image::from_pixels(width, height, pixels)
+        .map_err(|_| format!("the film is not {width}x{height}"))?;
+    let finished = match look.overlay {
+        None => {
+            let mut chain = look.chain.clone();
+            chain.passes.push(Pass::Encode);
+            chain.apply(&image, None, None)
+        }
+        Some(overlay) => {
+            let mut finished = look.chain.apply(&image, None, None);
+            overlay.paint(&mut finished.pixels, film.size)?;
+            let encode = Chain {
+                passes: vec![Pass::Encode],
+                ..look.chain.clone()
+            };
+            encode.apply(&finished, None, None)
+        }
+    };
+    Ok(finished
+        .pixels
+        .into_iter()
+        .flat_map(|pixel| {
+            let [r, g, b, _] = pixel.map(|value| (value.clamp(0.0, 1.0) * 255.0).round() as u8);
+            [r, g, b, 255]
+        })
+        .collect())
+}
+
+pub fn rgbe(rgb: [f32; 3]) -> [u8; 4] {
+    let rgb = rgb.map(|v| if v.is_finite() { v.max(0.0) } else { 0.0 });
+    let top = rgb[0].max(rgb[1]).max(rgb[2]);
+    if !top.is_normal() {
+        return [0; 4];
+    }
+    let exponent = (((top.to_bits() >> 23) & 0xff) as i32 - 126).min(127);
+    let scale = 2f32.powi(8 - exponent);
+    let [r, g, b] = rgb.map(|v| (v * scale).floor().min(255.0) as u8);
+    [r, g, b, (exponent + 128) as u8]
+}
+
+pub fn hdr(size: [u32; 2], pixels: &[[f32; 4]]) -> Result<Vec<u8>, String> {
+    let [width, height] = sides(size, pixels)?;
+    let mut out =
+        format!("#?RADIANCE\nFORMAT=32-bit_rle_rgbe\nSOFTWARE=manfred\n\n-Y {height} +X {width}\n")
+            .into_bytes();
+    let rle = (RLE_LEAST..=RLE_MOST).contains(&width);
+    let mut channel = vec![0u8; width];
+    for row in pixels.chunks_exact(width) {
+        let scan: Vec<[u8; 4]> = row.iter().map(|p| rgbe([p[0], p[1], p[2]])).collect();
+        if !rle {
+            out.extend(scan.iter().flatten());
+            continue;
+        }
+        out.extend([2, 2, (width >> 8) as u8, (width & 0xff) as u8]);
+        for k in 0..4 {
+            for (byte, pixel) in channel.iter_mut().zip(&scan) {
+                *byte = pixel[k];
+            }
+            runs(&channel, &mut out);
+        }
+    }
+    Ok(out)
+}
+
+fn runs(data: &[u8], out: &mut Vec<u8>) {
+    let mut at = 0;
+    while at < data.len() {
+        let mut begin = at;
+        let mut run = 0;
+        while begin < data.len() {
+            run = 1;
+            while begin + run < data.len() && run < RUN_MOST && data[begin + run] == data[begin] {
+                run += 1;
+            }
+            if run >= RUN_LEAST {
+                break;
+            }
+            begin += run;
+        }
+        let found = begin < data.len() && run >= RUN_LEAST;
+        let end = if found { begin } else { data.len() };
+        while at < end {
+            let count = (end - at).min(LITERAL_MOST);
+            out.push(count as u8);
+            out.extend(&data[at..at + count]);
+            at += count;
+        }
+        if found {
+            out.push((LITERAL_MOST + run) as u8);
+            out.push(data[begin]);
+            at = begin + run;
+        }
+    }
+}
+
+pub fn write_exr(path: &Path, size: [u32; 2], pixels: &[[f32; 4]]) -> Result<(), String> {
+    use exr::prelude::*;
+    let [width, height] = sides(size, pixels)?;
+    let layer = Layer::new(
+        (width, height),
+        LayerAttributes::named("manfred render"),
+        Encoding::FAST_LOSSLESS,
+        SpecificChannels::rgba(|at: Vec2<usize>| {
+            let [r, g, b, _] = pixels[at.y() * width + at.x()].map(f16::from_f32);
+            (r, g, b, f16::ONE)
+        }),
+    );
+    Image::from_layer(layer)
+        .write()
+        .non_parallel()
+        .to_file(path)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+pub fn read_exr(path: &Path) -> Result<([u32; 2], Vec<[f32; 4]>), String> {
+    type Pixels = ([usize; 2], Vec<[f32; 4]>);
+    let image = exr::prelude::read_first_rgba_layer_from_file(
+        path,
+        |resolution, _| -> Pixels {
+            (
+                [resolution.width(), resolution.height()],
+                vec![[0.0; 4]; resolution.width() * resolution.height()],
+            )
+        },
+        |pixels: &mut Pixels, at: exr::prelude::Vec2<usize>, (r, g, b, a): (f32, f32, f32, f32)| {
+            let width = pixels.0[0];
+            pixels.1[at.y() * width + at.x()] = [r, g, b, a];
+        },
+    )
+    .map_err(|e| format!("{}: {e}", path.display()))?;
+    let ([width, height], pixels) = image.layer_data.channel_data.pixels;
+    Ok(([width as u32, height as u32], pixels))
+}
+
+fn sides(size: [u32; 2], pixels: &[[f32; 4]]) -> Result<[usize; 2], String> {
+    let [width, height] = size.map(|side| side as usize);
+    if pixels.len() != width * height || width == 0 || height == 0 {
+        return Err(format!(
+            "{} pixels are not a {width}x{height} picture",
+            pixels.len()
+        ));
+    }
+    Ok([width, height])
+}
+
+pub fn write<'a>(path: &Path, film: &Film, finish: impl Into<Look<'a>>) -> Result<Format, String> {
+    write_with(path, film, finish, true)
+}
+
+pub fn write_with<'a>(
+    path: &Path,
+    film: &Film,
+    finish: impl Into<Look<'a>>,
+    denoised: bool,
+) -> Result<Format, String> {
+    let format = Format::of(path).ok_or_else(|| {
+        format!(
+            "{}: the out file ends in .png, .exr or .hdr",
+            path.display()
+        )
+    })?;
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    match format {
+        Format::Png => {
+            let rgba = looked_with(film, finish, denoised)?;
+            manfred_scene::write_png(path, film.size, &rgba).map_err(|e| e.0)?;
+        }
+        Format::Exr => write_exr(path, film.size, &film.color)?,
+        Format::Hdr => std::fs::write(path, hdr(film.size, &film.color)?)
+            .map_err(|e| format!("{}: {e}", path.display()))?,
+    }
+    Ok(format)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pfx_load::Sky;
+    use std::path::PathBuf;
+
+    fn scratch(name: &str) -> PathBuf {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/render-tests");
+        std::fs::create_dir_all(&dir).unwrap();
+        dir.join(name)
+    }
+
+    fn known(width: usize, height: usize) -> Vec<[f32; 4]> {
+        (0..width * height)
+            .map(|n| {
+                let k = (n % 7) as i32 - 3;
+                let level = 2f32.powi(k);
+                match n % 4 {
+                    0 => [level, level * 0.5, level * 0.25, 1.0],
+                    1 => [0.0, 0.0, 0.0, 1.0],
+                    2 => [level * 0.75, level, 0.0, 1.0],
+                    _ => [0.125, 0.125, 0.125, 1.0],
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn rgbe_holds_powers_of_two_exactly_and_others_within_a_step() {
+        assert_eq!(rgbe([1.0, 0.5, 0.25]), [128, 64, 32, 129]);
+        assert_eq!(rgbe([0.0, 0.0, 0.0]), [0; 4]);
+        assert_eq!(rgbe([f32::NAN, -1.0, 0.0]), [0; 4]);
+        assert_eq!(rgbe([f32::INFINITY, 0.0, 0.0]), [0; 4]);
+        let pixel = rgbe([1000.0, 3.5, 0.001]);
+        let decoded = Sky::parse(&hdr([1, 1], &[[1000.0, 3.5, 0.001, 1.0]]).unwrap())
+            .unwrap()
+            .texels[0];
+        assert_eq!(pixel[3], 128 + 10);
+        assert!((decoded[0] - 1000.0).abs() <= 1000.0 / 128.0, "{decoded:?}");
+        assert!((decoded[1] - 3.5).abs() <= 1000.0 / 128.0, "{decoded:?}");
+    }
+
+    #[test]
+    fn an_hdr_reads_back_through_the_engines_sky_reader_flat_and_run_length() {
+        for (width, height) in [(5, 3), (64, 4), (300, 2)] {
+            let pixels = known(width, height);
+            let bytes = hdr([width as u32, height as u32], &pixels).unwrap();
+            let sky = Sky::parse(&bytes).unwrap();
+            assert_eq!((sky.width, sky.height), (width as u32, height as u32));
+            assert_eq!(sky.texels, pixels, "{width}x{height}");
+        }
+        let flat = vec![[0.5, 0.5, 0.5, 1.0]; 64 * 2];
+        let packed = hdr([64, 2], &flat).unwrap();
+        assert!(packed.len() < 64 * 2 * 4, "{}", packed.len());
+        assert_eq!(Sky::parse(&packed).unwrap().texels, flat);
+        assert!(hdr([4, 4], &flat).is_err());
+    }
+
+    #[test]
+    fn literal_and_run_packets_split_where_the_format_allows() {
+        let mut data = vec![7u8; 300];
+        data.extend((0..200).map(|n| n as u8));
+        data.extend([1, 1, 1, 2, 2, 2, 2]);
+        let mut out = Vec::new();
+        runs(&data, &mut out);
+        let mut back = Vec::new();
+        let mut at = 0;
+        while at < out.len() {
+            let count = out[at] as usize;
+            assert!(count > 0);
+            if count > LITERAL_MOST {
+                back.extend(std::iter::repeat_n(out[at + 1], count - LITERAL_MOST));
+                at += 2;
+            } else {
+                back.extend(&out[at + 1..at + 1 + count]);
+                at += 1 + count;
+            }
+        }
+        assert_eq!(back, data);
+    }
+
+    #[test]
+    fn an_exr_round_trips_known_pixels_as_half_floats() {
+        let pixels = known(37, 5);
+        let path = scratch("known.exr");
+        write_exr(&path, [37, 5], &pixels).unwrap();
+        let (size, back) = read_exr(&path).unwrap();
+        assert_eq!(size, [37, 5]);
+        assert_eq!(back, pixels);
+        let odd = vec![[1.0 / 3.0, 1000.25, 0.1, 1.0]];
+        write_exr(&path, [1, 1], &odd).unwrap();
+        let (_, back) = read_exr(&path).unwrap();
+        for (got, want) in back[0].iter().zip(odd[0]) {
+            assert!((got - want).abs() <= want.abs() / 1024.0, "{got} {want}");
+        }
+        let first = std::fs::read(&path).unwrap();
+        write_exr(&path, [1, 1], &odd).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), first);
+        assert!(write_exr(&path, [2, 2], &odd).is_err());
+    }
+
+    #[test]
+    fn formats_follow_the_extension() {
+        assert_eq!(Format::of(Path::new("a/b.png")), Some(Format::Png));
+        assert_eq!(Format::of(Path::new("b.EXR")), Some(Format::Exr));
+        assert_eq!(Format::of(Path::new("sky.hdr")), Some(Format::Hdr));
+        assert_eq!(Format::of(Path::new("sky.jpg")), None);
+        assert_eq!(Format::of(Path::new("sky")), None);
+    }
+
+    #[test]
+    fn the_png_goes_through_the_look_and_srgb() {
+        let size = [4, 2];
+        let film = Film {
+            size,
+            color: vec![[0.18, 0.18, 0.18, 1.0]; 8],
+            albedo: vec![[0.5, 0.5, 0.5, 1.0]; 8],
+            normal: vec![[0.0, 0.0, 1.0, 1.0]; 8],
+            samples: 16,
+        };
+        let plain = looked(&film, &Chain::new()).unwrap();
+        assert_eq!(plain.len(), 32);
+        assert!(
+            plain.chunks_exact(4).all(|p| p == [118, 118, 118, 255]),
+            "{plain:?}"
+        );
+        let look = graded_finish();
+        let graded = looked(&film, &look).unwrap();
+        assert_ne!(graded, plain);
+        assert_eq!(graded, looked(&film, &look).unwrap());
+        let path = scratch("look.png");
+        assert_eq!(write(&path, &film, &look).unwrap(), Format::Png);
+        assert!(write(&scratch("look.tga"), &film, &look).is_err());
+    }
+
+    fn graded_finish() -> Chain {
+        let recipe = manfred_recipe::parse("manfred = 1\nname = \"t\"\n").unwrap();
+        manfred_scene::Lighting::of(&recipe).unwrap().finish
+    }
+
+    fn standard_finish(exposure: f64) -> Chain {
+        let text = format!(
+            "manfred = 1\nname = \"t\"\n[look]\nview = \"standard\"\nexposure = {exposure:?}\n"
+        );
+        let recipe = manfred_recipe::parse(&text).unwrap();
+        manfred_scene::Lighting::of(&recipe).unwrap().finish
+    }
+
+    fn levels(finish: &Chain, linear: [f32; 4]) -> Vec<u8> {
+        let film = Film {
+            size: [4, 1],
+            color: linear.map(|v| [v, v, v, 1.0]).to_vec(),
+            albedo: vec![[0.5, 0.5, 0.5, 1.0]; 4],
+            normal: vec![[0.0, 0.0, 1.0, 1.0]; 4],
+            samples: 1,
+        };
+        looked_with(&film, finish, false)
+            .unwrap()
+            .chunks_exact(4)
+            .map(|p| {
+                assert_eq!(p[0], p[1]);
+                assert_eq!(p[3], 255);
+                p[0]
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_standard_finish_is_exposure_clamp_and_the_srgb_curve() {
+        let finish = standard_finish(1.0);
+        assert_eq!(finish.passes.len(), 1);
+        assert!(matches!(finish.passes[0], Pass::Exposure(e) if e == 1.0));
+        assert_eq!(levels(&finish, [0.0, 0.5, 1.0, 2.0]), [0, 188, 255, 255]);
+        assert_eq!(levels(&finish, [0.25, 0.25, 0.25, 0.25]), [137; 4]);
+        let doubled = standard_finish(2.0);
+        assert_eq!(levels(&doubled, [0.0, 0.25, 0.5, 1.0]), [0, 188, 255, 255]);
+        let halved = standard_finish(0.5);
+        assert_eq!(levels(&halved, [0.0, 1.0, 2.0, 4.0]), [0, 188, 255, 255]);
+    }
+
+    #[test]
+    fn the_standard_finish_leaves_the_graded_tone_curve_out() {
+        let graded = graded_finish();
+        let samples = [0.0, 0.5, 1.0, 2.0];
+        assert_ne!(
+            levels(&graded, samples),
+            levels(&standard_finish(1.0), samples)
+        );
+    }
+
+    #[test]
+    fn a_film_goes_through_raw_when_the_denoiser_is_off() {
+        let film = Film {
+            size: [2, 1],
+            color: vec![[0.5, 0.5, 0.5, 1.0], [0.0, 0.0, 0.0, 1.0]],
+            albedo: vec![[0.5, 0.5, 0.5, 1.0]; 2],
+            normal: vec![[0.0, 0.0, 1.0, 1.0]; 2],
+            samples: 4,
+        };
+        let raw = looked_with(&film, &Chain::new(), false).unwrap();
+        assert_eq!(raw, [188, 188, 188, 255, 0, 0, 0, 255]);
+        let path = scratch("raw.png");
+        assert_eq!(
+            write_with(&path, &film, &Chain::new(), false).unwrap(),
+            Format::Png
+        );
+    }
+}

@@ -1,0 +1,4 @@
+# jump to the outliner: its border goes line.strong and its selected row accent
+key b
+key 1
+frame

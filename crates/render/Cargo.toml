@@ -1,0 +1,27 @@
+[package]
+name = "manfred-render"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Manfred's renders: path-traced stills, equirect and ortho, PNG, EXR and HDR out"
+
+[dependencies]
+pfx.workspace = true
+pfx-trace.workspace = true
+pfx-gpu.workspace = true
+pfx-live.workspace = true
+pfx-materials.workspace = true
+pfx-post.workspace = true
+pfx-text.workspace = true
+manfred-build.workspace = true
+manfred-recipe.workspace = true
+manfred-scene.workspace = true
+exr.workspace = true
+
+[dev-dependencies]
+png.workspace = true
+pfx-load.workspace = true

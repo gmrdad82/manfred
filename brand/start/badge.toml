@@ -1,0 +1,22 @@
+manfred = 1
+name = "badge"
+
+[output]
+glb = "badge.glb"
+
+[materials.blueprint]
+family = "lacquer"
+base = [0.0006, 0.0194, 0.0685]
+roughness = 0.12
+specular = 0.05
+
+[materials.amber]
+family = "lacquer"
+base = [0.8879, 0.521, 0.0976]
+roughness = 0.14
+specular = 0.05
+
+[[use]]
+file = "../parts/c.toml"
+at = [0.0, 0.0, -0.0112]
+rotate = [90.0, 0.0, 0.0]

@@ -1,0 +1,83 @@
+manfred = 1
+name = "small"
+seed = 11
+
+[output]
+glb = "scene/small.glb"
+sidecar = "scene/small.json"
+sidecar_dialect = "facts"
+bake = "bake.toml"
+
+[[object]]
+name = "desk"
+kind = "box"
+size = [0.6, 0.04, 0.4]
+material = "wood"
+
+[[object]]
+name = "blocker"
+kind = "box"
+at = [0.0, 0.3, 0.0]
+size = [0.1, 0.01, 0.1]
+material = "wood"
+shadow = "only"
+
+[[camera]]
+name = "main"
+position = [0.0, 0.4, 1.0]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 30.0
+
+[sun]
+model = "authored"
+toward = [0.45, 0.62, 0.64]
+color = [1.0, 0.86, 0.66]
+irradiance = 4.5
+
+[sky]
+kind = "room"
+rotation_deg = 30.0
+intensity = 1.5
+[sky.shade]
+hours = { 8 = [0.5, 0.5, 0.6], 16 = [1.0, 1.0, 1.0] }
+[sky.room]
+width = 64
+floor = [0.22, 0.135, 0.068]
+wall = [0.19, 0.13, 0.07]
+ceiling = [0.28, 0.23, 0.16]
+[[sky.room.lights]]
+name = "window"
+az = -64.0
+el = 14.0
+width = 37.5
+height = 29.0
+power = 10.5
+color = [1.0, 0.86, 0.66]
+soft = 0.05
+slats = 6.0
+open = 0.7
+[[sky.room.lights]]
+az = 62.0
+power = 1.7
+
+[[light]]
+name = "lamp"
+position = [0.2, 0.3, 0.1]
+color = [1.0, 0.8, 0.6]
+intensity = 0.2
+radius = 0.02
+
+[bake]
+product = "sample"
+anchors = [8.0, 12.0]
+samples = 4
+[[bake.volume]]
+name = "desk"
+min = [-0.3, 0.0, -0.2]
+max = [0.3, 0.4, 0.2]
+spacing = 0.1
+[[bake.volume]]
+name = "lamp-side"
+min = [0.0, 0.2, 0.0]
+max = [0.2, 0.4, 0.2]
+spacing = 0.1

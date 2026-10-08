@@ -1,0 +1,14 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "mv_knob"
+kind = "box"
+size = [1.0, 1.0, 1.0]
+
+[[mover]]
+group = "knob"
+pivot = [0.0, 0.0, 0.0]
+axis = [0.0, 1.0, 0.0]
+travel = 0.01
+parts = ["ghost"]

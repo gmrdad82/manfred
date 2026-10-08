@@ -1,0 +1,24 @@
+manfred = 1
+name = "crates"
+seed = 3
+
+[[object]]
+name = "floor"
+kind = "box"
+size = [4.0, 0.1, 4.0]
+material = "floor"
+
+[[object]]
+name = "left"
+kind = "generator"
+generator = "app/crate"
+params = { name = "left_crate", side = 1.0 }
+at = [-1.0, 0.55, 0.0]
+
+[[object]]
+name = "right"
+kind = "generator"
+generator = "app/crate"
+params = { name = "right_crate" }
+at = [1.0, 0.55, 0.0]
+rotate = [0.0, 45.0, 0.0]

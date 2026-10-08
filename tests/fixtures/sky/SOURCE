@@ -1,0 +1,4 @@
+window.hdr: made by Manfred for its own tests, 2026-10-05. A 128 by 64 equirect Radiance HDR,
+flat RGBE scanlines: above the horizon a grey gradient from (0.35, 0.38, 0.42) at the horizon to
+(0.6, 0.65, 0.75) at the zenith, below it (0.12, 0.11, 0.1), and a window of (40, 34, 26) from
+azimuth -75 to -45 degrees and elevation 5 to 30. Free of any licence; it belongs to no app.

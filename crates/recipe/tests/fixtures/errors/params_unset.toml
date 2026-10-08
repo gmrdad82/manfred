@@ -1,0 +1,7 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "a"
+kind = "sphere"
+radius = "${params.lamp.radius}"

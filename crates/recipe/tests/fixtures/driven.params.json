@@ -1,0 +1,7 @@
+{
+  "spiral": { "height": 0.12 },
+  "table": { "z": -0.1 },
+  "post": { "radius": 0.015, "segments": 24 },
+  "camera": { "focal_mm": 50 },
+  "sky": { "hour": 15.5 }
+}

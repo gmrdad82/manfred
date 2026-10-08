@@ -1,0 +1,94 @@
+# Manfred's own flat-faces scene: a film strip, a plate with a pocket and a box, each bevelled and
+# keeping its large flat faces' own normals, beside a strip that smooths them into the bevel.
+# It belongs to no app.
+manfred = 1
+name = "flatslab"
+
+[output]
+glb = "flatslab.glb"
+sidecar = "flatslab.json"
+sidecar_dialect = "facts"
+
+[[object]]
+name = "strip"
+kind = "outline"
+outline = { rect = [-0.4, -0.04, 0.4, 0.04], radius = 0.01 }
+front = 0.0
+back = 0.02
+profile = { kind = "round", width = 0.004, segments = 4 }
+at = [0.0, 0.15, 0.0]
+material = "chrome"
+smooth_angle = 35.0
+flat_faces = true
+
+[[object]]
+name = "strip_smoothed"
+kind = "outline"
+outline = { rect = [-0.4, -0.04, 0.4, 0.04], radius = 0.01 }
+front = 0.0
+back = 0.02
+profile = { kind = "round", width = 0.004, segments = 4 }
+at = [0.0, 0.05, 0.0]
+material = "chrome"
+smooth_angle = 35.0
+
+[[object]]
+name = "plate"
+kind = "outline"
+outline = { rect = [-0.4, -0.2, 0.4, 0.2], radius = 0.02 }
+front = 0.0
+back = 0.04
+profile = { kind = "round", width = 0.004, segments = 4 }
+at = [0.0, -0.2, 0.0]
+material = "chrome"
+smooth_angle = 35.0
+flat_faces = true
+
+[[object]]
+name = "well"
+kind = "pocket"
+into = "plate"
+outline = { rect = [-0.1, -0.05, 0.1, 0.05], radius = 0.01 }
+depth = 0.012
+rim = { width = 0.002, segments = 4 }
+floor = { width = 0.002, segments = 4 }
+
+[[object]]
+name = "block"
+kind = "box"
+size = [0.16, 0.1, 0.1]
+at = [0.55, 0.0, 0.0]
+bevel = { width = 0.006, segments = 4 }
+material = "chrome"
+smooth_angle = 35.0
+flat_faces = true
+
+[[camera]]
+name = "main"
+kind = "perspective"
+position = [0.0, 0.0, 1.8]
+target = [0.0, 0.0, 0.0]
+up = [0.0, 1.0, 0.0]
+fov_y_deg = 32.0
+fstop = 0.0
+
+[sun]
+model = "authored"
+toward = [-0.45, 0.62, 0.65]
+radius_deg = 0.8
+color = [1.0, 0.95, 0.9]
+irradiance = 2.2
+
+[materials.chrome]
+family = "chrome"
+base = [0.9, 0.9, 0.9]
+roughness = 0.1
+metalness = 1.0
+
+[sky]
+kind = "analytic"
+intensity = 0.9
+rotation_deg = 0.0
+
+[look]
+exposure = 1.0

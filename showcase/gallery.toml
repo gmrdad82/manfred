@@ -1,0 +1,143 @@
+# Manfred's own 2.5D showcase: cards on a wall under an orthographic camera, with a glass pane and text.
+manfred = 1
+name = "gallery"
+
+[[object]]
+name = "wall"
+kind = "plane"
+rotate = [90.0, 0.0, 0.0]
+size = [2.0, 1.2]
+at = [0.0, 0.0, -0.05]
+material = "plaster"
+
+[[object]]
+name = "frame_top"
+kind = "box"
+size = [1.0, 0.03, 0.012]
+at = [0.0, 0.305, 0.006]
+bevel = { width = 0.003, segments = 3 }
+material = "oak"
+smooth_angle = 35.0
+
+[[object]]
+name = "frame_bottom"
+kind = "box"
+size = [1.0, 0.03, 0.012]
+at = [0.0, -0.305, 0.006]
+bevel = { width = 0.003, segments = 3 }
+material = "oak"
+smooth_angle = 35.0
+
+[[object]]
+name = "frame_left"
+kind = "box"
+size = [0.03, 0.58, 0.012]
+at = [-0.485, 0.0, 0.006]
+bevel = { width = 0.003, segments = 3 }
+material = "oak"
+smooth_angle = 35.0
+
+[[object]]
+name = "frame_right"
+kind = "box"
+size = [0.03, 0.58, 0.012]
+at = [0.485, 0.0, 0.006]
+bevel = { width = 0.003, segments = 3 }
+material = "oak"
+smooth_angle = 35.0
+
+[[object]]
+name = "card_left"
+kind = "card"
+size = [0.26, 0.34]
+at = [-0.3, 0.02, 0.004]
+slot = "left"
+material = "card"
+
+[[object]]
+name = "card_middle"
+kind = "card"
+size = [0.26, 0.34]
+at = [0.0, 0.04, 0.006]
+rotate = [0.0, 0.0, -3.0]
+slot = "middle"
+material = "card"
+
+[[object]]
+name = "card_right"
+kind = "card"
+size = [0.26, 0.34]
+at = [0.3, 0.02, 0.004]
+slot = "right"
+material = "card"
+
+[[object]]
+name = "pane"
+kind = "box"
+size = [0.94, 0.58, 0.004]
+at = [0.0, 0.0, 0.014]
+material = "glass"
+
+[[object]]
+name = "caption"
+kind = "text"
+at = [0.0, -0.26, 0.016]
+anchor = "centre"
+spans = [{ text = "three cards behind glass", size = 0.022, color = [0.15, 0.12, 0.1] }]
+
+[[object]]
+name = "title"
+kind = "text"
+space = "overlay"
+at = [20.0, 20.0, 0.0]
+spans = [{ text = "gallery", size = 26.0, color = [0.2, 0.2, 0.2] }]
+
+[[camera]]
+name = "flat"
+kind = "orthographic"
+position = [0.0, 0.0, 2.0]
+target = [0.0, 0.0, 0.0]
+ortho_height = 0.8
+
+[[camera]]
+name = "angle"
+position = [0.6, 0.15, 1.4]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 35.0
+
+[sun]
+model = "authored"
+toward = [0.3, 0.5, 0.8]
+radius_deg = 0.8
+color = [1.0, 0.95, 0.88]
+irradiance = 2.5
+
+[sky]
+kind = "analytic"
+intensity = 0.8
+
+[look]
+view = "standard"
+exposure = 1.0
+
+[materials.plaster]
+family = "plaster"
+base = [0.8, 0.78, 0.74]
+roughness = 0.9
+
+[materials.oak]
+family = "wood"
+base = [0.45, 0.3, 0.18]
+roughness = 0.55
+
+[materials.card]
+base = [0.93, 0.91, 0.86]
+roughness = 0.85
+
+[materials.glass]
+family = "glass"
+base = [0.92, 0.96, 1.0]
+roughness = 0.02
+transmission = 1.0
+ior = 1.5
+thickness = 0.004

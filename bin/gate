@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+fast=0
+public=0
+case "${1:-}" in
+  --fast) fast=1 ;;
+  --public) public=1 ;;
+  "") ;;
+  *) echo "usage: bin/gate [--fast | --public]" >&2; exit 2 ;;
+esac
+shellcheck bin/*
+for script in dev/wave.sh dev/watch.sh; do
+  [ ! -f "$script" ] || shellcheck -S warning "$script"
+done
+cargo fmt --all --check
+if [ "$public" = 1 ]; then
+  cargo clippy --workspace --all-targets -- -D warnings
+  cargo test --workspace --all-targets
+  exit 0
+fi
+cargo clippy --workspace --all-targets -- -D warnings
+if [ "$fast" = 1 ]; then
+  base=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD)
+  changed=$({ git diff --name-only "$base"; git diff --name-only --cached; git ls-files --others --exclude-standard; } | sort -u)
+  packages=()
+  whole=0
+  while IFS= read -r path; do
+    case "$path" in
+      crates/*/*) packages+=("-p" "manfred-$(cut -d/ -f2 <<<"$path")") ;;
+      src/*|tests/*|examples/*|showcase/*|Cargo.toml|Cargo.lock|build.rs) whole=1 ;;
+    esac
+  done <<<"$changed"
+  if [ "$whole" = 1 ]; then
+    cargo nextest run --workspace --no-tests=pass
+  elif [ "${#packages[@]}" -gt 0 ]; then
+    mapfile -t packages < <(printf '%s\n' "${packages[@]}" | paste -d' ' - - | sort -u | tr ' ' '\n')
+    cargo nextest run "${packages[@]}" --no-tests=pass
+  fi
+  exit 0
+fi
+cargo nextest run --workspace --no-tests=pass
+cargo test --workspace --doc
+cargo build --release

@@ -1,0 +1,186 @@
+# Manfred's own small scene: a few primitives on a table before a wall. It belongs to no app.
+manfred = 1
+name = "table"
+
+[output]
+glb = "table.glb"
+sidecar = "table.json"
+sidecar_dialect = "facts"
+order = "natural"
+
+[[object]]
+name = "top"
+kind = "plane"
+at = [0.0, 0.0, -0.1]
+size = [1.6, 1.2]
+material = "oak"
+smooth_angle = 40.0
+
+[[object]]
+name = "wall"
+kind = "plane"
+at = [0.0, 0.45, -0.42]
+rotate = [90.0, 0.0, 0.0]
+size = [1.6, 0.9]
+material = "plaster"
+smooth_angle = 40.0
+
+[[object]]
+name = "crate"
+kind = "box"
+at = [-0.25, 0.04, -0.05]
+size = [0.16, 0.08, 0.12]
+bevel = { width = 0.016, segments = 6 }
+material = "lacquer_blue"
+smooth_angle = 40.0
+
+[[object]]
+name = "dial"
+kind = "cylinder"
+at = [-0.08, 0.02, -0.02]
+radius = 0.03
+depth = 0.04
+segments = 64
+bevel = { width = 0.003, segments = 4 }
+material = "brass"
+smooth_angle = 30.0
+
+[[object]]
+name = "ball"
+kind = "sphere"
+at = [0.04, 0.04, -0.03]
+radius = 0.04
+segments = 64
+rings = 32
+material = "mirror"
+smooth_angle = 80.0
+
+[[object]]
+name = "note"
+kind = "box"
+at = [0.17, 0.001, -0.02]
+size = [0.1, 0.002, 0.14]
+bevel = { width = 0.0008, segments = 2 }
+material = "card"
+smooth_angle = 40.0
+
+[[object]]
+name = "rod"
+kind = "cylinder"
+at = [0.0, 0.016, -0.17]
+rotate = [0.0, 0.0, -90.0]
+radius = 0.016
+depth = 0.15
+segments = 48
+bevel = { width = 0.002, segments = 4 }
+material = "rubber"
+smooth_angle = 30.0
+
+[[object]]
+name = "tile_a"
+kind = "box"
+at = [-0.12, 0.01, 0.12]
+size = [0.06, 0.02, 0.04]
+bevel = { width = 0.004, segments = 6 }
+material = "lacquer_green"
+smooth_angle = 40.0
+
+[[object]]
+name = "tile_b"
+kind = "box"
+at = [-0.04, 0.01, 0.12]
+size = [0.06, 0.02, 0.04]
+bevel = { width = 0.004, segments = 6 }
+material = "lacquer_blue"
+smooth_angle = 40.0
+
+[[object]]
+name = "lamp"
+kind = "sphere"
+at = [0.1, 0.006, 0.12]
+radius = 0.006
+segments = 32
+rings = 16
+material = "glow"
+smooth_angle = 80.0
+
+[[object]]
+name = "tray"
+kind = "box"
+at = [0.24, 0.006, 0.14]
+size = [0.2, 0.012, 0.06]
+bevel = { width = 0.004, segments = 6 }
+material = "mirror"
+smooth_angle = 40.0
+
+[[camera]]
+name = "main"
+kind = "perspective"
+position = [0.0, 0.34, 0.62]
+target = [0.0, 0.03, -0.02]
+up = [0.0, 1.0, 0.0]
+fov_y_deg = 32.0
+focus_m = 0.7
+fstop = 0.0
+
+[sun]
+model = "authored"
+toward = [-0.45, 0.82, 0.35]
+radius_deg = 0.8
+color = [1.0, 0.92, 0.82]
+irradiance = 2.2
+
+[materials.oak]
+family = "wood"
+base = [0.42, 0.28, 0.16]
+roughness = 0.55
+
+[materials.plaster]
+family = "plaster"
+base = [0.7, 0.68, 0.64]
+roughness = 0.9
+
+[materials.lacquer_blue]
+family = "lacquer"
+base = [0.08, 0.2, 0.5]
+roughness = 0.3
+clearcoat = 0.8
+
+[materials.lacquer_green]
+family = "lacquer"
+base = [0.1, 0.4, 0.2]
+roughness = 0.3
+clearcoat = 0.8
+
+[materials.brass]
+family = "metal"
+base = [0.85, 0.66, 0.35]
+roughness = 0.3
+metalness = 1.0
+
+[materials.mirror]
+family = "chrome"
+base = [0.9, 0.9, 0.9]
+roughness = 0.05
+metalness = 1.0
+
+[materials.card]
+base = [0.92, 0.9, 0.84]
+roughness = 0.85
+
+[materials.rubber]
+base = [0.04, 0.04, 0.04]
+roughness = 0.8
+
+[materials.glow]
+family = "emissive"
+base = [1.0, 0.5, 0.2]
+emission = [4.0, 2.0, 0.8]
+
+[sky]
+kind = "analytic"
+intensity = 0.9
+rotation_deg = 0.0
+
+[look]
+exposure = 1.0

@@ -1,0 +1,17 @@
+[package]
+name = "manfred-mesh"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Manfred's geometry: outlines, 2D booleans, profiled extrusion, pockets, lathe, sweep and primitives"
+
+[dependencies]
+glam.workspace = true
+i_overlay.workspace = true
+
+[dev-dependencies]
+gltf.workspace = true

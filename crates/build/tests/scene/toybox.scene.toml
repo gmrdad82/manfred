@@ -1,0 +1,236 @@
+materials = ["toybox.materials.toml"]
+
+[sun]
+model = "authored"
+toward = [0.45, 0.62, 0.64]
+color = [1.0, 0.9, 0.8]
+irradiance = 3.0
+hour = 16.0
+reference_hour = 16.0
+radius = 0.8
+
+[sky]
+kind = "analytic"
+ambient = 0.9
+
+[camera]
+projection = "perspective"
+at = [0.6, 0.9, 1.2]
+look_at = [0.0, -0.05, 0.0]
+up = [0.0, 1.0, 0.0]
+focal = 50.0
+sensor = 22.499999999999996
+fstop = 4.0
+near = 0.6265480181213484
+far = 2.3672833670145397
+
+[finish]
+
+[[finish.pass]]
+exposure = 1.0
+
+[[finish.pass]]
+bloom = { kind = "box", strength = 0.08, threshold = 0.9, knee = 0.7, knee_width = 0.6, soft = 0.15, radius = 12, sigma = 50.0, down = 2 }
+
+[[finish.pass]]
+vignette = { kind = "power", strength = 0.2, power = 2.4, aspect = 0.8, scale = 1.28 }
+
+[[finish.pass]]
+saturation = 1.0
+
+[[finish.pass]]
+warmth = { kind = "linear", amount = 0.05 }
+
+[[finish.pass]]
+tone = "aces"
+
+[mesh.body]
+file = "toybox.glb"
+node = "body"
+
+[[object]]
+name = "body"
+mesh = "body"
+id = 1
+material = "lacquer_red"
+
+[mesh.lip_tray]
+file = "toybox.glb"
+node = "lip_tray"
+
+[[object]]
+name = "lip_tray"
+mesh = "lip_tray"
+id = 5
+material = "brass"
+
+[mesh.lip_dial]
+file = "toybox.glb"
+node = "lip_dial"
+
+[[object]]
+name = "lip_dial"
+mesh = "lip_dial"
+id = 6
+material = "brass"
+
+[mesh.cable]
+file = "toybox.glb"
+node = "cable"
+
+[[object]]
+name = "cable"
+mesh = "cable"
+id = 7
+material = "rubber"
+
+[mesh.mv_lid]
+file = "toybox.glb"
+node = "mv_lid"
+
+[[object]]
+name = "mv_lid"
+mesh = "mv_lid"
+id = 8
+material = "lacquer_cream"
+clip = [[0.0, 1.0, 0.0, 0.152], [0.0, -1.0, 0.0, 0.008]]
+dynamic = true
+
+[mesh.mv_lid__handle]
+file = "toybox.glb"
+node = "mv_lid__handle"
+
+[[object]]
+name = "mv_lid__handle"
+mesh = "mv_lid__handle"
+id = 9
+material = "steel"
+clip = [[0.0, 1.0, 0.0, 0.152], [0.0, -1.0, 0.0, 0.008]]
+dynamic = true
+
+[mesh.mv_knob]
+file = "toybox.glb"
+node = "mv_knob"
+
+[[object]]
+name = "mv_knob"
+mesh = "mv_knob"
+id = 10
+material = "lacquer_cream"
+dynamic = true
+
+[mesh.mv_knob__dot]
+file = "toybox.glb"
+node = "mv_knob__dot"
+
+[[object]]
+name = "mv_knob__dot"
+mesh = "mv_knob__dot"
+id = 11
+material = "brass"
+dynamic = true
+
+[mesh.drawer_front]
+file = "toybox.glb"
+node = "drawer_front"
+
+[[object]]
+name = "drawer_front"
+mesh = "drawer_front"
+id = 12
+material = "lacquer_cream"
+dynamic = true
+
+[mesh.drawer_pull]
+file = "toybox.glb"
+node = "drawer_pull"
+
+[[object]]
+name = "drawer_pull"
+mesh = "drawer_pull"
+id = 13
+material = "steel"
+dynamic = true
+
+[mesh.mv_roller]
+file = "toybox.glb"
+node = "mv_roller"
+
+[[object]]
+name = "mv_roller"
+mesh = "mv_roller"
+id = 14
+material = "steel"
+clip = [[0.0, 1.0, 0.0, -0.056]]
+dynamic = true
+
+[mesh.card]
+file = "toybox.glb"
+node = "card"
+
+[[object]]
+name = "card"
+mesh = "card"
+id = 15
+material = "card"
+
+[mesh.vase]
+file = "toybox.glb"
+node = "vase"
+
+[[object]]
+name = "vase"
+mesh = "vase"
+id = 16
+material = "glaze"
+
+[mesh.coin]
+file = "toybox.glb"
+node = "coin"
+
+[[object]]
+name = "coin"
+mesh = "coin"
+id = 17
+material = "brass"
+
+[mesh.block]
+file = "toybox.glb"
+node = "block"
+
+[[object]]
+name = "block"
+mesh = "block"
+id = 18
+material = "felt"
+
+[mesh.pill]
+file = "toybox.glb"
+node = "pill"
+
+[[object]]
+name = "pill"
+mesh = "pill"
+id = 19
+material = "glaze"
+
+[mesh.backdrop]
+file = "toybox.glb"
+node = "backdrop"
+
+[[object]]
+name = "backdrop"
+mesh = "backdrop"
+id = 20
+material = "wood"
+
+[mesh.shade]
+file = "toybox.glb"
+node = "shade"
+
+[[object]]
+name = "shade"
+mesh = "shade"
+id = 21
+material = "occluder"
+shadow = "only"

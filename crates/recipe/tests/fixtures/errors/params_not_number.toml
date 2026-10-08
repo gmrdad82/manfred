@@ -1,0 +1,8 @@
+manfred = 1
+name = "t"
+params = "../driven.params.json"
+
+[[object]]
+name = "a"
+kind = "sphere"
+radius = "${params.spiral}"

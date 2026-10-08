@@ -1,0 +1,5 @@
+# click Lights to make it active, then hover Cameras
+click 200 70
+frame
+move 124 70
+frame

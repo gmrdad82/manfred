@@ -1,0 +1,153 @@
+materials = ["table.materials.toml"]
+
+[sun]
+model = "authored"
+toward = [-0.45, 0.82, 0.35]
+color = [1.0, 0.92, 0.82]
+irradiance = 2.2
+hour = 16.0
+reference_hour = 16.0
+radius = 0.8
+
+[sky]
+kind = "analytic"
+ambient = 0.9
+
+[camera]
+projection = "perspective"
+at = [0.0, 0.34, 0.62]
+look_at = [0.0, 0.03, -0.02]
+up = [0.0, 1.0, 0.0]
+fov = 32.0
+near = 0.00014108067264497463
+far = 1.4108067264497461
+
+[finish]
+
+[[finish.pass]]
+exposure = 1.0
+
+[[finish.pass]]
+bloom = { kind = "box", strength = 0.0, threshold = 0.9, knee = 0.7, knee_width = 0.6, soft = 0.15, radius = 12, sigma = 50.0, down = 2 }
+
+[[finish.pass]]
+vignette = { kind = "power", strength = 0.0, power = 2.4, aspect = 0.8, scale = 1.28 }
+
+[[finish.pass]]
+saturation = 1.0
+
+[[finish.pass]]
+warmth = { kind = "linear", amount = 0.0 }
+
+[[finish.pass]]
+tone = "aces"
+
+[mesh.top]
+file = "table.glb"
+node = "top"
+
+[[object]]
+name = "top"
+mesh = "top"
+id = 1
+material = "oak"
+
+[mesh.wall]
+file = "table.glb"
+node = "wall"
+
+[[object]]
+name = "wall"
+mesh = "wall"
+id = 2
+material = "plaster"
+
+[mesh.crate]
+file = "table.glb"
+node = "crate"
+
+[[object]]
+name = "crate"
+mesh = "crate"
+id = 3
+material = "lacquer_blue"
+
+[mesh.dial]
+file = "table.glb"
+node = "dial"
+
+[[object]]
+name = "dial"
+mesh = "dial"
+id = 4
+material = "brass"
+
+[mesh.ball]
+file = "table.glb"
+node = "ball"
+
+[[object]]
+name = "ball"
+mesh = "ball"
+id = 5
+material = "mirror"
+
+[mesh.note]
+file = "table.glb"
+node = "note"
+
+[[object]]
+name = "note"
+mesh = "note"
+id = 6
+material = "card"
+
+[mesh.rod]
+file = "table.glb"
+node = "rod"
+
+[[object]]
+name = "rod"
+mesh = "rod"
+id = 7
+material = "rubber"
+
+[mesh.tile_a]
+file = "table.glb"
+node = "tile_a"
+
+[[object]]
+name = "tile_a"
+mesh = "tile_a"
+id = 8
+material = "lacquer_green"
+
+[mesh.tile_b]
+file = "table.glb"
+node = "tile_b"
+
+[[object]]
+name = "tile_b"
+mesh = "tile_b"
+id = 9
+material = "lacquer_blue"
+
+[mesh.lamp]
+file = "table.glb"
+node = "lamp"
+
+[[object]]
+name = "lamp"
+mesh = "lamp"
+id = 10
+material = "glow"
+
+[mesh.tray]
+file = "table.glb"
+node = "tray"
+
+[[object]]
+name = "tray"
+mesh = "tray"
+id = 11
+material = "mirror"

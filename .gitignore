@@ -1,0 +1,13 @@
+tmp/
+target/
+node_modules/
+/.dev/
+/AGENTS.md
+/CLAUDE.md
+/prompts
+/pito-app.toml
+/HANDOVER.md
+/ORCHESTRATOR.md
+/OWNERSHIP.md
+/dev
+/bin/install

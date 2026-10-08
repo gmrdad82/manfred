@@ -1,0 +1,8 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "a"
+kind = "sphere"
+radius = 0.1
+segments = 2.5

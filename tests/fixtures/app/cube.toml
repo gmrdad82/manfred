@@ -1,0 +1,29 @@
+manfred = 1
+name = "cube"
+seed = 5
+
+[[object]]
+name = "big"
+kind = "generator"
+generator = "app/cube"
+params = { name = "big_cube", side = 2.0 }
+
+[[object]]
+name = "small"
+kind = "generator"
+generator = "app/cube"
+params = { name = "small_cube", side = 0.5 }
+at = [2.0, 0.0, 0.0]
+
+[[camera]]
+name = "main"
+position = [0.0, 1.0, 6.0]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 35.0
+
+[output]
+sidecar = "cube.json"
+sidecar_dialect = "app"
+
+[sidecar]
+note = "kept"

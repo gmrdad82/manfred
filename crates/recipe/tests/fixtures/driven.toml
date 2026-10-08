@@ -1,0 +1,46 @@
+manfred = 1
+name = "driven"
+seed = 11
+params = "driven.params.json"
+
+[output]
+glb = "scene/driven.glb"
+sidecar = "scene/driven.json"
+sidecar_dialect = "facts"
+
+[[object]]
+name = "spiral"
+kind = "generator"
+generator = "app/spiral"
+at = [0.0, "${params.spiral.height}", 0.0]
+params = { turns = 3 }
+
+[[object]]
+name = "table"
+kind = "box"
+size = [2.0, 0.05, 1.0]
+at = [0.0, -0.025, "${params.table.z}"]
+
+[[object]]
+name = "post"
+kind = "cylinder"
+radius = "${params.post.radius}"
+depth = 0.4
+segments = "${params.post.segments}"
+
+[[camera]]
+name = "main"
+position = [0.0, 0.6, 1.4]
+target = [0.0, 0.1, 0.0]
+focal_mm = "${params.camera.focal_mm}"
+sensor_mm = 24.0
+shift = [0.0, 0.1]
+
+[sun]
+model = "daylight"
+hour = "${params.sky.hour}"
+latitude = 52.0
+heading = 20.0
+
+[sky]
+kind = "analytic"

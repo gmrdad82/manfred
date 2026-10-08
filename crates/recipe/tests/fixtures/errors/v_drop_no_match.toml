@@ -1,0 +1,10 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "a"
+kind = "box"
+size = [1.0, 1.0, 1.0]
+
+[variant.bare]
+drop = ["slat*", "a"]

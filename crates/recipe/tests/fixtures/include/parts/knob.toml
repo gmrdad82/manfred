@@ -1,0 +1,22 @@
+manfred = 1
+name = "knob"
+include = ["../rig.toml"]
+
+[[object]]
+name = "base"
+kind = "outline"
+outline = { superellipse = { half = [0.02, 0.02], exponent = 4.0, segments = 32 } }
+front = 0.004
+back = 0.0
+profile = { kind = "round", width = 0.001, segments = 2 }
+material = "tile"
+
+[[object]]
+name = "cap"
+kind = "cylinder"
+parent = "base"
+at = [0.0, 0.0, 0.01]
+rotate = [90.0, 0.0, 0.0]
+radius = 0.008
+depth = 0.012
+material = "tile"

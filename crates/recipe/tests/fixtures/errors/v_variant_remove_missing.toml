@@ -1,0 +1,5 @@
+manfred = 1
+name = "t"
+
+[variant.odd]
+remove = ["motion"]

@@ -1,0 +1,21 @@
+[package]
+name = "manfred-glb"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Manfred's deterministic GLB writer, the facts sidecar, and the reader and diff behind manfred diff"
+
+[dependencies]
+manfred-mesh.workspace = true
+glam.workspace = true
+serde.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
+gltf-json = { workspace = true, features = ["extras"] }
+gltf = { workspace = true, features = ["extras"] }
+
+[dev-dependencies]
+pfx-load.workspace = true

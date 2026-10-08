@@ -1,0 +1,29 @@
+[package]
+name = "manfred-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Manfred's window: the egui shell, the blueprint theme, the widgets and the offscreen shot"
+
+[dependencies]
+egui.workspace = true
+egui-wgpu.workspace = true
+pfx-editor-shell.workspace = true
+pfx-editor-style.workspace = true
+pfx-gpu.workspace = true
+pfx-live.workspace = true
+pfx-load.workspace = true
+png.workspace = true
+manfred-recipe.workspace = true
+manfred-build.workspace = true
+manfred-scene.workspace = true
+glam.workspace = true
+toml_edit.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+pfx-scene.workspace = true

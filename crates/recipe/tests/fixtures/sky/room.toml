@@ -1,0 +1,33 @@
+manfred = 1
+name = "room"
+
+[sky]
+kind = "room"
+rotation_deg = 30.0
+intensity = 1.5
+
+[sky.room]
+width = 512
+floor = [0.2197, 0.1352, 0.0676]
+wall = [0.19, 0.13, 0.07]
+ceiling = [0.2845, 0.2276, 0.1593]
+
+[[sky.room.lights]]
+name = "window"
+az = -64.0
+el = 14.0
+power = 10.585
+color = [1.0, 0.86, 0.66]
+width = 37.5
+height = 29.0
+soft = 0.05
+slats = 9.0
+open = 0.62
+
+[[sky.room.lights]]
+az = 62.0
+power = 1.7
+
+[look]
+exposure = 0.93
+grade = { vignette = 0.4, saturation = 1.06, warmth = 0.0, bloom = 0.12, haze = 0.05 }

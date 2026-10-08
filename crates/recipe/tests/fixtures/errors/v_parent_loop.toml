@@ -1,0 +1,14 @@
+manfred = 1
+name = "t"
+
+[[object]]
+name = "a"
+kind = "box"
+size = [1.0, 1.0, 1.0]
+parent = "b"
+
+[[object]]
+name = "b"
+kind = "box"
+size = [1.0, 1.0, 1.0]
+parent = "a"

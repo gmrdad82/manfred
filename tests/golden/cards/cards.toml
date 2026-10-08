@@ -1,0 +1,127 @@
+# Manfred's own cards scene: an image card cut out by its alpha, a slot card, a card that faces the
+# camera, a glass pane that casts no shadow, an occluder, and text on a surface, lit and over the
+# frame. It belongs to no app; the badge is Manfred's own.
+manfred = 1
+name = "cards"
+
+[output]
+glb = "cards.glb"
+sidecar = "cards.json"
+sidecar_dialect = "facts"
+
+[[object]]
+name = "board"
+kind = "box"
+size = [1.2, 0.8, 0.02]
+at = [0.0, 0.0, -0.02]
+material = "felt"
+
+[[object]]
+name = "badge"
+kind = "card"
+size = [0.3, 0.3]
+at = [-0.35, 0.15, 0.001]
+image = "badge.png"
+alpha_cutoff = 0.5
+material = "card"
+
+[[object]]
+name = "slot"
+kind = "card"
+size = [0.32, 0.2]
+at = [0.3, 0.18, 0.001]
+slot = "live"
+material = "card"
+
+[[object]]
+name = "sign"
+kind = "card"
+size = [0.2, 0.12]
+at = [0.3, -0.18, 0.08]
+image = "badge.png"
+face_camera = true
+alpha_cutoff = 0.0
+material = "card"
+
+[[object]]
+name = "pane"
+kind = "box"
+size = [0.4, 0.3, 0.006]
+at = [-0.3, -0.15, 0.06]
+material = "glass"
+shadow = "none"
+
+[[object]]
+name = "shade"
+kind = "box"
+size = [0.6, 0.01, 0.4]
+at = [0.0, 0.7, 0.4]
+material = "felt"
+shadow = "only"
+
+[[object]]
+name = "name_plate"
+kind = "text"
+on = "board"
+at = [0.0, -0.33, 0.0]
+spans = [{ text = "cards", size = 0.05, weight = 700, color = [0.95, 0.92, 0.85] }]
+
+[[object]]
+name = "note"
+kind = "text"
+space = "lit"
+at = [0.3, 0.0, 0.002]
+wrap = 0.3
+anchor = "top"
+spans = [{ text = "a lit note ", size = 0.025 }, { text = "in two spans", size = 0.025, italic = true, color = [0.9, 0.7, 0.3] }]
+
+[[object]]
+name = "corner"
+kind = "text"
+space = "overlay"
+anchor = "bottom_right"
+at = [-12.0, -12.0, 0.0]
+spans = [{ text = "manfred", size = 18.0 }]
+
+[[camera]]
+name = "main"
+position = [0.0, 0.0, 2.0]
+target = [0.0, 0.0, 0.0]
+fov_y_deg = 28.0
+
+[[camera]]
+name = "flat"
+kind = "orthographic"
+position = [0.0, 0.0, 2.0]
+target = [0.0, 0.0, 0.0]
+ortho_height = 0.9
+
+[sun]
+model = "authored"
+toward = [0.3, 0.6, 0.75]
+radius_deg = 0.6
+irradiance = 3.0
+
+[sky]
+kind = "analytic"
+intensity = 0.8
+
+[look]
+exposure = 1.0
+
+[materials.felt]
+family = "cloth"
+base = [0.18, 0.3, 0.22]
+roughness = 0.95
+
+[materials.card]
+base = [0.94, 0.92, 0.88]
+roughness = 0.85
+
+[materials.glass]
+family = "glass"
+base = [0.92, 0.96, 1.0]
+roughness = 0.02
+transmission = 1.0
+ior = 1.5
+thickness = 0.006
