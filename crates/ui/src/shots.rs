@@ -579,6 +579,7 @@ impl Process for Running {
         (packed != 0).then_some(((packed >> 32) as u32, packed as u32))
     }
 
+    #[cfg(unix)]
     fn terminate(&mut self) {
         let _ = Command::new("kill")
             .args(["-TERM", &self.child.id().to_string()])
@@ -586,6 +587,11 @@ impl Process for Running {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
+    }
+
+    #[cfg(not(unix))]
+    fn terminate(&mut self) {
+        let _ = self.child.kill();
     }
 }
 
@@ -894,6 +900,7 @@ mod tests {
         assert_eq!(job.summary(), "front 1586×992 · running 64/256");
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_real_render_is_read_line_by_line_while_it_runs() {
         let argv: Vec<String> = [

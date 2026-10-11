@@ -20,15 +20,43 @@ The window on `showcase/workshop.toml`: pick a part in the outliner or the viewp
 
 It is for people and AI agents who build 3D scenes as text: a game's set dressing, product shots, app icons and cards. Recipes diff and review like code, so a scene can live in a repository next to the program that uses it. It is not a modeller: there is no sculpting and no hand mesh editing. Meshes come from Manfred's primitives and 2.5D outlines, or from generators an app writes in Rust and registers through the `manfred` library ([docs/apps.md](docs/apps.md)).
 
-Manfred is built on [pfx](https://github.com/gmrdad82/pfx), and runs on Linux with a Vulkan GPU; the window needs Wayland.
+Manfred is built on [pfx](https://github.com/gmrdad82/pfx), and runs on Linux, Windows and macOS.
 
 ## Install
+
+Each [release](https://github.com/gmrdad82/manfred/releases/latest) carries a build of `manfred` for Linux on x86_64, Windows on x86_64 and macOS on Apple Silicon, and a `SHA256SUMS` file. Set `v` to the release's tag, such as `v0.20.0`, and run the line for your system.
+
+Linux, into `~/.local/bin`:
+
+```sh
+v=vX.Y.Z; mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-linux-x86_64.tar.gz" | tar -xz -C ~/.local/bin manfred
+```
+
+macOS, into `~/.local/bin`:
+
+```sh
+v=vX.Y.Z; mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-macos-arm64.tar.gz" | tar -xz -C ~/.local/bin manfred
+```
+
+Windows, in PowerShell, into `%LOCALAPPDATA%\Programs\manfred`, added to your user `PATH` (open a new terminal afterwards):
+
+```powershell
+$v = "vX.Y.Z"; $d = "$env:LOCALAPPDATA\Programs\manfred"; Invoke-WebRequest "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-windows-x86_64.zip" -OutFile "$env:TEMP\manfred.zip"; Expand-Archive "$env:TEMP\manfred.zip" $d -Force; [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$d", "User")
+```
+
+Put `~/.local/bin` on your `PATH` on Linux and macOS if it is not there yet. To build from source instead, with Rust 1.97 or newer:
 
 ```
 cargo install --locked --git https://github.com/gmrdad82/manfred --tag vX.Y.Z manfred
 ```
 
-Replace `vX.Y.Z` with a [release](https://github.com/gmrdad82/manfred/releases) tag. Building needs Rust 1.97 or newer, `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu).
+Building on Linux also needs `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu), on Windows the MSVC build tools, and on macOS the Xcode command line tools.
+
+What each system needs at run time:
+
+- **Linux:** a GPU with a Vulkan driver; the window runs on Wayland or X11.
+- **Windows:** Windows 10 or later and a GPU with DirectX 12 or Vulkan.
+- **macOS:** an Apple Silicon Mac; Manfred draws through Metal.
 
 Manfred can use three optional command-line tools when they are on the `PATH`, and works without them:
 
@@ -159,7 +187,7 @@ cd manfred
 bin/gate --public
 ```
 
-`bin/gate --public` is what CI runs, as three jobs in parallel (`bin/gate --public lint`, `test` and `release`): `shellcheck`, `cargo fmt --check`, `cargo clippy -D warnings`, every test and doc test that needs no GPU, with the default features, and the release build. CI runs on every push and pull request and nightly. Tests that need a GPU are `#[ignore]`d; run them on a machine with a Vulkan GPU with `cargo test -- --ignored`. The checks include a licence check: every dependency must be under an MIT-compatible licence.
+`bin/gate --public` is what CI runs, as three jobs in parallel (`bin/gate --public lint`, `test` and `release`) on each of Linux, Windows and macOS: `shellcheck` (on Linux), `cargo fmt --check`, `cargo clippy -D warnings`, every test and doc test that needs no GPU, with the default features, and the release build. CI runs on every push and pull request and nightly. Tests that need a GPU are `#[ignore]`d; run them on a machine with a GPU with `cargo test -- --ignored`. The checks include a licence check: every dependency must be under an MIT-compatible licence.
 
 Crash reports, job progress and the window's heartbeat go through [pfx-report](https://github.com/gmrdad82/pfx-report), whose every call does nothing; a build that wants them patches in a reporter with the same API. A build of this tree sends nothing anywhere.
 

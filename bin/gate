@@ -24,7 +24,7 @@ case "${1:-}" in
 esac
 if [ "$public" = 1 ]; then
   if [ "$phase" = all ] || [ "$phase" = lint ]; then
-    shellcheck bin/*
+    [ "$(uname -s)" != Linux ] || shellcheck bin/*
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
   fi

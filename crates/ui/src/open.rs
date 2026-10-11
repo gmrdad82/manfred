@@ -21,10 +21,21 @@ pub fn field_id() -> Id {
 }
 
 pub fn state_dir() -> PathBuf {
-    state_dir_from(
-        std::env::var_os("XDG_STATE_HOME").as_deref(),
-        std::env::var_os("HOME").as_deref(),
-    )
+    state_dir_from(own_dir("XDG_STATE_HOME").as_deref(), home().as_deref())
+}
+
+fn own_dir(xdg: &str) -> Option<std::ffi::OsString> {
+    if cfg!(windows) {
+        std::env::var_os("LOCALAPPDATA")
+    } else {
+        std::env::var_os(xdg)
+    }
+}
+
+fn home() -> Option<std::ffi::OsString> {
+    std::env::var_os("HOME")
+        .filter(|home| !home.is_empty())
+        .or_else(|| std::env::var_os("USERPROFILE"))
 }
 
 pub fn state_dir_from(xdg: Option<&OsStr>, home: Option<&OsStr>) -> PathBuf {
@@ -48,11 +59,7 @@ pub fn data_dir_from(xdg: Option<&OsStr>, home: Option<&OsStr>) -> PathBuf {
 }
 
 pub fn installed_showcase() -> PathBuf {
-    data_dir_from(
-        std::env::var_os("XDG_DATA_HOME").as_deref(),
-        std::env::var_os("HOME").as_deref(),
-    )
-    .join("showcase")
+    data_dir_from(own_dir("XDG_DATA_HOME").as_deref(), home().as_deref()).join("showcase")
 }
 
 pub fn showcase(fallback: Option<&Path>) -> Option<PathBuf> {
@@ -265,7 +272,7 @@ pub enum Choice {
 }
 
 pub fn choose(query: &str, selected: Option<&Row>) -> Option<Choice> {
-    choose_with(query, selected, std::env::var_os("HOME").as_deref())
+    choose_with(query, selected, home().as_deref())
 }
 
 fn choose_with(query: &str, selected: Option<&Row>, home: Option<&OsStr>) -> Option<Choice> {
@@ -728,19 +735,24 @@ fn by_name(a: &Path, b: &Path) -> std::cmp::Ordering {
 }
 
 fn expand_home(typed: &str, home: Option<&OsStr>) -> PathBuf {
-    match (typed.strip_prefix("~/"), home) {
+    match (
+        typed
+            .strip_prefix('~')
+            .and_then(|rest| rest.strip_prefix(std::path::is_separator)),
+        home,
+    ) {
         (Some(rest), Some(home)) if !home.is_empty() => PathBuf::from(home).join(rest),
         _ => PathBuf::from(typed),
     }
 }
 
 fn split_query(typed: &str) -> (PathBuf, String) {
-    split_query_with(typed, std::env::var_os("HOME").as_deref())
+    split_query_with(typed, home().as_deref())
 }
 
 fn split_query_with(typed: &str, home: Option<&OsStr>) -> (PathBuf, String) {
     let expanded = expand_home(typed, home);
-    if typed.ends_with('/') {
+    if typed.ends_with(std::path::is_separator) {
         return (expanded, String::new());
     }
     let path = expanded.as_path();

@@ -51,8 +51,9 @@ pub(super) fn line(
 }
 
 pub(super) fn on_path(name: &str) -> bool {
+    let file = format!("{name}{}", std::env::consts::EXE_SUFFIX);
     std::env::var_os("PATH")
-        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(name).is_file()))
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join(&file).is_file()))
 }
 
 pub(super) fn cpus(value: Option<&std::ffi::OsStr>) -> Option<String> {
@@ -72,7 +73,6 @@ pub(super) fn unqueued(command: &str, direct: &str, machine: Machine<'_>) -> Opt
 }
 
 pub(super) fn requeue(command: &str, args: &[String], direct: &str) -> Option<ExitCode> {
-    use std::os::unix::process::CommandExt;
     let cpus = on_path("taskset")
         .then(|| {
             cpus(std::env::var_os(CPUS).as_deref())
@@ -90,9 +90,29 @@ pub(super) fn requeue(command: &str, args: &[String], direct: &str) -> Option<Ex
     }
     let exe = std::env::current_exe().ok()?;
     let line = line(command, &exe.display().to_string(), args, machine)?;
+    Some(run(command, &line))
+}
+
+#[cfg(unix)]
+fn run(command: &str, line: &[String]) -> ExitCode {
+    use std::os::unix::process::CommandExt;
     let error = Command::new(&line[0]).args(&line[1..]).exec();
     eprintln!("manfred {command}: cannot start {}: {error}", line[0]);
-    Some(ExitCode::FAILURE)
+    ExitCode::FAILURE
+}
+
+#[cfg(not(unix))]
+fn run(command: &str, line: &[String]) -> ExitCode {
+    match Command::new(&line[0]).args(&line[1..]).status() {
+        Ok(status) => status
+            .code()
+            .and_then(|code| u8::try_from(code).ok())
+            .map_or(ExitCode::FAILURE, ExitCode::from),
+        Err(error) => {
+            eprintln!("manfred {command}: cannot start {}: {error}", line[0]);
+            ExitCode::FAILURE
+        }
+    }
 }
 
 pub(super) struct Record {

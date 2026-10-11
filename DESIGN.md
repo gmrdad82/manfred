@@ -39,7 +39,7 @@ Matching Blender vertex for vertex is not a goal and not possible for bevels and
 
 ## 4. Crates
 
-Linux with Vulkan, Wayland for the window. Every crate has one job.
+Linux (Vulkan, a Wayland or X11 window), Windows (DirectX 12 or Vulkan) and macOS on Apple Silicon (Metal), through pfx's wgpu and winit. Every crate has one job.
 
 | Crate | Package | Job | Leans on |
 |---|---|---|---|
@@ -93,7 +93,7 @@ Manfred is 3D, and 2D is 3D with two switches: an orthographic camera and flat c
 - Manfred's own scenes (`table`, `toybox`, `cards`) have golden GLBs and sidecars in `tests/golden/`, checked byte for byte; no Manfred test reads an app's repo.
 - `manfred diff a.glb b.glb` prints names, order, node and triangle counts, bounds, area and materials, per object, with the differences marked; `--render` adds a live-renderer still of each and a PSNR. An app migrating from Blender runs it against its Blender export.
 - Live-renderer stills are byte-identical on the same GPU and driver and compared with a tolerance otherwise. Path-traced output is compared by PSNR only.
-- GPU tests are `#[ignore]`d; run them with `cargo test -- --ignored` on a machine with a Vulkan GPU (optionally under `pgpu run`). `bin/gate` runs no ignored tests.
+- GPU tests are `#[ignore]`d; run them with `cargo test -- --ignored` on a machine with a GPU (optionally under `pgpu run`). `bin/gate` runs no ignored tests.
 
 ## 10. What Manfred never does
 
