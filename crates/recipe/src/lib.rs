@@ -1,3 +1,4 @@
+use manfred_mesh::math::atan;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
@@ -711,7 +712,7 @@ impl Camera {
             (Some(fov), _) => fov,
             (None, Some(focal)) if focal > 0.0 => {
                 let longest = self.sensor_mm.unwrap_or(SENSOR_MM) / (2.0 * focal);
-                2.0 * (longest / aspect.max(1.0)).atan().to_degrees()
+                2.0 * atan(longest / aspect.max(1.0)).to_degrees()
             }
             _ => FOV_Y_DEG,
         }

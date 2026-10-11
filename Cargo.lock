@@ -1690,6 +1690,7 @@ dependencies = [
  "glam 0.33.12",
  "gltf",
  "i_overlay",
+ "libm",
 ]
 
 [[package]]

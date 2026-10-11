@@ -1,4 +1,5 @@
 use crate::build::Build;
+use crate::math::{atan2, cos, sin, sin_cos, tan};
 use crate::outline::{Outline, cleaned, points, signed_area};
 use crate::{Bend, Mesh, Sheet};
 use glam::{DQuat, DVec2, DVec3};
@@ -30,7 +31,7 @@ pub fn sheet(s: &Sheet) -> Mesh {
         let mut p = match s.bend {
             Some(Bend::Wrap(r)) if r != 0.0 && r.is_finite() => {
                 let t = z / r;
-                [x, -r * (1.0 - t.cos()), r * t.sin()]
+                [x, -r * (1.0 - cos(t)), r * sin(t)]
             }
             Some(Bend::Lift(r)) if r > 0.0 && r.is_finite() => {
                 [x, drum(r, sz * 0.5) - drum(r, z), z]
@@ -42,7 +43,7 @@ pub fn sheet(s: &Sheet) -> Mesh {
         {
             let edge = v.min(1.0 - v) * sz;
             let theta = (1.0 - edge / width).max(0.0) * FRAC_PI_2;
-            p[1] -= depth * (1.0 - theta.cos());
+            p[1] -= depth * (1.0 - cos(theta));
         }
         if let Some([from, depth]) = s.cup
             && from < 1.0
@@ -80,7 +81,7 @@ pub fn bead(outline: &Outline, radius: f64, depth: f64, offset: f64, ring: u32) 
             let c = pts[i] + normal * offset;
             (0..sides)
                 .map(|k| {
-                    let (sa, ca) = (TAU * k as f64 / sides as f64).sin_cos();
+                    let (sa, ca) = sin_cos(TAU * k as f64 / sides as f64);
                     b.vert(DVec3::new(
                         c.x + radius * ca * normal.x,
                         c.y + radius * ca * normal.y,
@@ -102,7 +103,7 @@ pub fn disc(radius: f64, segments: u32) -> Mesh {
     let mut b = Build::default();
     let ring: Vec<u32> = (0..n)
         .map(|i| {
-            let (s, co) = (TAU * i as f64 / n as f64).sin_cos();
+            let (s, co) = sin_cos(TAU * i as f64 / n as f64);
             b.vert_uv(
                 DVec3::new(radius * s, 0.0, radius * co),
                 DVec2::new(0.5 + 0.5 * s, 0.5 - 0.5 * co),
@@ -122,7 +123,7 @@ fn revolve(profile: &[(f64, f64, f64)], segments: u32) -> Build {
             (0..=n)
                 .map(|i| {
                     let u = i as f64 / n as f64;
-                    let (s, c) = (TAU * (i % n) as f64 / n as f64).sin_cos();
+                    let (s, c) = sin_cos(TAU * (i % n) as f64 / n as f64);
                     b.vert_uv(DVec3::new(r * s, y, r * c), DVec2::new(u, v))
                 })
                 .collect()
@@ -154,9 +155,9 @@ pub fn sphere(radius: f64, segments: u32, rings: u32) -> Mesh {
             let r = if j == 0 || j == rings {
                 0.0
             } else {
-                radius * a.sin()
+                radius * sin(a)
             };
-            (r, radius * a.cos(), v)
+            (r, radius * cos(a), v)
         })
         .collect();
     revolve(&profile, segments).finish(180.0)
@@ -170,19 +171,19 @@ pub fn capsule(radius: f64, length: f64, segments: u32, rings: u32) -> Mesh {
     let mut profile = Vec::new();
     for j in 0..=rings {
         let a = FRAC_PI_2 * j as f64 / rings as f64;
-        let r = if j == 0 { 0.0 } else { radius * a.sin() };
+        let r = if j == 0 { 0.0 } else { radius * sin(a) };
         profile.push((
             r,
-            half + radius * a.cos(),
+            half + radius * cos(a),
             arc * j as f64 / rings as f64 / total,
         ));
     }
     for j in 0..=rings {
         let a = FRAC_PI_2 * j as f64 / rings as f64;
-        let r = if j == rings { 0.0 } else { radius * a.cos() };
+        let r = if j == rings { 0.0 } else { radius * cos(a) };
         profile.push((
             r,
-            -half - radius * a.sin(),
+            -half - radius * sin(a),
             (arc + 2.0 * half + arc * j as f64 / rings as f64) / total,
         ));
     }
@@ -195,12 +196,12 @@ pub fn torus(major: f64, minor: f64, segments: u32, rings: u32) -> Mesh {
     let rows: Vec<Vec<u32>> = (0..=n)
         .map(|i| {
             let u = i as f64 / n as f64;
-            let (s, c) = (TAU * (i % n) as f64 / n as f64).sin_cos();
+            let (s, c) = sin_cos(TAU * (i % n) as f64 / n as f64);
             let radial = DVec3::new(s, 0.0, c);
             (0..=k)
                 .map(|j| {
                     let v = j as f64 / k as f64;
-                    let (bs, bc) = (TAU * (j % k) as f64 / k as f64).sin_cos();
+                    let (bs, bc) = sin_cos(TAU * (j % k) as f64 / k as f64);
                     let p = radial * (major + minor * bc) + DVec3::Y * minor * bs;
                     b.vert_uv(p, DVec2::new(u, v))
                 })
@@ -220,7 +221,7 @@ pub fn cylinder(radius: f64, depth: f64, segments: u32, caps: bool) -> Mesh {
     let mut b = Build::default();
     let (bot, top): (Vec<u32>, Vec<u32>) = (0..n)
         .map(|a| {
-            let (s, c) = (TAU * a as f64 / n as f64).sin_cos();
+            let (s, c) = sin_cos(TAU * a as f64 / n as f64);
             (
                 b.vert(DVec3::new(-radius * s, -h, -radius * c)),
                 b.vert(DVec3::new(-radius * s, h, -radius * c)),
@@ -248,12 +249,12 @@ pub fn rounded_box(size: [f64; 3], radius: f64, segments: u32) -> Mesh {
         let a = h - r;
         let mut out = Vec::new();
         for k in (1..=m).rev() {
-            out.push((-a, -(FRAC_PI_4 * k as f64 / m as f64).tan()));
+            out.push((-a, -tan(FRAC_PI_4 * k as f64 / m as f64)));
         }
         out.push((-a, 0.0));
         out.push((a, 0.0));
         for k in 1..=m {
-            out.push((a, (FRAC_PI_4 * k as f64 / m as f64).tan()));
+            out.push((a, tan(FRAC_PI_4 * k as f64 / m as f64)));
         }
         out
     };
@@ -294,7 +295,7 @@ pub fn lathe(profile: &[[f64; 2]], segments: u32, weld: f64) -> Mesh {
     let mut b = Build::default();
     let rings: Vec<Vec<u32>> = (0..n)
         .map(|s| {
-            let (sa, ca) = (TAU * s as f64 / n as f64).sin_cos();
+            let (sa, ca) = sin_cos(TAU * s as f64 / n as f64);
             profile
                 .iter()
                 .map(|&[r, y]| b.vert(DVec3::new(r * sa, y, r * ca)))
@@ -393,10 +394,7 @@ pub fn sweep(path: &[[f64; 3]], radii: &[f64], ring: u32, closed: bool, caps: bo
             tangent[n - 1],
             tangent[0],
         );
-        let angle = back
-            .cross(frames[0])
-            .dot(tangent[0])
-            .atan2(back.dot(frames[0]));
+        let angle = atan2(back.cross(frames[0]).dot(tangent[0]), back.dot(frames[0]));
         for (i, f) in frames.iter_mut().enumerate() {
             *f = DQuat::from_axis_angle(tangent[i], angle * i as f64 / n as f64) * *f;
         }
@@ -417,7 +415,7 @@ pub fn sweep(path: &[[f64; 3]], radii: &[f64], ring: u32, closed: bool, caps: bo
             (0..=sides)
                 .map(|s| {
                     let a = TAU * s as f64 / sides as f64;
-                    let (sa, ca) = (TAU * (s % sides) as f64 / sides as f64).sin_cos();
+                    let (sa, ca) = sin_cos(TAU * (s % sides) as f64 / sides as f64);
                     let d = nrm * ca + bin * sa;
                     b.vert_uv(pts[i] + d * r, DVec2::new(a * r, length))
                 })

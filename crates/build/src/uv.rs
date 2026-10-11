@@ -1,5 +1,6 @@
 use crate::{Error, fail};
 use glam::{DMat4, DVec3};
+use manfred_mesh::math::{atan2, tan};
 use manfred_mesh::{Mesh, bounds, triangle_normal};
 use manfred_recipe::{Camera, Object, Projection, Recipe, Uv};
 use std::collections::BTreeMap;
@@ -32,9 +33,7 @@ impl Eye {
                 ((camera.ortho_height.unwrap_or(1.0) * 0.5).max(1e-9), true)
             }
             Projection::Perspective => (
-                (camera.fov_y_deg(aspect).to_radians() * 0.5)
-                    .tan()
-                    .max(1e-9),
+                tan(camera.fov_y_deg(aspect).to_radians() * 0.5).max(1e-9),
                 false,
             ),
         };
@@ -175,7 +174,7 @@ fn cylinder(
                 out.push(away(back));
                 continue;
             }
-            let theta = p.x.atan2(p.z).to_degrees();
+            let theta = atan2(p.x, p.z).to_degrees();
             let s = ((theta - degrees) / 360.0 + 0.5).rem_euclid(1.0);
             let t = (band[1] - p.y) / height;
             let t = if clamped.is_some() {

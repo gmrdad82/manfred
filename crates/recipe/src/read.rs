@@ -1,3 +1,4 @@
+use manfred_mesh::math::{asin, atan2, cos};
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -1636,7 +1637,7 @@ fn sin_cos(degrees: f64) -> (f64, f64) {
             _ => (-1.0, 0.0),
         }
     } else {
-        degrees.to_radians().sin_cos()
+        manfred_mesh::math::sin_cos(degrees.to_radians())
     }
 }
 
@@ -1657,15 +1658,15 @@ fn turn(degrees: [f64; 3]) -> Mat {
 }
 
 fn degrees_of(m: &Mat) -> [f64; 3] {
-    let y = (-m[2][0]).clamp(-1.0, 1.0).asin();
-    if y.cos() > 1e-9 {
+    let y = asin((-m[2][0]).clamp(-1.0, 1.0));
+    if cos(y) > 1e-9 {
         [
-            m[2][1].atan2(m[2][2]).to_degrees(),
+            atan2(m[2][1], m[2][2]).to_degrees(),
             y.to_degrees(),
-            m[1][0].atan2(m[0][0]).to_degrees(),
+            atan2(m[1][0], m[0][0]).to_degrees(),
         ]
     } else {
-        [0.0, y.to_degrees(), (-m[0][1]).atan2(m[1][1]).to_degrees()]
+        [0.0, y.to_degrees(), atan2(-m[0][1], m[1][1]).to_degrees()]
     }
 }
 

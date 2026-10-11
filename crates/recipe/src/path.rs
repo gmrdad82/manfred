@@ -1,4 +1,5 @@
 use crate::Camera;
+use manfred_mesh::math::{atan2, hypot, sin_cos};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CameraPath {
@@ -57,19 +58,19 @@ impl CameraPath {
 impl Orbit {
     pub fn elevation_deg(&self, position: [f64; 3]) -> Option<f64> {
         let v = sub(position, self.target);
-        let flat = v[0].hypot(v[2]);
-        (flat > 1e-9).then(|| v[1].atan2(flat).to_degrees())
+        let flat = hypot(v[0], v[2]);
+        (flat > 1e-9).then(|| atan2(v[1], flat).to_degrees())
     }
 
     fn place(&self, position: [f64; 3], s: f64) -> [f64; 3] {
         let v = sub(position, self.target).map(|x| x * self.radius_scale);
-        let flat = v[0].hypot(v[2]);
-        let (rise_sin, rise_cos) = (self.rise_deg * s).to_radians().sin_cos();
+        let flat = hypot(v[0], v[2]);
+        let (rise_sin, rise_cos) = sin_cos((self.rise_deg * s).to_radians());
         let lifted_flat = flat * rise_cos - v[1] * rise_sin;
         let height = flat * rise_sin + v[1] * rise_cos;
         let k = if flat > 0.0 { lifted_flat / flat } else { 0.0 };
         let (x, z) = (v[0] * k, v[2] * k);
-        let (sin, cos) = (std::f64::consts::TAU * self.turns * s).sin_cos();
+        let (sin, cos) = sin_cos(std::f64::consts::TAU * self.turns * s);
         [
             self.target[0] + (x * cos + z * sin),
             self.target[1] + height,

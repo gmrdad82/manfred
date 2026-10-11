@@ -287,7 +287,7 @@ fn sin_cos(degrees: f64) -> (f64, f64) {
             _ => (-1.0, 0.0),
         }
     } else {
-        degrees.to_radians().sin_cos()
+        manfred_mesh::math::sin_cos(degrees.to_radians())
     }
 }
 

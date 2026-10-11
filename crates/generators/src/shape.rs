@@ -1,6 +1,7 @@
 use crate::noise::perlin;
 use glam::Vec3;
 use manfred_build::Piece;
+use manfred_mesh::math::{cos, sin};
 use manfred_mesh::{Mesh, Slot};
 use std::cmp::Ordering;
 use std::f64::consts::PI;
@@ -225,7 +226,7 @@ pub fn tube(
         let r = radius(k as f64 / (n - 1) as f64);
         for s in 0..=sides {
             let a = 2.0 * PI * f64::from(s) / f64::from(sides);
-            verts.push(p + (side * a.cos() + up * a.sin()) * r);
+            verts.push(p + (side * cos(a) + up * sin(a)) * r);
             uvs.push([a * r, length]);
         }
     }

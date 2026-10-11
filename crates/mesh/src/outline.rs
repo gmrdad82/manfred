@@ -1,3 +1,4 @@
+use crate::math::{acos, atan2, cos, powf, sin, sin_cos, tan};
 use glam::DVec2;
 use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
@@ -83,7 +84,7 @@ pub fn rounded_rect(rect: [f64; 4], radius: f64, segments: u32) -> Outline {
     ] {
         for i in 0..=segments {
             let a = (start + 90.0 * i as f64 / segments as f64).to_radians();
-            out.push([cx + r * a.cos(), cy + r * a.sin()]);
+            out.push([cx + r * cos(a), cy + r * sin(a)]);
         }
     }
     cleaned(Outline(out))
@@ -104,17 +105,17 @@ pub fn fillet(corners: &[[f64; 3]], segments: u32) -> Outline {
             continue;
         }
         let (d1, d2) = ((p - v) / l1, (q - v) / l2);
-        let ang = d1.dot(d2).clamp(-1.0, 1.0).acos();
+        let ang = acos(d1.dot(d2).clamp(-1.0, 1.0));
         if r <= 0.0 || !(1e-3..=PI - 1e-3).contains(&ang) {
             out.push([vx, vy]);
             continue;
         }
-        let t = r / (ang * 0.5).tan();
+        let t = r / tan(ang * 0.5);
         let (t1, t2) = (v + d1 * t, v + d2 * t);
         let bis = (d1 + d2).normalize();
-        let c = v + bis * (r / (ang * 0.5).sin());
-        let a1 = (t1.y - c.y).atan2(t1.x - c.x);
-        let a2 = (t2.y - c.y).atan2(t2.x - c.x);
+        let c = v + bis * (r / sin(ang * 0.5));
+        let a1 = atan2(t1.y - c.y, t1.x - c.x);
+        let a2 = atan2(t2.y - c.y, t2.x - c.x);
         let mut da = a2 - a1;
         while da > PI {
             da -= TAU;
@@ -124,7 +125,7 @@ pub fn fillet(corners: &[[f64; 3]], segments: u32) -> Outline {
         }
         for k in 0..=seg {
             let a = a1 + da * k as f64 / seg as f64;
-            out.push([c.x + r * a.cos(), c.y + r * a.sin()]);
+            out.push([c.x + r * cos(a), c.y + r * sin(a)]);
         }
     }
     cleaned(Outline(out))
@@ -136,7 +137,7 @@ pub fn circle(centre: [f64; 2], radius: f64, segments: u32) -> Outline {
         (0..n)
             .map(|i| {
                 let a = TAU * i as f64 / n as f64;
-                [centre[0] + radius * a.cos(), centre[1] + radius * a.sin()]
+                [centre[0] + radius * cos(a), centre[1] + radius * sin(a)]
             })
             .collect(),
     )
@@ -151,8 +152,8 @@ pub fn superellipse(centre: [f64; 2], half: [f64; 2], exponent: f64, segments: u
             let (x, y) = if k == 0 {
                 (1.0, 0.0)
             } else {
-                let along = |n: u32| (0.5 * PI * f64::from(n) / f64::from(quarter)).cos();
-                (along(k).powf(power), along(quarter - k).powf(power))
+                let along = |n: u32| cos(0.5 * PI * f64::from(n) / f64::from(quarter));
+                (powf(along(k), power), powf(along(quarter - k), power))
             };
             let [u, v] = match side {
                 0 => [x, y],
@@ -169,7 +170,7 @@ pub fn superellipse(centre: [f64; 2], half: [f64; 2], exponent: f64, segments: u
 pub fn turned(rect: [f64; 4], radius: f64, degrees: f64, segments: u32) -> Outline {
     let [x0, y0, x1, y1] = rect;
     let (cx, cy) = ((x0 + x1) * 0.5, (y0 + y1) * 0.5);
-    let (s, c) = degrees.to_radians().sin_cos();
+    let (s, c) = sin_cos(degrees.to_radians());
     rounded_rect(rect, radius, segments).map(|[x, y]| {
         [
             cx + (x - cx) * c - (y - cy) * s,

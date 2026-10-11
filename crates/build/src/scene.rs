@@ -1,6 +1,7 @@
 use crate::bake::{Section, absolute, list, number, shade_at, string};
 use crate::{Built, Error, Part, local_matrix, world};
 use glam::{DMat4, DVec3};
+use manfred_mesh::math::{asin, atan2, cos, tan};
 use manfred_recipe::toml_edit::{DocumentMut, Item, Value};
 use manfred_recipe::{
     CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, Casters, Kind, MONO, Object, Projection, Recipe, Room,
@@ -724,7 +725,7 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
             };
             let fov = camera.fov_y_deg(aspect);
             if camera.fstop.is_finite() && camera.fstop > 0.0 {
-                let tan_y = (fov.to_radians() * 0.5).tan();
+                let tan_y = tan(fov.to_radians() * 0.5);
                 let focal = camera
                     .focal_mm
                     .filter(|focal| *focal > 0.0)
@@ -1080,11 +1081,11 @@ fn decompose(matrix: DMat4) -> Option<([f64; 3], [f64; 3], [f64; 3])> {
     }
     let [c0, c1, c2] = [0, 1, 2].map(|k| columns[k] / scale[k]);
     let sy = (-c0.z).clamp(-1.0, 1.0);
-    let y = sy.asin();
-    let (x, z) = if y.cos() > 1e-9 {
-        (c1.z.atan2(c2.z), c0.y.atan2(c0.x))
+    let y = asin(sy);
+    let (x, z) = if cos(y) > 1e-9 {
+        (atan2(c1.z, c2.z), atan2(c0.y, c0.x))
     } else {
-        (0.0, (-c1.x).atan2(c1.y))
+        (0.0, atan2(-c1.x, c1.y))
     };
     let at = matrix.w_axis.truncate().to_array();
     let rotate = [x, y, z].map(f64::to_degrees);

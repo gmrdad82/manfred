@@ -1,4 +1,5 @@
 use crate::build::{Build, band, degenerate};
+use crate::math::{cos, sin, sin_cos};
 use crate::normals::{find, union};
 use crate::outline::{self, Outline, Shape, edge, from_points};
 use crate::{Mesh, Pocket, Profile, ProfileKind, UvMode};
@@ -25,7 +26,7 @@ fn rows(p: &Profile, w: f64) -> Vec<(f64, f64)> {
             (0..=n)
                 .map(|k| {
                     let t = FRAC_PI_2 * k as f64 / n as f64;
-                    (w * (1.0 - t.sin()), w * (1.0 - t.cos()))
+                    (w * (1.0 - sin(t)), w * (1.0 - cos(t)))
                 })
                 .collect()
         }
@@ -54,7 +55,7 @@ fn corners(o: Vec<DVec2>, p: &Profile) -> Vec<DVec2> {
     if w <= 0.0 || n < 3 {
         return o;
     }
-    let limit = SHARP_DEGREES.to_radians().cos();
+    let limit = cos(SHARP_DEGREES.to_radians());
     let sharp: Vec<bool> = (0..n)
         .map(|i| {
             let a = (o[i] - o[(i + n - 1) % n]).normalize_or_zero();
@@ -85,7 +86,7 @@ fn corners(o: Vec<DVec2>, p: &Profile) -> Vec<DVec2> {
         let b = v + (o[next] - v).normalize_or_zero() * t;
         let c = a + b - v;
         for k in 0..=segments {
-            let (sin, cos) = (FRAC_PI_2 * k as f64 / segments as f64).sin_cos();
+            let (sin, cos) = sin_cos(FRAC_PI_2 * k as f64 / segments as f64);
             out.push((c + (a - c) * cos + (b - c) * sin).to_array());
         }
     }

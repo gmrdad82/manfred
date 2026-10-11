@@ -1,3 +1,5 @@
+use manfred_mesh::math::{cos, ln, sin};
+
 const N: usize = 624;
 const M: usize = 397;
 
@@ -104,9 +106,9 @@ impl Random {
             Some(z) => z,
             None => {
                 let x2pi = self.random() * std::f64::consts::TAU;
-                let g2rad = (-2.0 * (1.0 - self.random()).ln()).sqrt();
-                self.gauss_next = Some(x2pi.sin() * g2rad);
-                x2pi.cos() * g2rad
+                let g2rad = (-2.0 * ln(1.0 - self.random())).sqrt();
+                self.gauss_next = Some(sin(x2pi) * g2rad);
+                cos(x2pi) * g2rad
             }
         };
         mu + z * sigma

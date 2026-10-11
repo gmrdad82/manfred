@@ -1,4 +1,5 @@
 mod build;
+pub mod math;
 mod nets;
 mod normals;
 pub mod outline;
