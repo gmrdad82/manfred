@@ -1770,7 +1770,8 @@ fn relocated(cx: &Cx, key: &str, path: &mut String) {
         return;
     };
     let folder = cx.src.folder_at(line);
-    if folder.is_empty() || Path::new(path.as_str()).is_absolute() {
+    let rooted = Path::new(path.as_str());
+    if folder.is_empty() || rooted.has_root() || rooted.is_absolute() {
         return;
     }
     *path = include::joined(folder, path);

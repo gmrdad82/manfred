@@ -799,7 +799,7 @@ mod tests {
                 "--spp",
                 "64",
                 "--out",
-                "tmp/manfred/renders/scene-front-1586x992.png",
+                &out.display().to_string(),
             ]
         );
         assert_eq!(argv("manfred", "a.toml", "c", [1, 1], 0, &out)[8], "1");
@@ -947,10 +947,10 @@ mod tests {
         let out = scratch("shots-label").with_file_name("label.png");
         let mut job = job(&out);
         job.pid = Some(1);
-        let text = format!(
-            r#"{{"jobs":[{{"pid":9,"state":"running","as":"manfred","label":"manfred render --out {}"}}]}}"#,
-            out.display()
-        );
+        let label =
+            serde_json::to_string(&format!("manfred render --out {}", out.display())).unwrap();
+        let text =
+            format!(r#"{{"jobs":[{{"pid":9,"state":"running","as":"manfred","label":{label}}}]}}"#);
         job.tick(&mut fake(vec![]), Some(&seen(&text)));
         assert_eq!(job.phase, Phase::Running);
         let other =

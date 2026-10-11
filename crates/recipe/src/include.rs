@@ -836,7 +836,8 @@ fn rename(t: &mut Table, key: &str, to: &str) {
 }
 
 fn refuse_absolute(text: &str, key: &str, line: Option<usize>) -> Result<(), Error> {
-    if Path::new(text).is_absolute() {
+    let path = Path::new(text);
+    if path.has_root() || path.is_absolute() {
         return Err(Error::new(
             key,
             line,
