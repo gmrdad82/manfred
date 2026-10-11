@@ -2,6 +2,22 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v0.20.0 — 2026-10-11
+
+### Added
+
+- Manfred runs on Windows x86_64 and macOS on Apple Silicon as well as Linux, and CI tests all three.
+- Each release carries archives for Linux x86_64, Windows x86_64 and macOS arm64 with a SHA256SUMS file, and the README installs them.
+
+### Changed
+
+- A recipe builds to the same bytes on every system: the geometry math takes its sines, arcs, logs and powers from the libm crate.
+- On Windows the recent list and the start scene live under `%LOCALAPPDATA%\manfred`, and tools on the PATH are found by their `.exe`.
+
+### Fixed
+
+- A recipe path that starts at the root is refused as absolute on Windows too.
+
 ## v0.19.0 — 2026-10-08
 
 ### Added
