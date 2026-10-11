@@ -291,7 +291,7 @@ fn bytes(film: &Film) -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_box_under_a_sun_renders_and_one_seed_gives_the_same_bytes() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let (recipe, staging) = staging(BOX);
@@ -320,7 +320,7 @@ fn a_box_under_a_sun_renders_and_one_seed_gives_the_same_bytes() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn an_emitter_only_room_keeps_its_mean() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let (recipe, staging) = staging(FURNACE);
@@ -351,7 +351,7 @@ fn an_emitter_only_room_keeps_its_mean() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn an_orthographic_view_covers_the_square_at_its_size() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let (recipe, staging) = staging(SQUARE);
@@ -395,7 +395,7 @@ fn an_orthographic_view_covers_the_square_at_its_size() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn an_equirect_sees_the_room_around_the_camera_and_reads_back_as_a_sky() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let (recipe, staging) = staging(WALLS);
@@ -444,7 +444,7 @@ fn an_equirect_sees_the_room_around_the_camera_and_reads_back_as_a_sky() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_table_equirect_previews_from_its_hdr() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let path = root().join("tests/golden/table/table.toml");

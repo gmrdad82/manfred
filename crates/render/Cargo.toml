@@ -21,7 +21,7 @@ manfred-build.workspace = true
 manfred-recipe.workspace = true
 manfred-scene.workspace = true
 exr.workspace = true
+png.workspace = true
 
 [dev-dependencies]
-png.workspace = true
 pfx-load.workspace = true

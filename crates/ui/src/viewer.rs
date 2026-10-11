@@ -1044,7 +1044,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_fake_viewport_follows_the_orbit() {
         let since = std::time::Instant::now();
         let path = scratch("viewer-fake");
@@ -1090,7 +1090,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_rebuild_swaps_one_mesh_in_the_stage_it_keeps() {
         let since = std::time::Instant::now();
         let path = scratch("viewer-swap");
@@ -1154,7 +1154,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_hundred_edits_in_the_window_keep_the_mesh_buffers_flat() {
         let since = std::time::Instant::now();
         let path = scratch("viewer-hundred");
@@ -1245,7 +1245,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_stage_that_cannot_draw_shows_why_in_the_viewport() {
         let since = std::time::Instant::now();
         let path = scratch("viewer-error");
@@ -1617,7 +1617,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_shot_shows_the_gizmo_mid_drag_and_a_pick_on_the_bench_selects_the_ball() {
         let since = std::time::Instant::now();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -1896,7 +1896,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_fake_shot_of_a_scene_file_follows_its_camera() {
         let since = std::time::Instant::now();
         let (_, mut shell, mut viewer) = watching("scene-fake-shot");
@@ -1913,7 +1913,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_scene_file_draws_through_staged_and_reloads_a_material_in_place() {
         let since = std::time::Instant::now();
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

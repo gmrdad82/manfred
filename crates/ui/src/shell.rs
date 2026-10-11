@@ -3941,7 +3941,7 @@ heading = 0.0
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_c2_undo_shot_shows_the_edit_taken_back() {
         let since = std::time::Instant::now();
         let (mut shell, _, path) = editing("polish-c2-undo", SCENE);
@@ -4839,7 +4839,7 @@ heading = 0.0
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn c3_and_d1_show_the_samples_of_a_running_render() {
         let mut bench = bench("shell-progress");
         bench.process(vec![]);
@@ -4909,7 +4909,7 @@ heading = 0.0
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn b2_after_set_from_view_and_c3_in_each_state_are_drawn() {
         let since = std::time::Instant::now();
         let mut bench = bench("shell-render");
@@ -4964,7 +4964,7 @@ heading = 0.0
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn d1_labels_its_frame_time_as_gpu_and_counts_dropped_timings() {
         let since = std::time::Instant::now();
         let (mut shell, mut viewer, _) = live("shell-d1-gpu", SCENE);

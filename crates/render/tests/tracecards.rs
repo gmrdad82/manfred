@@ -439,7 +439,7 @@ fn film_bytes(film: &Film) -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_table_through_a_lens_and_as_an_equirect_traces_to_the_same_bytes() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let registry = Registry::new();
@@ -509,7 +509,7 @@ fn luma(c: [f64; 3]) -> f64 {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_traced_card_scene_matches_its_live_shot() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let file = scene("tracecards-gpu");
@@ -688,7 +688,7 @@ fn region(image: &[u8], size: [u32; 2], span: f64, at: [f64; 2]) -> [f64; 3] {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_cards_scene_traces_beside_its_live_shot() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let file = surfaces_file();
@@ -790,7 +790,7 @@ fn ramp_file(cutoff: &str) -> PathBuf {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_traced_card_matches_live_at_authored_cutoffs() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let size = [200, 200];

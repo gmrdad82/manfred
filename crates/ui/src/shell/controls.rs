@@ -715,7 +715,7 @@ fn legends_and_pills_are_not_controls() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_lights_tab_shot_shows_b3_focused_under_its_tab() {
     let since = std::time::Instant::now();
     let mut bench = recipe("controls-shot");

@@ -91,6 +91,7 @@ pfx-report = { git = "https://github.com/gmrdad82/pfx-report", tag = "v0.1.0" }
 
 [dev-dependencies]
 pfx.workspace = true
+png.workspace = true
 ttf-parser = { version = "0.25", default-features = false, features = ["std"] }
 
 [profile.dev.package.manfred-render]

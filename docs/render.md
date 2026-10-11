@@ -3,13 +3,16 @@
 `manfred render` traces a recipe through pfx's offline path tracer (`pfx_trace`, v0.18.15). It stages the same parts, materials, sky, sun and lights the live renderer draws, so a render and a `manfred shot` of one recipe show one scene.
 
 ```
-manfred render <recipe> --camera <name> [--spp N] [--seed S] [--size WxH] [--equirect|--ortho] [--variant V] [--set key=value]... [--denoise off|on] --out <file>
+manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--variant V] [--set key=value]... [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file>
 ```
 
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--camera` | required | a `[[camera]]` of the recipe |
-| `--spp` | 256 | samples per pixel, at least 1 |
+| `--spp` | 128 | samples per pixel, at least 1: the most any pixel takes (`--samples` is the same flag) |
+| `--threshold` | 0.01 | adaptive sampling: a pixel stops once its noise estimate is under this; `0` runs every pixel to `--spp` |
+| `--min-samples` | 16 | the samples every pixel takes before it may stop, at least 2 (never more than `--spp`) |
+| `--draft` | | a quick look: `--spp 16 --threshold 0.05 --min-samples 8`; not with those three |
 | `--seed` | the recipe's `seed`, cut to 32 bits | the tracer's seed |
 | `--size` | 1586x992, or 2048x1024 with `--equirect` | the picture, each side 1 to 16384 |
 | `--ortho` | | an orthographic view of the camera's `ortho_height` |
@@ -18,8 +21,27 @@ manfred render <recipe> --camera <name> [--spp N] [--seed S] [--size WxH] [--equ
 | `--denoise` | `on` | `off` writes a `.png` from the raw trace, without the denoiser; `.exr` and `.hdr` are never denoised |
 | `--set` | | `key=value`, replaces a value the recipe has, after the variant; as often as needed (`docs/recipe.md`, overrides) |
 | `--out` | required | `.png`, `.exr` or `.hdr`, by its extension |
+| `--master` | | also writes a 16-bit `.png` master of the same finished picture |
+| `--progress` | `plain` | `json` gives progress on stderr as JSON lines (below) |
 
-It prints the out file on stdout and, on stderr, the size, samples, seed, submissions, the longest submission and the GPU time. A line it cannot parse exits 2; a recipe or camera it refuses, or a failed render, exits 1.
+It prints the out file on stdout (and the master after it) and, on stderr, the size, the samples (with adaptive sampling the mean and the most a pixel took), the seed, submissions, the longest submission and the GPU time. A line it cannot parse exits 2; a recipe or camera it refuses, or a failed render, exits 1.
+
+## Adaptive sampling
+
+By default each pixel traces only until it is clean: the tracer (`pfx_trace::Trace::sample_adaptive`, as `pfx render` samples) runs every pixel to `--min-samples` in two rounds, then grows the count by half each round up to `--spp`, and after each round stops every pixel whose noise estimate, and its eight neighbours', is under `--threshold`. Flat, matte and evenly lit surfaces stop early; glossy highlights, soft shadows and fine detail run longer. `--threshold 0`, or `--spp 1`, traces every pixel to `--spp`, as before 0.19.1. C3 in the window renders that way, so its progress counts samples.
+
+A final still is the defaults: adaptive to 128 samples at threshold 0.01, denoised, with the recipe's `[trace] filter_glossy` and `clamp_indirect` against fireflies. `--draft` is a quick look at the same size. `--denoise off --threshold 0 --spp 1024` (or more) is only for a ground-truth reference to compare a denoised final against.
+
+## Progress
+
+Plain progress (the default) prints `progress <done>/<total>` about twenty times when every pixel runs to `--spp`, and, with adaptive sampling, a line every 30 seconds with the GPU time so far. `--progress json` prints one JSON object a line on stderr instead, at most one a second while tracing:
+
+| `stage` | Fields beside `stage` and `elapsed_s` (wall seconds since the render began) |
+| --- | --- |
+| `stage` | none: the recipe is read and staged |
+| `trace` | to `--spp` for every pixel: `done`, `total`, `fraction` (0 to 1) and `eta_s` (null before the first sample). With adaptive sampling: `cap`, `threshold`, `gpu_s`, and `fraction` and `eta_s` as null, since the tracer does not yet report its rounds while it runs |
+| `write` | none: the picture is being written |
+| `done` | `out`, `mean_samples`, `most_samples`, `gpu_s` |
 
 ## The scene it traces
 
@@ -69,7 +91,8 @@ From the recipe camera through `Eye::from_camera`, the same eye `manfred shot` u
 
 ## Pictures
 
-- **`.png`:** 8-bit sRGB through the recipe's look: the engine's edge-aware denoiser over the colour, albedo and normal the tracer averages (`--denoise off` skips it, so the PNG is the raw trace), then the recipe's finish chain (`[look]`, or the graded chain), the overlay text, and sRGB encoding, as the live renderer finishes a frame. Under `[look] view = "standard"` the chain is exposure alone, so the PNG is linear radiance times exposure, clamped to [0, 1] and put through the sRGB curve, as Cycles writes its Standard view (`docs/recipe.md`, look).
+- **`.png`:** 8-bit sRGB through the recipe's look: the engine's edge-aware denoiser over the colour, albedo and normal the tracer averages (`--denoise off` skips it, so the PNG is the raw trace), then the recipe's finish chain (`[look]`, or the graded chain), the overlay text, and sRGB encoding, as the live renderer finishes a frame. It is quantised to 8 bits with an 8×8 ordered dither (pfx-post's `bayer`, ±half a level), so smooth gradients do not band; the same pixels without the dither are what the window and clips write. Under `[look] view = "standard"` the chain is exposure alone, so the PNG is linear radiance times exposure, clamped to [0, 1] and put through the sRGB curve, as Cycles writes its Standard view (`docs/recipe.md`, look).
+- **`--master`:** the same finished pixels as the `.png`, before the dither, at 16 bits a channel (RGBA, big-endian, alpha 65535, sRGB tagged), the master to grade or scale from. It works beside any `--out`.
 - **`.exr`:** the traced colour, linear, as half floats (RGBA, alpha 1, lossless compression), written on one thread.
 - **`.hdr`:** the traced colour, linear, as Radiance RGBE with run-length scanlines (flat below 8 or above 32767 pixels across), the encoding the engine's `Sky::parse` reads.
 
@@ -77,7 +100,7 @@ The EXR and HDR carry the raw trace, neither denoised nor graded.
 
 ## Determinism
 
-The same recipe, camera, size, samples and seed give the same bytes on one GPU and driver. The tracer seeds every pixel by the seed, its absolute sample and its index, and any split of the samples into submissions gives the bytes one dispatch would. Nothing reads the clock. A different GPU or driver differs in the low bits; renders are compared by PSNR or region means, never byte for byte across machines.
+The same recipe, camera, size, samples, threshold and seed give the same bytes on one GPU and driver. The tracer seeds every pixel by the seed, its absolute sample and its index, and any split of the samples into submissions gives the bytes one dispatch would; adaptive sampling's rounds are fixed by `--min-samples` and `--spp`, and which pixels stop is decided on the GPU from the samples alone. Nothing that shapes the picture reads the clock: only the progress lines' `elapsed_s` and `eta_s` do. A different GPU or driver differs in the low bits; renders are compared by PSNR or region means, never byte for byte across machines.
 
 ## Pacing
 
@@ -111,7 +134,7 @@ pgpu run --class clip --as manfred -- <manfred> render <the same arguments>
 
 ## The job record
 
-With the optional `jobs` feature (a job-status record for the author's own machine, off by default), the rendering process publishes a record (tool `manfred`, label `render <out>`, the out file, a detail of recipe, camera, size and samples) with the stages `stage`, `trace` (progress in samples) and `write`. It ends `finish(0)` or `fail(2, <the error>)`. A default build writes no record, and the library facade never links it.
+With the optional `jobs` feature (a job-status record for the author's own machine, off by default), the rendering process publishes a record (tool `manfred`, label `render <out>`, the out file, a detail of recipe, camera, size and samples) with the stages `stage`, `trace` (progress in samples, or in milliseconds on the GPU with adaptive sampling) and `write`. It ends `finish(0)` or `fail(2, <the error>)`. A default build writes no record, and the library facade never links it.
 
 ## The tracer's floor
 
@@ -126,7 +149,7 @@ manfred render: this GPU is below the tracer's floor, so manfred render cannot t
 C3 holds the camera, the size and a samples field (default 256, at least 1). Render runs, on a thread, with the window's own executable:
 
 ```
-<manfred> render <recipe> --camera <name> --size WxH --spp N --out tmp/manfred/renders/<recipe>-<camera>-<W>x<H>.png
+<manfred> render <recipe> --camera <name> --size WxH --spp N --threshold 0 --out tmp/manfred/renders/<recipe>-<camera>-<W>x<H>.png
 ```
 
 `manfred render` runs under `pgpu run --class clip` by its own process line when pgpu is there, so the window wraps nothing. Cancel (or `esc` in C3) sends TERM to that pid; the queued, waiting, running, done and failed states, the result view and the full-size overlay are as before (`docs/cameras.md`).
@@ -154,7 +177,7 @@ manfred clip <recipe> --camera <name> --frames N --fps F --size WxH --out <dir> 
 Frame `i` of `N` shows the camera at the path's time for it: `i / N` on an orbit, so a whole number of turns loops without a repeated frame, and `i / (N − 1)` on keys, so the last frame lands on the last key. It prints each finished frame on stdout, and on stderr its GPU time (traced: also the submissions and the longest), then the video. A line it cannot parse exits 2; a camera without a path or a failure exits 1.
 
 - **Live** (the default): one stage for the whole clip, built once. Each frame is `manfred shot`'s still of that frame's pose: the same 48 settling frames, scene time from 0, which the renderer takes as a cut, so no history crosses from one clip frame to the next, then the readback. Its pacing is `manfred shot`'s: each settling frame's GPU time goes to the engine's `TurnState`, which turns under pgpu, when there is one, every 50 ms of work or 400 ms of wall time. Frame 0 of an orbit about the camera's own target, or of keys without a key at 0, is `manfred shot` of the camera, byte for byte.
-- **Traced** (`--trace`): with pgpu on the PATH, `manfred clip` re-execs itself under `pgpu run --class clip --as manfred` exactly as `manfred render` does (the process line above, with `clip` for `render`), and with the `jobs` feature it publishes a record (`clip <dir>`, stages `frames`, progress in frames, and `video`). It builds and reads the recipe once (`manfred_render::Reel`), then for each frame stages the tracer for that pose (the instances and `face_camera` cards depend on the eye) and traces it through `manfred render`'s own loop, turns included, at the recipe's seed for every frame, as Blender keeps one seed unless asked to animate it. Each PNG is denoised and finished as `manfred render` writes it; frame 0 is `manfred render` of the camera at the same samples, byte for byte.
+- **Traced** (`--trace`): with pgpu on the PATH, `manfred clip` re-execs itself under `pgpu run --class clip --as manfred` exactly as `manfred render` does (the process line above, with `clip` for `render`), and with the `jobs` feature it publishes a record (`clip <dir>`, stages `frames`, progress in frames, and `video`). It builds and reads the recipe once (`manfred_render::Reel`), then for each frame stages the tracer for that pose (the instances and `face_camera` cards depend on the eye) and traces it through `manfred render`'s own loop, turns included, at the recipe's seed for every frame, as Blender keeps one seed unless asked to animate it. Each PNG is denoised and finished as `manfred render` writes it, without its dither; frame 0's film is `manfred render`'s of the camera at the same samples with `--threshold 0`, byte for byte.
 - **Resuming:** a frame is written as `.frame-0000.partial.png` and renamed into place once the PNG is whole, so a frame under its own name was finished. A run skips every frame whose PNG decodes in full (every chunk's CRC through `IEND`) as 8-bit RGBA of the asked size, and makes the others; a frame cut short by a crash, a stray partial, or a frame of another size is made again. `<dir>/clip.txt` keeps the line that made the frames (recipe, camera, frames, size, renderer and samples, variant, sets); a run with a different line into the same folder is refused rather than mixing frames. `--fps` and `--video` are not in it: changing them re-encodes the same frames.
 - **Deterministic:** each frame depends on its pose, the recipe and the flags only, never on the frames made before it, so a resumed clip has the bytes of an unbroken one.
 - **Video:** after the frames, `manfred clip` writes `<dir>/frames.ffconcat`, which holds each frame for its share of a second to the microsecond (frame `i` from `round(i·10⁶/F)` µs), and runs

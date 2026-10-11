@@ -1,5 +1,5 @@
 use crate::text::Overlay;
-use pfx_post::{Chain, Image, Pass};
+use pfx_post::{Chain, Image, Pass, bayer};
 use pfx_trace::denoise;
 use std::path::Path;
 
@@ -83,6 +83,20 @@ pub fn looked_with<'a>(
     finish: impl Into<Look<'a>>,
     denoised: bool,
 ) -> Result<Vec<u8>, String> {
+    Ok(finished(film, finish, denoised)?
+        .into_iter()
+        .flat_map(|pixel| {
+            let [r, g, b, _] = pixel.map(|value| (value.clamp(0.0, 1.0) * 255.0).round() as u8);
+            [r, g, b, 255]
+        })
+        .collect())
+}
+
+pub fn finished<'a>(
+    film: &Film,
+    finish: impl Into<Look<'a>>,
+    denoised: bool,
+) -> Result<Vec<[f32; 4]>, String> {
     let look = finish.into();
     let [width, height] = film.size;
     let pixels = if denoised {
@@ -115,14 +129,84 @@ pub fn looked_with<'a>(
             encode.apply(&finished, None, None)
         }
     };
-    Ok(finished
-        .pixels
-        .into_iter()
-        .flat_map(|pixel| {
-            let [r, g, b, _] = pixel.map(|value| (value.clamp(0.0, 1.0) * 255.0).round() as u8);
+    Ok(finished.pixels)
+}
+
+pub fn dithered(size: [u32; 2], pixels: &[[f32; 4]]) -> Vec<u8> {
+    let width = size[0].max(1);
+    pixels
+        .iter()
+        .enumerate()
+        .flat_map(|(at, pixel)| {
+            let (x, y) = (at as u32 % width, at as u32 / width);
+            let offset = (bayer(x, y) - 0.5) / 255.0;
+            let [r, g, b] = [0, 1, 2].map(|k| {
+                ((pixel[k].clamp(0.0, 1.0) + offset).clamp(0.0, 1.0) * 255.0).round() as u8
+            });
             [r, g, b, 255]
         })
-        .collect())
+        .collect()
+}
+
+pub fn master(pixels: &[[f32; 4]]) -> Vec<u8> {
+    pixels
+        .iter()
+        .flat_map(|pixel| {
+            let [r, g, b] = [0, 1, 2].map(|k| (pixel[k].clamp(0.0, 1.0) * 65535.0).round() as u16);
+            [r, g, b, u16::MAX].into_iter().flat_map(u16::to_be_bytes)
+        })
+        .collect()
+}
+
+pub fn write_master(path: &Path, size: [u32; 2], pixels: &[[f32; 4]]) -> Result<(), String> {
+    fast_png(
+        path,
+        size,
+        pixels.len(),
+        png::BitDepth::Sixteen,
+        &master(pixels),
+    )
+}
+
+pub fn write_delivery(path: &Path, size: [u32; 2], pixels: &[[f32; 4]]) -> Result<(), String> {
+    fast_png(
+        path,
+        size,
+        pixels.len(),
+        png::BitDepth::Eight,
+        &dithered(size, pixels),
+    )
+}
+
+fn fast_png(
+    path: &Path,
+    size: [u32; 2],
+    pixels: usize,
+    depth: png::BitDepth,
+    bytes: &[u8],
+) -> Result<(), String> {
+    if pixels != size[0] as usize * size[1] as usize {
+        return Err(format!(
+            "{}: {} pixels do not make a {}x{} image",
+            path.display(),
+            pixels,
+            size[0],
+            size[1]
+        ));
+    }
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    let failed = |e: &dyn std::fmt::Display| format!("{}: {e}", path.display());
+    let file = std::fs::File::create(path).map_err(|e| failed(&e))?;
+    let mut encoder = png::Encoder::new(std::io::BufWriter::new(file), size[0], size[1]);
+    encoder.set_color(png::ColorType::Rgba);
+    encoder.set_depth(depth);
+    encoder.set_compression(png::Compression::Fast);
+    encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual);
+    let mut writer = encoder.write_header().map_err(|e| failed(&e))?;
+    writer.write_image_data(bytes).map_err(|e| failed(&e))?;
+    writer.finish().map_err(|e| failed(&e))
 }
 
 pub fn rgbe(rgb: [f32; 3]) -> [u8; 4] {
@@ -298,6 +382,32 @@ mod tests {
                 }
             })
             .collect()
+    }
+
+    #[test]
+    fn the_master_is_16_bit_big_endian_and_the_delivery_dithers_to_the_same_mean() {
+        assert_eq!(
+            master(&[[1.0, 0.5, -1.0, 0.3]]),
+            [255, 255, 128, 0, 0, 0, 255, 255]
+        );
+        let level = 100.4 / 255.0;
+        let flat = vec![[level, level, level, 1.0]; 64];
+        let bytes = dithered([8, 8], &flat);
+        let mean = bytes.chunks(4).map(|p| f64::from(p[0])).sum::<f64>() / 64.0;
+        assert!((mean - 100.4).abs() < 0.05, "{mean}");
+        assert!(
+            bytes
+                .chunks(4)
+                .all(|p| p[3] == 255 && (100..=101).contains(&p[0]))
+        );
+        let path = scratch("master.png");
+        write_master(&path, [8, 8], &flat).unwrap();
+        let reader =
+            png::Decoder::new(std::io::BufReader::new(std::fs::File::open(&path).unwrap()))
+                .read_info()
+                .unwrap();
+        assert_eq!(reader.info().bit_depth, png::BitDepth::Sixteen);
+        assert!(write_master(&path, [9, 8], &flat).is_err());
     }
 
     #[test]

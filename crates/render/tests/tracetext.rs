@@ -596,7 +596,7 @@ fn traced(gpu: &pfx_gpu::Gpu, path: &Path) -> Vec<u8> {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn traced_text_covers_what_the_live_shot_draws() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     turn();
@@ -656,7 +656,7 @@ fn traced_text_covers_what_the_live_shot_draws() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_word_at_eight_times_zoom_keeps_a_hard_edge() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     turn();

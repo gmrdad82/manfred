@@ -415,7 +415,7 @@ fn shot<P: manfred_runtime::Painter>(raster: &mut Raster<P>, time: f32) -> Vec<u
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_raster_half_draws_feeds_restores_and_picks_the_toybox() {
     let dir = common::golden("toybox");
     let glb = std::fs::read(dir.join("toybox.glb")).unwrap();

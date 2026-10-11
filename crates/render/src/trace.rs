@@ -7,20 +7,51 @@ use pfx::adapter::{Report, TurnState, turn_reporting};
 use pfx_gpu::Gpu;
 use pfx_gpu::pace::{Pacer, Stats};
 use pfx_post::Chain;
-use pfx_trace::TraceError;
 use pfx_trace::sky::Environment;
 use pfx_trace::stage::Staged;
+use pfx_trace::{Adaptive, Trace, TraceError};
 use std::fmt;
 use std::path::Path;
 
-pub const SAMPLES: u32 = 256;
+pub const SAMPLES: u32 = 128;
 pub const SIZE: [u32; 2] = [1586, 992];
 pub const EQUIRECT_SIZE: [u32; 2] = [2048, 1024];
+pub const NOISE: Noise = Noise {
+    threshold: 0.01,
+    min_samples: 16,
+};
+pub const DRAFT: (u32, Noise) = (
+    16,
+    Noise {
+        threshold: 0.05,
+        min_samples: 8,
+    },
+);
+const GROWTH: f32 = 1.5;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Noise {
+    pub threshold: f32,
+    pub min_samples: u32,
+}
+
+impl Noise {
+    fn adaptive(self, cap: u32) -> Option<Adaptive> {
+        let adaptive = Adaptive {
+            threshold: self.threshold,
+            min_samples: self.min_samples.clamp(2, cap.max(2)),
+            max_samples: cap,
+            growth: GROWTH,
+        };
+        adaptive.valid().then_some(adaptive)
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     Stage,
     Trace { done: u32, total: u32 },
+    Converge { gpu_ms: u64, cap: u32 },
     Write,
 }
 
@@ -58,6 +89,7 @@ pub struct Request<'a> {
     pub camera: &'a str,
     pub size: [u32; 2],
     pub samples: u32,
+    pub noise: Option<Noise>,
     pub seed: Option<u32>,
     pub view: View,
     pub variant: Option<&'a str>,
@@ -114,6 +146,7 @@ pub struct Rendered {
     pub overlay: Overlay,
     pub paced: Paced,
     pub seed: u32,
+    pub mean_samples: f64,
 }
 
 pub fn render(
@@ -135,21 +168,42 @@ pub fn render(
     turn(Report::default());
     let gpu = manfred_scene::headless()?;
     let seed = request.seed.unwrap_or_else(|| manfred_scene::seed(&recipe));
-    let (film, paced) = trace(
-        &gpu,
-        &staged,
-        request.size,
-        request.samples,
-        seed,
-        progress,
-        &mut turn,
-    )?;
+    let adaptive = request
+        .noise
+        .and_then(|noise| noise.adaptive(request.samples));
+    let ((film, paced), mean_samples) = match adaptive {
+        Some(adaptive) => {
+            let (film, paced, mean) = converge(
+                &gpu,
+                &staged,
+                request.size,
+                adaptive,
+                seed,
+                progress,
+                &mut turn,
+            )?;
+            ((film, paced), mean)
+        }
+        None => (
+            trace(
+                &gpu,
+                &staged,
+                request.size,
+                request.samples,
+                seed,
+                progress,
+                &mut turn,
+            )?,
+            f64::from(request.samples),
+        ),
+    };
     Ok(Rendered {
         film,
         overlay: Overlay::of(&staging.text),
         finish: staging.finish,
         paced,
         seed,
+        mean_samples,
     })
 }
 
@@ -204,6 +258,7 @@ impl Reel {
             finish: self.staging.finish.clone(),
             paced,
             seed: self.seed,
+            mean_samples: f64::from(samples),
         })
     }
 }
@@ -222,20 +277,55 @@ pub fn trace(
     let paced = sampled(samples, &mut turns, progress, |pacer, between| {
         trace.sample_paced(gpu, 1, seed, pacer, between)
     })?;
+    let film = developed(gpu, &trace, size, samples)?;
+    turns.now();
+    Ok((film, paced))
+}
+
+pub fn converge(
+    gpu: &Gpu,
+    staged: &Staged<Environment>,
+    size: [u32; 2],
+    adaptive: Adaptive,
+    seed: u32,
+    progress: &mut dyn FnMut(Step),
+    turn: &mut dyn FnMut(Report),
+) -> Result<(Film, Paced, f64), Fault> {
+    let mut trace = staged.trace(gpu, size[0], size[1]).map_err(refused)?;
+    let mut turns = Turns::new(turn);
+    let mut pacer = Pacer::default();
+    let cap = adaptive.max_samples;
+    turns.now();
+    progress(Step::Converge { gpu_ms: 0, cap });
+    let mut gpu_ms = 0.0;
+    let converged = trace
+        .sample_adaptive(gpu, adaptive, seed, &mut pacer, |ms| {
+            gpu_ms += ms;
+            progress(Step::Converge {
+                gpu_ms: gpu_ms as u64,
+                cap,
+            });
+            turns.soon(ms)
+        })
+        .map_err(|e| Fault::Failed(format!("the tracer: {e}")))?;
+    let mut paced = Paced::default();
+    paced.add(&converged.stats);
+    let film = developed(gpu, &trace, size, converged.max_samples())?;
+    turns.now();
+    Ok((film, paced, converged.mean_samples()))
+}
+
+fn developed(gpu: &Gpu, trace: &Trace, size: [u32; 2], samples: u32) -> Result<Film, Fault> {
     let output = trace
         .readback(gpu)
         .map_err(|e| Fault::Failed(format!("the tracer's readback: {e}")))?;
-    turns.now();
-    Ok((
-        Film {
-            size,
-            color: floats(&output.color),
-            albedo: floats(&output.albedo),
-            normal: floats(&output.normal),
-            samples,
-        },
-        paced,
-    ))
+    Ok(Film {
+        size,
+        color: floats(&output.color),
+        albedo: floats(&output.albedo),
+        normal: floats(&output.normal),
+        samples,
+    })
 }
 
 fn sampled(
@@ -462,6 +552,7 @@ mod tests {
             camera: "main",
             size: [8, 8],
             samples: 0,
+            noise: None,
             seed: None,
             view: View::Lens,
             variant: None,

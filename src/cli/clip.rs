@@ -646,7 +646,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn three_table_frames_start_on_the_shot_and_resume_to_the_same_bytes() {
         let dir = scratch("live");
         let recipe = table_orbit(&dir);
@@ -688,7 +688,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_traced_frame_is_the_render_of_its_pose() {
         let dir = scratch("traced");
         let recipe = table_orbit(&dir);
@@ -702,6 +702,7 @@ mod tests {
             camera: "main",
             size: args.size,
             samples: 4,
+            noise: None,
             seed: None,
             view: manfred_render::View::Lens,
             variant: None,

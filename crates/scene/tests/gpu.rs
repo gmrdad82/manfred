@@ -165,7 +165,7 @@ fn pixel(rgba: &[u8], size: [u32; 2], x: u32, y: u32) -> [u8; 3] {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_one_box_recipe_stages_and_renders() {
     let recipe = fixture("box.toml");
     let gpu = headless().unwrap();
@@ -188,7 +188,7 @@ fn a_one_box_recipe_stages_and_renders() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn an_unknown_material_is_refused() {
     let recipe = fixture("box.toml");
     let gpu = headless().unwrap();
@@ -201,7 +201,7 @@ fn an_unknown_material_is_refused() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_same_still_twice_gives_the_same_bytes() {
     let recipe = fixture("box.toml");
     let gpu = headless().unwrap();
@@ -214,7 +214,7 @@ fn the_same_still_twice_gives_the_same_bytes() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_hour_and_the_size_follow_the_window() {
     let recipe = fixture("box.toml");
     let gpu = headless().unwrap();
@@ -244,7 +244,7 @@ fn the_hour_and_the_size_follow_the_window() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_shallow_focus_blurs_off_the_focal_plane_and_fstop_zero_does_not() {
     let recipe = fixture("box.toml");
     let gpu = headless().unwrap();

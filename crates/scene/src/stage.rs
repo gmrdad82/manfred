@@ -1278,7 +1278,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn moving_one_object_replaces_exactly_one_mesh() {
         let recipe = parse(BASE).unwrap();
         let built = manfred_build::build(&recipe, Path::new("")).unwrap();
@@ -1307,7 +1307,7 @@ mod tests {
     const PANE: &str = "\n[[object]]\nname = \"pane\"\nkind = \"box\"\nmaterial = \"glass\"\nsize = [0.5, 0.5, 0.02]\nat = [0.0, 0.0, 1.0]\n";
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_hundred_alternating_edits_leave_the_meshes_and_the_glass_flat() {
         let edits = [
             format!("{BASE}{PANE}"),
@@ -1406,7 +1406,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_large_atlas_uploads_in_short_submissions_and_a_small_one_in_one() {
         let (recipe, built) = table();
         let mut stage = Stage::new(crate::headless().unwrap(), &recipe, &built, [64, 64]).unwrap();
@@ -1488,7 +1488,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_requested_hour_draws_as_the_settled_one() {
         let (recipe, built) = table();
         let size = [480, 300];
@@ -1505,7 +1505,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn submit_leaves_the_calling_thread_before_the_gpu_is_done() {
         let (recipe, built) = table();
         let size = [1586, 992];
@@ -1587,7 +1587,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_pick_under_the_balls_centre_returns_the_ball() {
         let (recipe, built) = table();
         let size = [480, 300];
@@ -1810,7 +1810,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_pick_on_glass_or_text_returns_its_object() {
         let (recipe, built) = panes();
         let size = [480, 300];
@@ -1854,7 +1854,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_preview_moves_the_object_and_its_children_and_restore_puts_them_back() {
         let text = BASE.replace(
             "name = \"c\"\nkind = \"box\"",

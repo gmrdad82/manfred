@@ -127,7 +127,7 @@ fn hash(bytes: &[u8]) -> u64 {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn glass_shadow_bytes() {
     let dir = scratch("engine19-glass");
     let file = dir.join("glass.toml");
@@ -168,7 +168,7 @@ fn glass_shadow_bytes() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_cutout_card_frame_time() {
     let dir = scratch("engine19-card");
     png(&dir.join("ring.png"), 512, ring);

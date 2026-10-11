@@ -1629,6 +1629,7 @@ dependencies = [
  "manfred-ui",
  "pfx",
  "pfx-report",
+ "png",
  "serde_json",
  "ttf-parser",
 ]

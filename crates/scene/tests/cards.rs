@@ -139,7 +139,7 @@ fn staged(path: &Path) -> (Recipe, manfred_build::Built) {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn cards_show_their_images_cut_out_and_movers_clip() {
     let dir = scratch("surfaces");
     let file = scene(&dir, 32);
@@ -188,7 +188,7 @@ fn cards_show_their_images_cut_out_and_movers_clip() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_atlas_is_rebuilt_only_when_an_image_changes() {
     let dir = scratch("surfaces-update");
     let file = scene(&dir, 32);
@@ -251,7 +251,7 @@ fn frame_times(stage: &mut Stage, recipe: &Recipe, frames: u32) -> Vec<f64> {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_toyboxs_frame_time_with_and_without_its_clip_planes() {
     let path =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/golden/toybox/toybox.toml");

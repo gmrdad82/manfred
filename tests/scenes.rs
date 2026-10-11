@@ -268,6 +268,7 @@ fn traced(path: &Path, camera: &str, registry: &Registry, samples: u32) -> manfr
         camera,
         size: [192, 128],
         samples,
+        noise: None,
         seed: Some(1),
         view: View::Lens,
         variant: None,

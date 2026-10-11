@@ -779,7 +779,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_text_recipe_draws_in_each_space() {
         let bare = still(TABLE);
         pfx::adapter::turn();
@@ -797,7 +797,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_still_with_text_is_the_same_bytes_twice() {
         let text = format!("{TABLE}{SURFACE}{LIT}{OVERLAY}");
         let first = still(&text);

@@ -105,6 +105,7 @@ fn manfred_traced(case: &Case, recipe: &Path) -> Vec<u8> {
             camera: case.camera,
             size: SIZE,
             samples: SAMPLES,
+            noise: None,
             seed: Some(SEED),
             view: View::Lens,
             variant: None,
@@ -196,13 +197,13 @@ fn live_and_traced(case: &Case) {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_tables_scene_staged_by_the_engine_draws_as_manfred_draws_the_recipe() {
     live_and_traced(&TABLE);
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn the_toybox_scene_staged_by_the_engine_draws_as_manfred_draws_the_recipe() {
     live_and_traced(&TOYBOX);
 }

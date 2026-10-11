@@ -407,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn diff_render_draws_the_table_against_itself_and_a_moved_copy() {
         let started = std::time::Instant::now();
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

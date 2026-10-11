@@ -711,7 +711,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU and pfx on PATH: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU and pfx on PATH: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn pfx_bakes_the_written_recipe() {
         let base = written("sky-bake-pfx");
         let run = std::process::Command::new("pfx")

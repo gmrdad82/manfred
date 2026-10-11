@@ -932,7 +932,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_table_renders_under_a_lamp_room() {
         let room = table(
             &format!("[sky]\nkind = \"room\"\nrotation_deg = 169.4\nintensity = 4.2\n\n{ROOM}"),
@@ -976,7 +976,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_table_renders_under_the_lamp_room_with_the_authored_hourly_ambient() {
         let sky =
             format!("[sky]\nkind = \"room\"\nrotation_deg = 169.4\nintensity = 4.2\n\n{ROOM}");
@@ -1004,7 +1004,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_table_renders_under_the_window_hdr_capped_and_balanced() {
         let sky = format!(
             "[sky]\nkind = \"hdr\"\npath = {:?}\nsource = \"Manfred's own test sky\"\nrotation_deg = 169.4\nintensity = 4.2\n[sky.prepare]\ncap = 60.0\nbalance = [1.0, 0.92, 0.8]\nmean = 0.3\n",
@@ -1017,7 +1017,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn the_table_renders_with_haze() {
         let sky = "[sky]\nkind = \"analytic\"\nintensity = 0.9\n";
         let clear = shot(

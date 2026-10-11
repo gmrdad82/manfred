@@ -259,7 +259,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
     fn a_script_shoots_a_gizmo_held_mid_drag() {
         let since = std::time::Instant::now();
         let size = [1586, 992];

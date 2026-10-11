@@ -231,7 +231,7 @@ fn a_placement_is_two_sided_as_its_piece_is() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_one_sided_wall_seen_from_behind_is_seen_through_traced_as_live() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let file = scene("tracesides-walls", WALLS);
@@ -345,7 +345,7 @@ fn shadow_report(
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn glass_tints_the_shadow_of_a_local_light_and_of_the_sun_live() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let (_, _, live_shadow, live_lit) = shadow_report(
@@ -376,7 +376,7 @@ fn glass_tints_the_shadow_of_a_local_light_and_of_the_sun_live() {
 }
 
 #[test]
-#[ignore = "GPU: pgpu run --class interactive --as manfred -- cargo test -- --ignored"]
+#[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
 fn a_local_light_over_glass_costs_a_small_scene_a_fraction_of_a_millisecond() {
     let _gpu = ONE_AT_A_TIME.lock().unwrap_or_else(|e| e.into_inner());
     let mut rows = Vec::new();

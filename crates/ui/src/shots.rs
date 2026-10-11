@@ -125,6 +125,8 @@ pub fn argv(
         &format!("{}x{}", size[0], size[1]),
         "--spp",
         &samples.max(1).to_string(),
+        "--threshold",
+        "0",
         "--out",
         &out.display().to_string(),
     ]
@@ -792,6 +794,8 @@ mod tests {
                 "1586x992",
                 "--spp",
                 "64",
+                "--threshold",
+                "0",
                 "--out",
                 "tmp/manfred/renders/scene-front-1586x992.png",
             ]
