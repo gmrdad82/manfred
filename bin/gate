@@ -2,24 +2,46 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export CARGO_NET_GIT_FETCH_WITH_CLI=true
+usage() {
+  echo "usage: bin/gate [--fast | --public [lint | test | release]]" >&2
+  exit 2
+}
 fast=0
 public=0
+phase=all
 case "${1:-}" in
-  --fast) fast=1 ;;
-  --public) public=1 ;;
+  --fast) fast=1; [ $# -le 1 ] || usage ;;
+  --public)
+    public=1
+    case "${2:-all}" in
+      all|lint|test|release) phase=${2:-all} ;;
+      *) usage ;;
+    esac
+    [ $# -le 2 ] || usage
+    ;;
   "") ;;
-  *) echo "usage: bin/gate [--fast | --public]" >&2; exit 2 ;;
+  *) usage ;;
 esac
+if [ "$public" = 1 ]; then
+  if [ "$phase" = all ] || [ "$phase" = lint ]; then
+    shellcheck bin/*
+    cargo fmt --all --check
+    cargo clippy --workspace --all-targets -- -D warnings
+  fi
+  if [ "$phase" = all ] || [ "$phase" = test ]; then
+    cargo test --workspace --all-targets
+    cargo test --workspace --doc
+  fi
+  if [ "$phase" = all ] || [ "$phase" = release ]; then
+    cargo build --release
+  fi
+  exit 0
+fi
 shellcheck bin/*
 for script in dev/wave.sh dev/watch.sh; do
   [ ! -f "$script" ] || shellcheck -S warning "$script"
 done
 cargo fmt --all --check
-if [ "$public" = 1 ]; then
-  cargo clippy --workspace --all-targets -- -D warnings
-  cargo test --workspace --all-targets
-  exit 0
-fi
 cargo clippy --workspace --all-targets -- -D warnings
 if [ "$fast" = 1 ]; then
   base=$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD)
