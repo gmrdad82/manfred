@@ -157,6 +157,13 @@ mod tests {
         )
     }
 
+    fn listed(dir: &Path, names: &[&str]) -> String {
+        names
+            .iter()
+            .map(|name| format!("{}\n", dir.join(name).display()))
+            .collect()
+    }
+
     fn scratch(name: &str) -> PathBuf {
         let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("tmp")
@@ -202,7 +209,7 @@ mod tests {
         let out = dir.to_string_lossy().into_owned();
         let (code, printed, err) = run_on(&["tests/golden/table/table.toml", "--out", &out]);
         assert_eq!((code, err.as_str()), (0, ""));
-        assert_eq!(printed, format!("{out}/table.glb\n{out}/table.json\n"));
+        assert_eq!(printed, listed(&dir, &["table.glb", "table.json"]));
         let golden = std::fs::read("tests/golden/table/table.glb").unwrap();
         assert_eq!(std::fs::read(dir.join("table.glb")).unwrap(), golden);
         let names: Vec<String> = std::fs::read_dir(&dir)
@@ -236,11 +243,13 @@ mod tests {
         let out_dir = dir.to_string_lossy().into_owned();
         let file = "crates/recipe/tests/fixtures/full.toml";
         let (code, out, err) = run_on(&[file, "--out", &out_dir]);
+        let missing =
+            std::fs::read(Path::new(file).with_file_name("parts/handle.glb")).unwrap_err();
         assert_eq!((code, out.as_str()), (1, ""));
         assert_eq!(
             err,
             format!(
-                "manfred build: {file}: object[imported].path: cannot read parts/handle.glb: No such file or directory (os error 2)\n"
+                "manfred build: {file}: object[imported].path: cannot read parts/handle.glb: {missing}\n"
             )
         );
     }
@@ -258,8 +267,14 @@ mod tests {
         assert_eq!((code, err.as_str()), (0, ""));
         assert_eq!(
             printed,
-            format!(
-                "{out}/toybox.glb\n{out}/toybox.json\n{out}/toybox-bare.glb\n{out}/toybox-bare.json\n"
+            listed(
+                &dir,
+                &[
+                    "toybox.glb",
+                    "toybox.json",
+                    "toybox-bare.glb",
+                    "toybox-bare.json"
+                ]
             )
         );
         for name in [
@@ -290,7 +305,7 @@ mod tests {
         assert_eq!((code, err.as_str()), (0, ""));
         assert_eq!(
             printed,
-            format!("{out}/toybox-bare.glb\n{out}/toybox-bare.json\n")
+            listed(&dir, &["toybox-bare.glb", "toybox-bare.json"])
         );
     }
 
@@ -305,7 +320,7 @@ mod tests {
             &out,
         ]);
         assert_eq!((code, err.as_str()), (0, ""));
-        assert_eq!(printed, format!("{out}/table.glb\n{out}/table.json\n"));
+        assert_eq!(printed, listed(&dir, &["table.glb", "table.json"]));
     }
 
     #[test]
@@ -382,7 +397,7 @@ mod tests {
             &out,
         ]);
         assert_eq!((code, err.as_str()), (0, ""));
-        assert_eq!(printed, format!("{out}/crates.glb\n"));
+        assert_eq!(printed, listed(&dir, &["crates.glb"]));
         assert!((width_of(&dir, "left_crate") - 0.5).abs() < 1e-6);
         assert!((width_of(&dir, "right_crate") - 1.0 * 2f64.sqrt()).abs() < 1e-6);
         assert!((width_of(&dir, "floor") - 2.0).abs() < 1e-6);
@@ -429,7 +444,7 @@ mod tests {
         let out = dir.to_string_lossy().into_owned();
         let (code, printed, err) = run_on(&[FIXTURE, "--out", &out]);
         assert_eq!((code, err.as_str()), (0, ""));
-        assert_eq!(printed, format!("{out}/crates.glb\n"));
+        assert_eq!(printed, listed(&dir, &["crates.glb"]));
         let bytes = std::fs::read(dir.join("crates.glb")).unwrap();
         let names: Vec<String> = manfred_glb::summary(&bytes)
             .unwrap()
