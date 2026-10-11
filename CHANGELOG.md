@@ -2,7 +2,7 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
-## 0.19.0 (2026-10-08)
+## v0.19.0 — 2026-10-08
 
 ### Added
 

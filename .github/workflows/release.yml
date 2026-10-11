@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_INCREMENTAL: "0"
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_RELEASE_STRIP: symbols
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux-x86_64
+            archive: tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: windows-x86_64
+            archive: zip
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform: macos-arm64
+            archive: tar.gz
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
+        with:
+          toolchain: 1.97.1
+          targets: ${{ matrix.target }}
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libwayland-dev
+      - run: cargo build --release --locked --target ${{ matrix.target }} --bin manfred
+      - name: archive
+        env:
+          TARGET: ${{ matrix.target }}
+          PLATFORM: ${{ matrix.platform }}
+          ARCHIVE: ${{ matrix.archive }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          name="manfred-$TAG-$PLATFORM"
+          mkdir -p "dist/$name"
+          cp LICENSE README.md "dist/$name/"
+          if [ "$ARCHIVE" = zip ]; then
+            cp "target/$TARGET/release/manfred.exe" "dist/$name/"
+            (cd "dist/$name" && 7z a -tzip "../$name.zip" manfred.exe LICENSE README.md)
+          else
+            cp "target/$TARGET/release/manfred" "dist/$name/"
+            tar -C "dist/$name" -czf "dist/$name.tar.gz" manfred LICENSE README.md
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ${{ matrix.platform }}
+          path: dist/manfred-${{ github.ref_name }}-${{ matrix.platform }}.${{ matrix.archive }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          path: dist
+          merge-multiple: true
+      - name: checksums and notes
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          pattern="(^|[^0-9.])v?$(printf '%s' "$version" | sed 's/[.]/[.]/g')([^0-9.]|$)"
+          awk -v pattern="$pattern" '
+            /^## / { if (found) exit; if ($0 ~ pattern) { found = 1; next } }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "CHANGELOG.md has no section for $version" >&2
+            exit 1
+          fi
+          (cd dist && sha256sum -- *.tar.gz *.zip > SHA256SUMS)
+          cat dist/SHA256SUMS
+      - name: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --notes-file notes.md
+          else
+            gh release create "$TAG" --verify-tag --title "Manfred ${TAG#v}" --notes-file notes.md
+          fi
+          gh release upload "$TAG" dist/*.tar.gz dist/*.zip dist/SHA256SUMS --clobber
