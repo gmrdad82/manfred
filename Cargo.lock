@@ -1609,7 +1609,7 @@ dependencies = [
 
 [[package]]
 name = "manfred"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "clap",
  "manfred-build",
@@ -1629,7 +1629,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-build"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "glam 0.33.12",
  "gltf",
@@ -1655,7 +1655,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-generators"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "glam 0.33.12",
  "manfred-build",
@@ -1666,7 +1666,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-glb"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "glam 0.33.12",
  "gltf",
@@ -1679,7 +1679,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-mesh"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "glam 0.33.12",
  "gltf",
@@ -1688,7 +1688,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-recipe"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "manfred-mesh",
  "pfx-materials",
@@ -1700,7 +1700,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-render"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "exr",
  "manfred-build",
@@ -1720,7 +1720,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-runtime"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "half",
  "manfred-build",
@@ -1740,7 +1740,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-scene"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "manfred-build",
  "manfred-glb",
@@ -1763,7 +1763,7 @@ dependencies = [
 
 [[package]]
 name = "manfred-ui"
-version = "0.19.6"
+version = "0.19.7"
 dependencies = [
  "egui",
  "egui-wgpu",

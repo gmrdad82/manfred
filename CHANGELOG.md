@@ -2,6 +2,13 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v0.19.7 — 2026-10-12
+
+### Changed
+
+- The pfx crates move to v0.28.0, whose tracer samples with Cycles' tabulated Sobol sequence instead of PCG: the same noise in about half the samples, so adaptive renders stop sooner. Pixels differ from v0.19.6's; on scenes lit by small or narrow lights the mean sits up to 0.15% lower.
+- Manfred reports to no one: it sends no crash reports, writes no job records and gives the window no heartbeat. `--report-test` is gone, and pfx-report left the dependencies.
+
 ## v0.19.6 — 2026-10-12
 
 ### Changed
