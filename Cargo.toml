@@ -24,20 +24,20 @@ exr = "1.74"
 egui = { version = "=0.33.3", default-features = false }
 egui-wgpu = { version = "=0.33.3", default-features = false }
 egui-winit = { version = "=0.33.3", default-features = false }
-pfx = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79", default-features = false }
-pfx-core = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-gpu = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-live = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-load = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-geom = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-materials = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-text = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-post = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-trace = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-denoise = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-bake = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-editor-style = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
-pfx-editor-shell = { git = "https://github.com/gmrdad82/pfx", rev = "a7133ff0f3dcf3334e742825aad703a5ffe14a79" }
+pfx = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e", default-features = false }
+pfx-core = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-gpu = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-live = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-load = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-geom = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-materials = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-text = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-post = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-trace = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-denoise = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-bake = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-editor-style = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
+pfx-editor-shell = { git = "https://github.com/gmrdad82/pfx", rev = "6b0c8cb2af8555ba8a9af677535f968144e0ca5e" }
 pfx-scene = { git = "https://github.com/gmrdad82/pfx-scene", tag = "v0.1.0" }
 manfred-recipe = { path = "crates/recipe" }
 manfred-mesh = { path = "crates/mesh" }
