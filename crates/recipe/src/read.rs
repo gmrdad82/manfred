@@ -2326,11 +2326,17 @@ fn read_trace(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Trace, Error> {
     let transmissive_shadows = tab.or(cx, "transmissive_shadows", false, BOOL)?;
     let clamp_indirect = tab.or(cx, "clamp_indirect", 0.0, NUM)?;
     let filter_glossy = tab.or(cx, "filter_glossy", 0.0, NUM)?;
+    let spp = tab.opt(cx, "spp", UINT)?;
+    let threshold = tab.opt(cx, "threshold", NUM)?;
+    let min_samples = tab.opt(cx, "min_samples", UINT)?;
     tab.finish(cx)?;
     Ok(Trace {
         transmissive_shadows,
         clamp_indirect,
         filter_glossy,
+        spp,
+        threshold,
+        min_samples,
     })
 }
 

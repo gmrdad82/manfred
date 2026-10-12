@@ -15,7 +15,7 @@ use std::process::ExitCode;
 
 use clap::{Arg, CommandFactory, FromArgMatches, Parser, Subcommand};
 use manfred_build::Registry;
-use manfred_recipe::{Camera, Error, Problem, apply_set, apply_variant, load, validate};
+use manfred_recipe::{Camera, Error, Problem, Trace, apply_set, apply_variant, load, validate};
 
 pub use manfred_ui::Pulse;
 
@@ -148,7 +148,7 @@ fn precheck(
     variant: Option<&str>,
     set: &[String],
     camera: &str,
-) -> Result<Camera, String> {
+) -> Result<(Camera, Trace), String> {
     let file = recipe.display().to_string();
     let loaded = load(recipe).map_err(|e| read_failure(&file, &e))?;
     let chosen = match variant {
@@ -164,6 +164,7 @@ fn precheck(
     }
     manfred_scene::camera(&chosen, camera)
         .cloned()
+        .map(|camera| (camera, chosen.trace))
         .map_err(|e| e.0)
 }
 
@@ -323,7 +324,7 @@ mod tests {
     #[test]
     fn the_precheck_names_what_is_wrong_before_any_queue() {
         let ok = precheck(Path::new(FULL), None, &[], "wide").unwrap();
-        assert_eq!(ok.name, "wide");
+        assert_eq!(ok.0.name, "wide");
         let camera = precheck(Path::new(FULL), None, &[], "nope").unwrap_err();
         assert!(camera.contains("camera.nope: no such camera"), "{camera}");
         assert!(camera.contains("main, wide, plan"), "{camera}");

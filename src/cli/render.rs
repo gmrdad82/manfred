@@ -5,6 +5,7 @@ use std::time::{Duration, Instant};
 
 use clap::builder::{PossibleValuesParser, TypedValueParser};
 use manfred_build::Registry;
+use manfred_recipe::Trace;
 use manfred_render::{
     Crop, DRAFT, EQUIRECT_SIZE, Fault, Format, NOISE, Noise, Rendered, Request, SAMPLES, SIZE,
     Step, View,
@@ -59,7 +60,7 @@ fn output(text: &str) -> Result<PathBuf, String> {
     }
 }
 
-#[derive(clap::Args, Debug, PartialEq)]
+#[derive(clap::Args, Clone, Debug, PartialEq)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to render")]
     recipe: PathBuf,
@@ -73,27 +74,24 @@ pub(super) struct Args {
         long = "spp",
         alias = "samples",
         value_name = "N",
-        default_value_t = SAMPLES,
         value_parser = clap::value_parser!(u32).range(1..),
-        help = "Samples per pixel, the most any pixel takes"
+        help = "Samples per pixel, the most any pixel takes [default: the recipe's trace.spp, else 128]"
     )]
-    samples: u32,
+    samples: Option<u32>,
     #[arg(
         long,
         value_name = "T",
-        default_value_t = NOISE.threshold,
         value_parser = threshold,
-        help = "A pixel stops once its noise is under this; 0 runs every pixel to --spp"
+        help = "A pixel stops once its noise is under this; 0 runs every pixel to --spp [default: the recipe's trace.threshold, else 0.01]"
     )]
-    threshold: f32,
+    threshold: Option<f32>,
     #[arg(
         long = "min-samples",
         value_name = "N",
-        default_value_t = NOISE.min_samples,
         value_parser = clap::value_parser!(u32).range(2..),
-        help = "Samples every pixel takes before it may stop"
+        help = "Samples every pixel takes before it may stop [default: the recipe's trace.min_samples, else 16]"
     )]
-    min_samples: u32,
+    min_samples: Option<u32>,
     #[arg(
         long,
         conflicts_with_all = ["samples", "threshold", "min_samples"],
@@ -174,9 +172,18 @@ pub(super) struct Args {
         help = "Progress on stderr: plain lines, or JSON lines with the fraction and an ETA"
     )]
     progress: Progress,
+    #[arg(skip)]
+    trace: Trace,
 }
 
 impl Args {
+    fn with(&self, trace: Trace) -> Args {
+        Args {
+            trace,
+            ..self.clone()
+        }
+    }
+
     fn view(&self) -> View {
         match (self.equirect, self.ortho) {
             (true, _) => View::Equirect,
@@ -202,16 +209,29 @@ impl Args {
     }
 
     fn samples(&self) -> u32 {
-        if self.draft { DRAFT.0 } else { self.samples }
+        if self.draft {
+            DRAFT.0
+        } else {
+            self.samples.or(self.trace.spp).unwrap_or(SAMPLES)
+        }
     }
 
     fn noise(&self) -> Option<Noise> {
         if self.draft {
             return Some(DRAFT.1);
         }
-        (self.threshold > 0.0 && self.samples >= 2).then_some(Noise {
-            threshold: self.threshold,
-            min_samples: self.min_samples.min(self.samples),
+        let samples = self.samples();
+        let threshold = self
+            .threshold
+            .or(self.trace.threshold.map(|t| t as f32))
+            .unwrap_or(NOISE.threshold);
+        let min_samples = self
+            .min_samples
+            .or(self.trace.min_samples)
+            .unwrap_or(NOISE.min_samples);
+        (threshold > 0.0 && samples >= 2).then_some(Noise {
+            threshold,
+            min_samples: min_samples.min(samples),
         })
     }
 
@@ -235,14 +255,14 @@ impl Args {
     }
 }
 
-fn precheck(args: &Args) -> Result<(), String> {
+fn precheck(args: &Args) -> Result<Trace, String> {
     super::precheck(
         &args.recipe,
         args.variant.as_deref(),
         &args.set,
         &args.camera,
     )
-    .map(|_| ())
+    .map(|(_, trace)| trace)
 }
 
 fn requeue(args: &[String]) -> Option<ExitCode> {
@@ -506,9 +526,10 @@ fn written(args: &Args, rendered: &Rendered) -> Result<(), Fault> {
 }
 
 pub fn run(parsed: &Args, args: &[String], registry: &Registry) -> ExitCode {
-    if let Err(message) = precheck(parsed) {
-        return refuse("render", &message);
-    }
+    let parsed = &match precheck(parsed) {
+        Ok(trace) => parsed.with(trace),
+        Err(message) => return refuse("render", &message),
+    };
     if let Some(code) = requeue(args) {
         return code;
     }
@@ -580,9 +601,9 @@ mod tests {
             Args {
                 recipe: "table.toml".into(),
                 camera: "main".into(),
-                samples: 64,
-                threshold: 0.02,
-                min_samples: 16,
+                samples: Some(64),
+                threshold: Some(0.02),
+                min_samples: Some(16),
                 draft: false,
                 seed: Some(9),
                 frame: Some([320, 200]),
@@ -595,6 +616,7 @@ mod tests {
                 out: "tmp/a.exr".into(),
                 master: Some("tmp/a.master.png".into()),
                 progress: Progress::Json,
+                trace: Trace::default(),
             }
         );
     }
@@ -679,6 +701,48 @@ mod tests {
             ))
             .is_ok()
         );
+    }
+
+    #[test]
+    fn the_recipes_sampling_stands_unless_a_flag_overrides_it() {
+        let trace = Trace {
+            spp: Some(256),
+            threshold: Some(0.05),
+            min_samples: Some(8),
+            ..Trace::default()
+        };
+        let recipe = parse(&strings("a.toml --camera c --out a.png"))
+            .unwrap()
+            .with(trace);
+        assert_eq!(recipe.samples(), 256);
+        assert_eq!(
+            recipe.noise(),
+            Some(Noise {
+                threshold: 0.05,
+                min_samples: 8
+            })
+        );
+        let flags = parse(&strings(
+            "a.toml --camera c --out a.png --spp 64 --threshold 0.02 --min-samples 16",
+        ))
+        .unwrap()
+        .with(trace);
+        assert_eq!(flags.samples(), 64);
+        assert_eq!(
+            flags.noise(),
+            Some(Noise {
+                threshold: 0.02,
+                min_samples: 16
+            })
+        );
+        let off = parse(&strings("a.toml --camera c --out a.png --threshold 0"))
+            .unwrap()
+            .with(trace);
+        assert_eq!((off.samples(), off.noise()), (256, None));
+        let draft = parse(&strings("a.toml --camera c --out a.png --draft"))
+            .unwrap()
+            .with(trace);
+        assert_eq!((draft.samples(), draft.noise()), (DRAFT.0, Some(DRAFT.1)));
     }
 
     #[test]

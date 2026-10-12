@@ -1120,6 +1120,28 @@ fn fireflies(out: &mut Out<'_>, at: &str, clamp_indirect: f64, filter_glossy: f6
 fn trace(out: &mut Out<'_>) {
     let trace = out.r.trace;
     fireflies(out, "trace", trace.clamp_indirect, trace.filter_glossy);
+    if trace.spp == Some(0) {
+        out.same(
+            "trace.spp",
+            "spp = 0 is below 1, expected the most samples any pixel takes",
+        );
+    }
+    if let Some(threshold) = trace.threshold.filter(|&t| t < 0.0) {
+        out.same(
+            "trace.threshold",
+            format!(
+                "threshold = {threshold} is below 0, expected the noise under which a pixel stops, or 0 to run every pixel to spp"
+            ),
+        );
+    }
+    if let Some(min_samples) = trace.min_samples.filter(|&n| n < 2) {
+        out.same(
+            "trace.min_samples",
+            format!(
+                "min_samples = {min_samples} is below 2, expected the samples every pixel takes before it may stop"
+            ),
+        );
+    }
 }
 
 fn look(out: &mut Out<'_>) {

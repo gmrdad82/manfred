@@ -181,7 +181,7 @@ fn encode_line(list: &Path, video: &Path, fps: u32) -> Vec<String> {
 }
 
 fn precheck(args: &Args) -> Result<(), String> {
-    let camera = super::precheck(
+    let (camera, _) = super::precheck(
         &args.recipe,
         args.variant.as_deref(),
         &args.set,

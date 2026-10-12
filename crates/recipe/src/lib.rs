@@ -516,6 +516,9 @@ pub struct Trace {
     pub transmissive_shadows: bool,
     pub clamp_indirect: f64,
     pub filter_glossy: f64,
+    pub spp: Option<u32>,
+    pub threshold: Option<f64>,
+    pub min_samples: Option<u32>,
 }
 
 impl Trace {

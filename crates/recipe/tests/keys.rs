@@ -198,3 +198,25 @@ fn trace_reads_the_firefly_settings_off_by_default_and_refuses_them_out_of_range
     let e = error("[trace]\nfilter_glossy = \"soft\"\n");
     assert!(e.contains("filter_glossy"), "{e}");
 }
+
+#[test]
+fn trace_reads_the_render_sampling_unset_by_default_and_refuses_it_out_of_range_at_its_line() {
+    let off = recipe("").trace;
+    assert_eq!(
+        (off.spp, off.threshold, off.min_samples),
+        (None, None, None)
+    );
+    let on = recipe("[trace]\nspp = 128\nthreshold = 0.05\nmin_samples = 8\n").trace;
+    assert_eq!(
+        (on.spp, on.threshold, on.min_samples),
+        (Some(128), Some(0.05), Some(8))
+    );
+    assert_eq!(
+        problems("[trace]\nspp = 0\nthreshold = -0.1\nmin_samples = 1\n"),
+        [
+            "line 4: trace.spp: spp = 0 is below 1, expected the most samples any pixel takes",
+            "line 5: trace.threshold: threshold = -0.1 is below 0, expected the noise under which a pixel stops, or 0 to run every pixel to spp",
+            "line 6: trace.min_samples: min_samples = 1 is below 2, expected the samples every pixel takes before it may stop"
+        ]
+    );
+}

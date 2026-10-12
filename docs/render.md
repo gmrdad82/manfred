@@ -9,10 +9,10 @@ manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--camera` | required | a `[[camera]]` of the recipe |
-| `--spp` | 128 | samples per pixel, at least 1: the most any pixel takes (`--samples` is the same flag) |
-| `--threshold` | 0.01 | adaptive sampling: a pixel stops once its noise estimate is under this; `0` runs every pixel to `--spp` |
-| `--min-samples` | 16 | the samples every pixel takes before it may stop, at least 2 (never more than `--spp`) |
-| `--draft` | | a quick look: `--spp 16 --threshold 0.05 --min-samples 8`; not with those three |
+| `--spp` | the recipe's `[trace] spp`, else 128 | samples per pixel, at least 1: the most any pixel takes (`--samples` is the same flag) |
+| `--threshold` | the recipe's `[trace] threshold`, else 0.01 | adaptive sampling: a pixel stops once its noise estimate is under this; `0` runs every pixel to `--spp` |
+| `--min-samples` | the recipe's `[trace] min_samples`, else 16 | the samples every pixel takes before it may stop, at least 2 (never more than `--spp`) |
+| `--draft` | | a quick look: `--spp 16 --threshold 0.05 --min-samples 8`, whatever the recipe sets; not with those three |
 | `--seed` | the recipe's `seed`, cut to 32 bits | the tracer's seed |
 | `--size` | 1586x992, or 2048x1024 with `--equirect` | the picture, each side 1 to 16384 |
 | `--ortho` | | an orthographic view of the camera's `ortho_height` |
@@ -31,7 +31,7 @@ It prints the out file on stdout (and the master after it) and, on stderr, the s
 
 By default each pixel traces only until it is clean: the tracer (`pfx_trace::Trace::sample_adaptive`, as `pfx render` samples) runs every pixel to `--min-samples` in two rounds, then grows the count by half each round up to `--spp`, and after each round stops every pixel whose noise estimate, and its eight neighbours', is under `--threshold`. Flat, matte and evenly lit surfaces stop early; glossy highlights, soft shadows and fine detail run longer. `--threshold 0`, or `--spp 1`, traces every pixel to `--spp`, as before 0.19.1. C3 in the window renders that way, so its progress counts samples.
 
-A final still is the defaults: adaptive to 128 samples at threshold 0.01, denoised, with the recipe's `[trace] filter_glossy` and `clamp_indirect` against fireflies. `--draft` is a quick look at the same size. `--denoise off --threshold 0 --spp 1024` (or more) is only for a ground-truth reference to compare a denoised final against.
+A final still is the defaults: adaptive to 128 samples at threshold 0.01 unless the recipe's `[trace]` sets its own (docs/recipe.md), denoised, with the recipe's `[trace] filter_glossy` and `clamp_indirect` against fireflies. `--draft` is a quick look at the same size. `--denoise off --threshold 0 --spp 1024` (or more) is only for a ground-truth reference to compare a denoised final against.
 
 ## Progress
 
