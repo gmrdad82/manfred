@@ -2,6 +2,17 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v0.19.2 — 2026-10-12
+
+### Added
+
+- `manfred render --crop x,y,w,h` renders one rectangle of the frame with the same pixels the full frame has there, for variants of one part of a still.
+
+### Changed
+
+- `manfred render --progress json` gives a fraction and an ETA with adaptive sampling too, from the tracer's rounds.
+- The pfx crates move to a newer revision whose tracer starts every trace at full width, several times faster on short renders, with the same pixels.
+
 ## v0.19.1 — 2026-10-12
 
 ### Added
