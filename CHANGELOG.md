@@ -4,9 +4,9 @@ Every release of Manfred, newest first. Earlier versions were developed privatel
 
 ## v0.19.8 — 2026-10-12
 
-### Fixed
+### Changed
 
-- The pfx crates move to v0.28.1, whose Sobol sampler shifts its sequence per pixel: the showcase workshop's mean now matches the PCG sampler's within 0.01%, where v0.19.7 sat up to 0.15% lower on scenes lit by small or narrow lights. Pixels differ from v0.19.7's. Measured on an RX 9060 XT, best of three, same samples a pixel as v0.19.6 and v0.19.7: the workshop's 4K final 13.7 s, 12.1 s on the GPU (v0.19.7 13.2 and 11.8, v0.19.6 12.2 and 10.9); its 4K draft 3.2 s, 1.8 s on the GPU (2.9 and 1.7, 2.7 and 1.5); a 640x400 crop of the showcase hero at 4K 2.3 s, 2.0 s on the GPU (2.1 and 1.8, 2.0 and 1.7).
+- The tracer samples with PCG again, as v0.19.6 did, and the pfx crates move to v0.28.1. v0.19.7's Sobol sampler cost 10 to 20% more GPU time a sample and stopped no sooner at Manfred's caps (118.3 samples a pixel for the showcase workshop's 4K final, 15.3 for its draft, under both samplers), so v0.19.7 rendered slower for a slightly cleaner image; its note that adaptive renders stop sooner did not hold on these scenes. Pixels match v0.19.6's again. Measured on an RX 9060 XT, back to back with v0.19.6, each render alone on the GPU: the workshop's 4K final 11.1 s on the GPU (v0.19.6 11.1 s), its 4K draft 1.7 s (1.7 s), a 640x400 crop of the showcase hero at 4K 2.0 s (2.0 s).
 
 ## v0.19.7 — 2026-10-12
 

@@ -6,6 +6,7 @@ use pfx::adapter::{turn, turn_reporting};
 use pfx_gpu::Gpu;
 use pfx_materials::Blend;
 use pfx_trace::detail::ContentFace;
+use pfx_trace::sobol::Sampler;
 use pfx_trace::stage::{ContentKind, Image, Placement, PlacementContent, Stage};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -467,6 +468,7 @@ fn the_table_through_a_lens_and_as_an_equirect_traces_to_the_same_bytes() {
         }
         before.detail.lights = staging.lights.clone();
         before.detail.sun_radius_deg = staging.sun_radius_deg;
+        before.detail.sampler = Sampler::Pcg;
         let (then, _) = trace(
             &gpu,
             &before,

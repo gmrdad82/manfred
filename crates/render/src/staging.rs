@@ -8,6 +8,7 @@ use pfx_post::Chain;
 use pfx_trace::detail::Lens;
 use pfx_trace::lights::{LightShape, LocalLight};
 use pfx_trace::sky::Environment;
+use pfx_trace::sobol::Sampler;
 use pfx_trace::stage::{Image, Mesh, Placement, PlacementContent, Stage, Staged};
 use pfx_trace::{Camera, Projection, Sun};
 
@@ -202,6 +203,7 @@ impl Staging {
         staged.detail.transmissive_shadows = self.transmissive_shadows;
         staged.detail.clamp_indirect = self.clamp_indirect;
         staged.detail.filter_glossy = self.filter_glossy;
+        staged.detail.sampler = Sampler::Pcg;
         Ok(staged)
     }
 }
