@@ -9,14 +9,13 @@ use manfred_ui::{Follow, Manfred, Mode, Shell, Tape, Viewer};
 use serde_json::json;
 
 use super::gui::Args;
-use super::process::{Record, on_path};
+use super::process::on_path;
 
 pub(super) const FPS: [u32; 3] = [30, 60, 120];
 const SIZE: [u32; 2] = [1586, 992];
 const LIFT: &str = "format=gbrp,zscale,format=gbrp16le";
 const TO_709: &str = "format=rgb48le,zscale=matrix=709:range=limited:filter=bicubic:chromal=left,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv";
 const X264_THREADS: &str = "24";
-const STAGES: [&str; 2] = ["frames", "video"];
 const LARGEST_COPY: u64 = 256 * 1024 * 1024;
 const COMMAND: &str = "gui --clip";
 const QUEUED: usize = 4;
@@ -333,13 +332,6 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
     std::env::set_current_dir(&work).map_err(|error| named(&work, &error))?;
     let mut shell = shell.without_recent().without_showcase();
     shell.set_registry(registry.clone());
-    let record = Record::start(
-        &format!("gui clip {stem}"),
-        &tape_path.display().to_string(),
-        &out,
-        &STAGES,
-    );
-    record.stage(STAGES[0], Some(frames as u64), "frames");
     let mut ffmpeg = Command::new("ffmpeg")
         .args(encode_line(size, fps, &partial))
         .stdin(Stdio::piped())
@@ -382,7 +374,6 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
                     }
                 }
             }
-            record.progress(index as u64 + 1);
             Ok(())
         },
     );
@@ -407,7 +398,6 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
     let _ = std::env::set_current_dir(&out);
     let fail = |message: String| {
         let _ = std::fs::remove_file(&partial);
-        record.fail(&message);
         message
     };
     let played = played.map_err(|error| fail(error.0))?;
@@ -416,7 +406,6 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         return Err(fail(format!("ffmpeg failed ({status}): {}", said.trim())));
     }
     written.map_err(fail)?;
-    record.stage(STAGES[1], None, "files");
     std::fs::rename(&partial, &master).map_err(|error| fail(named(&master, &error)))?;
     let still = kept.ok_or_else(|| fail("the poster's frame was never drawn".into()))?;
     let png = manfred_ui::poster_png(size, &still).map_err(|error| fail(error.0))?;
@@ -452,7 +441,6 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
     let text = serde_json::to_string_pretty(&value).map_err(|error| fail(error.to_string()))?;
     std::fs::write(&manifest, text + "\n").map_err(|error| fail(named(&manifest, &error)))?;
     let _ = std::fs::remove_dir_all(&work);
-    record.finish();
     for path in [&master, &poster_path, &manifest] {
         println!("{}", path.display());
     }

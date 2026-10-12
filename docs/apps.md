@@ -2,7 +2,7 @@
 
 Manfred holds no app's things. An app keeps its generators, its sidecar writer, its material catalogue, its recipes and its bakes in its own repository, and drives Manfred through a small build binary that links the `manfred` library and registers them. That binary is `manfred` with the app's names added: every command, flag and output is the same, and `manfred` alone refuses a recipe that names something only the app registers.
 
-Link the library by its tag. Its long commands keep their job records through pfx-report, whose calls do nothing unless the app's build patches in a reporter:
+Link the library by its tag:
 
 ```toml
 [dependencies]

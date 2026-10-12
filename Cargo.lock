@@ -1622,7 +1622,6 @@ dependencies = [
  "manfred-scene",
  "manfred-ui",
  "pfx",
- "pfx-report",
  "png",
  "serde_json",
  "ttf-parser",
@@ -2668,11 +2667,6 @@ dependencies = [
  "toml 0.9.12+spec-1.1.0",
  "wgpu",
 ]
-
-[[package]]
-name = "pfx-report"
-version = "0.1.0"
-source = "git+https://github.com/gmrdad82/pfx-report?tag=v0.1.0#ef9e4b4411e77599e83464e1b9a4476bc298674d"
 
 [[package]]
 name = "pfx-scene"

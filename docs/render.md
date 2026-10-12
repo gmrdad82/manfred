@@ -145,10 +145,6 @@ pgpu run --class clip --as manfred -- <manfred> render <the same arguments>
 - Because it is an `exec`, the pid the caller holds is the same process all the way to `pgpu run`, so TERM to it reaches pgpu, which stops the job.
 - Inside the job (`GPU_QUEUE=1`) it renders. Without pgpu it says so and renders directly, paced the same way.
 
-## The job record
-
-With the optional `jobs` feature (a job-status record for the author's own machine, off by default), the rendering process publishes a record (tool `manfred`, label `render <out>`, the out file, a detail of recipe, camera, size and samples) with the stages `stage`, `trace` (progress in samples, or in milliseconds on the GPU with adaptive sampling) and `write`. It ends `finish(0)` or `fail(2, <the error>)`. A default build writes no record, and the library facade never links it.
-
 ## The tracer's floor
 
 `Trace::new` checks the adapter against the engine's tracer floor (15 storage buffers per compute stage, filterable f32, compute). A GPU below it is refused in plain words:

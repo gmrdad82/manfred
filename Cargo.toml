@@ -88,7 +88,6 @@ manfred-render.workspace = true
 manfred-runtime.workspace = true
 serde_json.workspace = true
 clap.workspace = true
-pfx-report = { git = "https://github.com/gmrdad82/pfx-report", tag = "v0.1.0" }
 
 [dev-dependencies]
 pfx.workspace = true

@@ -161,7 +161,7 @@ bin/gate --public
 
 `bin/gate --public` is what CI runs, as three jobs in parallel (`bin/gate --public lint`, `test` and `release`): `shellcheck`, `cargo fmt --check`, `cargo clippy -D warnings`, every test and doc test that needs no GPU, with the default features, and the release build. CI runs on every push and pull request and nightly. Tests that need a GPU are `#[ignore]`d; run them on a machine with a Vulkan GPU with `cargo test -- --ignored`. The checks include a licence check: every dependency must be under an MIT-compatible licence.
 
-Crash reports, job progress and the window's heartbeat go through [pfx-report](https://github.com/gmrdad82/pfx-report), whose every call does nothing; a build that wants them patches in a reporter with the same API. A build of this tree sends nothing anywhere.
+Manfred reports to no one: it sends no crash reports, job progress or usage anywhere.
 
 ## Contributing
 

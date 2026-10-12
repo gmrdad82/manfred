@@ -13,7 +13,6 @@ use manfred_render::{
 
 use super::{pair, refuse, size};
 
-const STAGES: [&str; 3] = ["stage", "trace", "write"];
 const PROGRESS_LINES: u32 = 20;
 const JSON_EVERY: Duration = Duration::from_secs(1);
 const PLAIN_EVERY: Duration = Duration::from_secs(30);
@@ -250,17 +249,6 @@ impl Args {
         })
     }
 
-    fn sampling(&self) -> String {
-        match self.noise() {
-            Some(noise) => format!(
-                "{} spp at most, threshold {}",
-                self.samples(),
-                noise.threshold
-            ),
-            None => format!("{} spp", self.samples()),
-        }
-    }
-
     fn size(&self) -> [u32; 2] {
         self.frame.unwrap_or(if self.view() == View::Equirect {
             EQUIRECT_SIZE
@@ -282,21 +270,6 @@ fn precheck(args: &Args) -> Result<Trace, String> {
 
 fn requeue(args: &[String]) -> Option<ExitCode> {
     super::process::requeue("render", args, "runs directly")
-}
-
-fn record(args: &Args) -> super::process::Record {
-    super::process::Record::start(
-        &format!("render {}", args.out.display()),
-        &format!(
-            "{} {} {} {}",
-            args.recipe.display(),
-            args.camera,
-            args.framing(),
-            args.sampling()
-        ),
-        &args.out,
-        &STAGES,
-    )
 }
 
 fn progress_line(done: u32, total: u32) -> Option<String> {
@@ -452,21 +425,9 @@ fn converge_line(gpu_ms: u64, cap: u32, threshold: f32, fraction: f64) -> String
     )
 }
 
-fn note(record: &super::process::Record, watch: &mut Watch, step: Step) {
+fn note(watch: &mut Watch, step: Step) {
     if let Some(line) = watch.line(step, watch.began.elapsed()) {
         eprintln!("{line}");
-    }
-    match step {
-        Step::Stage => record.stage(STAGES[0], None, "steps"),
-        Step::Trace { done: 0, total } => {
-            record.stage(STAGES[1], Some(u64::from(total)), "samples")
-        }
-        Step::Trace { done, .. } => record.progress(u64::from(done)),
-        Step::Converge {
-            gpu_ms: 0, total, ..
-        } => record.stage(STAGES[1], Some(total), "pixel samples"),
-        Step::Converge { done, .. } => record.progress(done),
-        Step::Write => record.stage(STAGES[2], None, "files"),
     }
 }
 
@@ -544,14 +505,10 @@ pub fn run(parsed: &Args, args: &[String], registry: &Registry) -> ExitCode {
     if let Some(code) = requeue(args) {
         return code;
     }
-    let record = record(parsed);
     let threshold = parsed.noise().map_or(0.0, |noise| noise.threshold);
     let mut watch = Watch::new(parsed.progress, threshold);
-    match traced(parsed, registry, &mut |step| {
-        note(&record, &mut watch, step)
-    }) {
+    match traced(parsed, registry, &mut |step| note(&mut watch, step)) {
         Ok((rendered, summary)) => {
-            record.finish();
             if let Some(line) = watch.done(&parsed.out, &rendered, watch.began.elapsed()) {
                 eprintln!("{line}");
             }
@@ -562,10 +519,7 @@ pub fn run(parsed: &Args, args: &[String], registry: &Registry) -> ExitCode {
             }
             ExitCode::SUCCESS
         }
-        Err(error) => {
-            record.fail(&error.to_string());
-            refuse("render", &error.to_string())
-        }
+        Err(error) => refuse("render", &error.to_string()),
     }
 }
 

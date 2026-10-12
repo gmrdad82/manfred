@@ -12,7 +12,6 @@ const SAMPLES: u32 = 64;
 const MAX_FPS: i64 = 240;
 const MANIFEST: &str = "clip.txt";
 const LIST: &str = "frames.ffconcat";
-const STAGES: [&str; 2] = ["frames", "video"];
 
 fn video(text: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(text);
@@ -194,25 +193,6 @@ fn requeue(args: &[String]) -> Option<ExitCode> {
     super::process::requeue("clip", args, "traces directly")
 }
 
-fn record(args: &Args) -> super::process::Record {
-    let record = super::process::Record::start(
-        &format!("clip {}", args.out.display()),
-        &format!(
-            "{} {} {} frames {}x{} {} spp",
-            args.recipe.display(),
-            args.camera,
-            args.frames,
-            args.size[0],
-            args.size[1],
-            args.samples().unwrap_or(0)
-        ),
-        &args.out,
-        &STAGES,
-    );
-    record.stage(STAGES[0], Some(u64::from(args.frames)), "frames");
-    record
-}
-
 fn path_of(camera: &Camera) -> Result<&CameraPath, String> {
     camera.path.as_ref().ok_or_else(|| {
         format!(
@@ -359,34 +339,13 @@ pub fn run(parsed: &Args, args: &[String], registry: &Registry) -> ExitCode {
             return code;
         }
     }
-    let record = parsed.samples().map(|_| record(parsed));
-    let made = frames(parsed, registry, &mut |done| {
-        if let Some(record) = &record {
-            record.progress(u64::from(done));
-        }
-    })
-    .and_then(|()| match &parsed.film {
-        Some(video) => {
-            if let Some(record) = &record {
-                record.stage(STAGES[1], None, "files");
-            }
-            encode(parsed, video, on_path("pconv"))
-        }
+    let made = frames(parsed, registry, &mut |_| {}).and_then(|()| match &parsed.film {
+        Some(video) => encode(parsed, video, on_path("pconv")),
         None => Ok(()),
     });
     match made {
-        Ok(()) => {
-            if let Some(record) = &record {
-                record.finish();
-            }
-            ExitCode::SUCCESS
-        }
-        Err(error) => {
-            if let Some(record) = &record {
-                record.fail(&error);
-            }
-            refuse("clip", &error)
-        }
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => refuse("clip", &error),
     }
 }
 

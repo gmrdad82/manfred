@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::process::{Command, ExitCode};
 
 pub(super) const CPUS: &str = "MANFRED_CPUS";
@@ -93,36 +92,6 @@ pub(super) fn requeue(command: &str, args: &[String], direct: &str) -> Option<Ex
     let error = Command::new(&line[0]).args(&line[1..]).exec();
     eprintln!("manfred {command}: cannot start {}: {error}", line[0]);
     Some(ExitCode::FAILURE)
-}
-
-pub(super) struct Record {
-    job: pfx_report::Job,
-}
-
-impl Record {
-    pub(super) fn start(title: &str, detail: &str, out: &Path, stages: &[&str]) -> Record {
-        let job = pfx_report::job("manfred", None, title)
-            .detail(detail)
-            .out(out);
-        job.stages(stages);
-        Record { job }
-    }
-
-    pub(super) fn stage(&self, name: &str, total: Option<u64>, unit: &str) {
-        self.job.stage(name, total, unit);
-    }
-
-    pub(super) fn progress(&self, done: u64) {
-        self.job.progress(done);
-    }
-
-    pub(super) fn finish(&self) {
-        self.job.finish(0);
-    }
-
-    pub(super) fn fail(&self, error: &str) {
-        self.job.fail(1, error);
-    }
 }
 
 #[cfg(test)]

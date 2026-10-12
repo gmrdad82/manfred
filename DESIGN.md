@@ -52,9 +52,9 @@ Linux with Vulkan, Wayland for the window. Every crate has one job.
 | `crates/render` | manfred-render | path-traced stills, equirect, ortho; PNG, EXR and HDR out; pacing and GPU turns | pfx-trace, -gpu, png, exr |
 | `crates/runtime` | manfred-runtime | an app's loader: a GLB and a facts sidecar to a scene, and the scene to live instances, surfaces, lights, baked detail and content | pfx-load, -live, -gpu, -geom, -materials, -post, -bake |
 | `crates/ui` | manfred-ui | the egui shell: panels, viewport, gizmos; the window host and the offscreen shot come from pfx-editor-shell, the widgets and the theming from pfx-editor-style; its own look is `theme.rs`, and `tape.rs` plays a tape on the offscreen window, frame by frame, for a clip | egui, egui-wgpu 0.36.2, pfx-editor-shell, pfx-editor-style |
-| root | manfred | the `manfred` binary and the CLI it shares with an app's build binary: commands, the window, and the calls into the reporter | the crates above, pfx-report |
+| root | manfred | the `manfred` binary and the CLI it shares with an app's build binary: commands and the window | the crates above |
 
-The binary reports its crashes, the progress of long jobs and the window's heartbeat through pfx-report, whose every call does nothing: `main` starts the reporter and names the command, the CLI's long commands keep a job record, and the window beats once a frame. A build that wants real reports patches in a reporter with the same API, with no change here. A build of this tree sends nothing anywhere.
+Manfred reports to no one: no crash reporter, no job records, no heartbeat. An app's build binary may pass its own `Host::beat`, which the window calls once a frame.
 
 A library facade, `manfred` as a lib target with the recipe, mesh, glb, build, generators and runtime crates re-exported, is what an app links in its own build binary to register its generators, sidecar writer and material catalogue by name, and to add commands of its own (`docs/apps.md`). The recipe references a generator and its params; the window treats a generator's output as read-only geometry it can still place. No scripting language, and no Python.
 
@@ -100,7 +100,7 @@ Manfred is 3D, and 2D is 3D with two switches: an orthographic camera and flat c
 - Model by hand: no sculpting, no vertex editing, no UV unwrapping, no rigging, no animation authoring. Blender stays the escape hatch for a one-off, and its result comes in as glTF.
 - Read `.blend` files. Import is glTF 2.0 and Radiance HDR.
 - Write outside the caller's repo: outputs go where the recipe says, scratch under `tmp/`, caches under the machine cache folder.
-- Link the reporter from a library crate under `crates/`. Only the root package calls pfx-report, and a test keeps the others off it.
+- Report anywhere: no crash reporter, no job records, no telemetry.
 - Spawn pfx from a library. The app's build script runs `pfx bake` on the bake recipe Manfred wrote.
 
 ## 11. What is in place
