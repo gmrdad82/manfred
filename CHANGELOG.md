@@ -6,7 +6,12 @@ Every release of Manfred, newest first. Earlier versions were developed privatel
 
 ### Changed
 
-- The tracer samples with PCG again, as v0.19.6 did, and the pfx crates move to v0.28.1. v0.19.7's Sobol sampler cost 10 to 20% more GPU time a sample and stopped no sooner at Manfred's caps (118.3 samples a pixel for the showcase workshop's 4K final, 15.3 for its draft, under both samplers), so v0.19.7 rendered slower for a slightly cleaner image; its note that adaptive renders stop sooner did not hold on these scenes. Pixels match v0.19.6's again. Measured on an RX 9060 XT, back to back with v0.19.6, each render alone on the GPU: the workshop's 4K final 11.1 s on the GPU (v0.19.6 11.1 s), its 4K draft 1.7 s (1.7 s), a 640x400 crop of the showcase hero at 4K 2.0 s (2.0 s).
+- Renders keep the Sobol sampler and spend its gain on speed: a final now adapts to 64 samples a pixel at most (from 128) and a draft to 12 (from 16, at least 6), where Sobol's noise matches what the PCG sampler gave at 128 and 16. A `--spp` or recipe `spp` above 256 sizes the Sobol table to it. Measured on an RX 9060 XT, best of three: the showcase workshop's 4K final 7.7 s, 6.2 s on the GPU (v0.19.6 12.1 s and 10.7 s); its 4K draft 2.6 s, 1.4 s on the GPU (the same); a 640x400 crop of the showcase hero at 4K 1.2 s, 0.9 s on the GPU (2.1 s and 1.8 s). Pixels differ from v0.19.7's.
+- The pfx crates move to v0.28.1, whose Sobol sampler shifts its sequence per pixel, so a render's mean matches the PCG sampler's.
+
+### Fixed
+
+- v0.19.7's Sobol sampler cost 10 to 20% more GPU time a sample at the old caps and stopped no sooner (118.3 samples a pixel for the workshop's final under both samplers), so v0.19.7 rendered about 10% slower than v0.19.6; its note that adaptive renders stop sooner did not hold on these scenes.
 
 ## v0.19.7 — 2026-10-12
 
