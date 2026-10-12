@@ -19,7 +19,7 @@ manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples
 | `--equirect` | | the full sphere around the camera |
 | `--crop` | | `x,y,w,h` in the frame's pixels: renders only that rectangle, the same pixels the full frame has there (below) |
 | `--variant` | | a `[variants.<name>]` of the recipe |
-| `--denoise` | `on` | `off` writes a `.png` from the raw trace, without the denoiser; `.exr` and `.hdr` are never denoised |
+| `--denoise` | `on` for a `.png` or master, `off` for `.exr` and `.hdr` | `off` writes a `.png` or master from the raw trace, without the denoiser; `on` also denoises an `.exr` or `.hdr` |
 | `--set` | | `key=value`, replaces a value the recipe has, after the variant; as often as needed (`docs/recipe.md`, overrides) |
 | `--out` | required | `.png`, `.exr` or `.hdr`, by its extension |
 | `--master` | | also writes a 16-bit `.png` master of the same finished picture |
@@ -46,9 +46,15 @@ Plain progress (the default) prints `progress <done>/<total>` about twenty times
 
 ## Crops
 
-`--crop x,y,w,h` traces only that rectangle of the `--size` frame, with the tracer's window (`Trace::set_window`): every pixel keeps the random stream, the ray, the lens shift and the depth of field of its place in the full frame, so a crop is the full frame's pixels there, for a key-down or lit variant of one part of a plate. With adaptive sampling the trace runs on the rectangle grown by one pixel a round on each side (convergence spreads through its 3×3 neighbourhood one pixel a round) and keeps the middle; with the denoiser it grows by at least 96 pixels, the denoiser's reach (Open Image Denoise's tile overlap). The same recipe, size, camera, seed, samples and threshold give the same traced pixels as the full frame on one GPU and driver, and the `.png` dither is laid by the full frame's coordinates. The denoiser sets its exposure from the image it is given, so a denoised crop is close to the full frame there but not bit for bit; `--denoise off`, or an `.exr` or `.hdr` crop, is exact.
+`--crop x,y,w,h` traces only that rectangle of the `--size` frame, with the tracer's window (`Trace::set_window`): every pixel keeps the random stream, the ray, the lens shift and the depth of field of its place in the full frame, so a crop is the full frame's pixels there, for a key-down or lit variant of one part of a plate. The same recipe, size, camera, seed, samples and threshold give the same traced pixels as the full frame on one GPU and driver. Around the rectangle the trace runs on margins it then cuts away:
 
-A `.png` or `--master` crop goes through the recipe's finish, which must then work pixel by pixel: a finish with vignette, grain, its own dither, bloom, outlines or any pass that reads neighbours, or overlay text, is refused for a `.png` or master crop (exit 1), and a `.exr` or `.hdr` crop, the raw trace, always works.
+- **The finish** (a `.png` or master): the bloom reads its neighbours, so the rectangle grows by the bloom's reach (its downsample times its radius plus 3: 30 pixels for the graded look), aligned to the bloom's 2×2 blocks, and the finish runs on that; the vignette and the `.png` dither are laid by the full frame's coordinates. The finished crop is the full frame's finish there (with the denoiser off, to the float).
+- **Adaptive sampling**: one pixel a round on each side, since convergence spreads through its 3×3 neighbourhood one pixel a round.
+- **The denoiser**: at least 96 pixels, Open Image Denoise's tile overlap, with the traced window aligned to 16 pixels of the full frame so the network's pooling grid is the full frame's.
+
+The denoiser sets its exposure from the image it is given, so a denoised crop is close to the full frame there but not bit for bit. Measured on the showcase hero at 3840x2160, two 640x400 crops against the full frame's `.png`: mean 0.04 and 0.03 levels, p99 1 level (the dither), at most 2 at the defaults; mean 0.07, at most 4, with `--draft`. `--denoise off` is exact.
+
+A `.png` or `--master` crop is refused (exit 1) when its finish cannot be worked out on a margin: overlay text, which is placed by the whole frame; grain, a film dither, outlines or any other pass that reads past a margin; or a bloom whose 2×2 blocks do not tile the frame (an odd `--size`). An `.exr` or `.hdr` crop always works: the raw trace, or with `--denoise on` the denoised one.
 
 ## The scene it traces
 

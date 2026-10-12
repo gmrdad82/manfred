@@ -1,4 +1,4 @@
-use crate::picture::Film;
+use crate::picture::{Film, Reach};
 use crate::staging::{Staging, View, eyepiece};
 use crate::text::Overlay;
 use manfred_build::Registry;
@@ -30,6 +30,7 @@ pub const DRAFT: (u32, Noise) = (
     },
 );
 const GROWTH: f32 = 1.5;
+const DENOISE_ALIGN: u32 = 16;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Noise {
@@ -150,6 +151,30 @@ impl Region {
         ];
         Region {
             full,
+            origin: low,
+            size: [high[0] - low[0], high[1] - low[1]],
+        }
+    }
+
+    pub fn rect(&self) -> [u32; 4] {
+        [self.origin[0], self.origin[1], self.size[0], self.size[1]]
+    }
+
+    pub fn grown(&self, by: u32) -> Region {
+        Region::around(self.full, self.rect(), by)
+    }
+
+    pub fn aligned(&self, step: u32) -> Region {
+        let step = step.max(1);
+        let low = self.origin.map(|at| at / step * step);
+        let high = [0, 1].map(|k| {
+            (self.origin[k] + self.size[k])
+                .div_ceil(step)
+                .saturating_mul(step)
+                .min(self.full[k])
+        });
+        Region {
+            full: self.full,
             origin: low,
             size: [high[0] - low[0], high[1] - low[1]],
         }
@@ -280,6 +305,47 @@ pub struct Rendered {
     pub seed: u32,
     pub mean_samples: f64,
     pub most_samples: u32,
+    pub region: Region,
+    pub rect: [u32; 4],
+}
+
+impl Rendered {
+    pub fn size(&self) -> [u32; 2] {
+        [self.rect[2], self.rect[3]]
+    }
+
+    fn within(&self) -> [u32; 2] {
+        [
+            self.rect[0] - self.region.origin[0],
+            self.rect[1] - self.region.origin[1],
+        ]
+    }
+
+    pub fn crop(&self) -> Film {
+        if self.region.rect() == self.rect {
+            return self.film.clone();
+        }
+        self.film.cut(self.within(), self.size())
+    }
+
+    pub fn finished(&self, denoised: bool) -> Result<Vec<[f32; 4]>, String> {
+        let pixels = crate::picture::finished_at(
+            &self.film,
+            (&self.finish, &self.overlay),
+            denoised,
+            self.region.origin,
+            self.region.full,
+        )?;
+        if self.region.rect() == self.rect {
+            return Ok(pixels);
+        }
+        Ok(crate::picture::cut(
+            &pixels,
+            self.film.size[0],
+            self.within(),
+            self.size(),
+        ))
+    }
 }
 
 pub fn render(
@@ -297,33 +363,40 @@ pub fn render(
     turn(Report::default());
     let staging = Staging::of(&recipe, &built.parts)?;
     let camera = manfred_scene::camera(&recipe, request.camera)?;
-    if let Some(crop) = request.crop
-        && crop.finished
-        && let Some(reason) =
-            crate::picture::crop_refusal((&staging.finish, &Overlay::of(&staging.text)))
-    {
-        return Err(Fault::Refused(format!(
-            "a crop's .png or master cannot match the full frame: {reason}; crop to .exr or .hdr"
-        )));
-    }
+    let reach = match request.crop {
+        Some(crop) if crop.finished => {
+            if let Some(reason) = crate::picture::crop_refusal(
+                (&staging.finish, &Overlay::of(&staging.text)),
+                request.size,
+            ) {
+                return Err(Fault::Refused(format!(
+                    "a crop's .png or master cannot match the full frame: {reason}; crop to .exr or .hdr"
+                )));
+            }
+            crate::picture::reach(&staging.finish)
+        }
+        _ => Reach::NONE,
+    };
     let staged = staging.stage(eyepiece(camera, request.view, request.size)?)?;
     turn(Report::default());
     let adaptive = request
         .noise
         .and_then(|noise| noise.adaptive(request.samples));
-    let region = match request.crop {
+    let (frame, region) = match request.crop {
         Some(crop) if !Crop::fits(crop.rect, request.size) => {
             return Err(Fault::Refused(format!(
                 "the crop {:?} does not lie inside the {}x{} frame",
                 crop.rect, request.size[0], request.size[1]
             )));
         }
-        Some(crop) => Region::around(
-            request.size,
-            crop.rect,
-            crop.apron.max(adaptive.map_or(0, |a| a.margin())),
-        ),
-        None => Region::whole(request.size),
+        Some(crop) => {
+            let frame = Region::around(request.size, crop.rect, reach.pixels).aligned(reach.align);
+            let region = frame
+                .grown(crop.apron.max(adaptive.map_or(0, |a| a.margin())))
+                .aligned(if request.denoise { DENOISE_ALIGN } else { 1 });
+            (frame, region)
+        }
+        None => (Region::whole(request.size), Region::whole(request.size)),
     };
     let gpu = manfred_scene::headless()?;
     let seed = request.seed.unwrap_or_else(|| manfred_scene::seed(&recipe));
@@ -357,15 +430,16 @@ pub fn render(
             (film, paced, f64::from(request.samples), request.samples)
         }
     };
-    let film = match request.crop {
-        Some(crop) => film.cut(
+    let film = if frame == region {
+        film
+    } else {
+        film.cut(
             [
-                crop.rect[0] - region.origin[0],
-                crop.rect[1] - region.origin[1],
+                frame.origin[0] - region.origin[0],
+                frame.origin[1] - region.origin[1],
             ],
-            [crop.rect[2], crop.rect[3]],
-        ),
-        None => film,
+            frame.size,
+        )
     };
     Ok(Rendered {
         film,
@@ -375,6 +449,8 @@ pub fn render(
         seed,
         mean_samples,
         most_samples,
+        region: frame,
+        rect: request.crop.map_or(frame.rect(), |crop| crop.rect),
     })
 }
 
@@ -445,6 +521,8 @@ impl Reel {
             seed: self.seed,
             mean_samples: f64::from(samples),
             most_samples: samples,
+            region: Region::whole(size),
+            rect: Region::whole(size).rect(),
         })
     }
 }
@@ -841,6 +919,20 @@ mod tests {
         assert_eq!(
             Region::around([100, 50], [0, 0, 100, 50], 9),
             Region::whole([100, 50])
+        );
+        assert_eq!(
+            Region::around([100, 50], [21, 18, 20, 10], 3).aligned(16),
+            Region {
+                full: [100, 50],
+                origin: [16, 0],
+                size: [32, 32],
+            }
+        );
+        assert_eq!(
+            Region::around([100, 50], [70, 20, 30, 10], 0)
+                .aligned(16)
+                .rect(),
+            [64, 16, 36, 16]
         );
         assert!(Crop::fits([90, 0, 10, 50], [100, 50]));
         for rect in [[91, 0, 10, 1], [0, 0, 0, 1], [u32::MAX, 0, 2, 1]] {

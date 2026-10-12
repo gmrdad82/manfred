@@ -1,5 +1,5 @@
 use crate::text::Overlay;
-use pfx_post::{Chain, Image, Pass, bayer};
+use pfx_post::{BloomKind, Chain, Image, Pass, Vignette, VignetteKind, bayer, color};
 use pfx_trace::denoise;
 use std::path::Path;
 
@@ -38,16 +38,18 @@ pub struct Film {
     pub samples: u32,
 }
 
+pub fn cut(pixels: &[[f32; 4]], width: u32, origin: [u32; 2], size: [u32; 2]) -> Vec<[f32; 4]> {
+    (origin[1]..origin[1] + size[1])
+        .flat_map(|y| {
+            let at = (y * width + origin[0]) as usize;
+            pixels[at..at + size[0] as usize].iter().copied()
+        })
+        .collect()
+}
+
 impl Film {
     pub fn cut(&self, origin: [u32; 2], size: [u32; 2]) -> Film {
-        let take = |pixels: &[[f32; 4]]| {
-            (origin[1]..origin[1] + size[1])
-                .flat_map(|y| {
-                    let at = (y * self.size[0] + origin[0]) as usize;
-                    pixels[at..at + size[0] as usize].iter().copied()
-                })
-                .collect()
-        };
+        let take = |pixels: &[[f32; 4]]| cut(pixels, self.size[0], origin, size);
         Film {
             size,
             color: take(&self.color),
@@ -112,35 +114,53 @@ pub fn looked_with<'a>(
         .collect())
 }
 
-pub fn finished<'a>(
-    film: &Film,
-    finish: impl Into<Look<'a>>,
-    denoised: bool,
-) -> Result<Vec<[f32; 4]>, String> {
-    let look = finish.into();
+pub fn developed(film: &Film, denoised: bool) -> Result<Vec<[f32; 4]>, String> {
     let [width, height] = film.size;
-    let pixels = if let (true, Some(pixels)) = (denoised, &film.denoised) {
-        pixels.clone()
-    } else if denoised {
-        denoise::filter(
+    match (denoised, &film.denoised) {
+        (true, Some(pixels)) => Ok(pixels.clone()),
+        (true, None) => denoise::filter(
             width,
             height,
             &film.color,
             &film.albedo,
             &film.normal,
             film.samples.max(1),
-        )?
-    } else {
-        film.color.clone()
-    };
-    let image = Image::from_pixels(width, height, pixels)
+        ),
+        (false, _) => Ok(film.color.clone()),
+    }
+}
+
+pub fn finished<'a>(
+    film: &Film,
+    finish: impl Into<Look<'a>>,
+    denoised: bool,
+) -> Result<Vec<[f32; 4]>, String> {
+    finished_at(film, finish, denoised, [0, 0], film.size)
+}
+
+pub fn finished_at<'a>(
+    film: &Film,
+    finish: impl Into<Look<'a>>,
+    denoised: bool,
+    origin: [u32; 2],
+    full: [u32; 2],
+) -> Result<Vec<[f32; 4]>, String> {
+    let look = finish.into();
+    let [width, height] = film.size;
+    let image = Image::from_pixels(width, height, developed(film, denoised)?)
         .map_err(|_| format!("the film is not {width}x{height}"))?;
+    let whole = origin == [0, 0] && film.size == full;
     let finished = match look.overlay {
         None => {
             let mut chain = look.chain.clone();
             chain.passes.push(Pass::Encode);
-            chain.apply(&image, None, None)
+            if whole {
+                chain.apply(&image, None, None)
+            } else {
+                framed(&chain, &image, origin, full)
+            }
         }
+        Some(_) if !whole => return Err("overlay text is placed by the whole frame".into()),
         Some(overlay) => {
             let mut finished = look.chain.apply(&image, None, None);
             overlay.paint(&mut finished.pixels, film.size)?;
@@ -154,20 +174,126 @@ pub fn finished<'a>(
     Ok(finished.pixels)
 }
 
-pub fn crop_refusal<'a>(finish: impl Into<Look<'a>>) -> Option<String> {
+fn framed(chain: &Chain, image: &Image, origin: [u32; 2], full: [u32; 2]) -> Image {
+    chain.passes.iter().fold(image.clone(), |current, pass| {
+        framed_pass(pass, &current, chain, origin, full)
+    })
+}
+
+fn framed_pass(
+    pass: &Pass,
+    image: &Image,
+    chain: &Chain,
+    origin: [u32; 2],
+    full: [u32; 2],
+) -> Image {
+    match pass {
+        Pass::Vignette(vignette) => vignette_at(image, vignette, origin, full),
+        Pass::Grade(passes) => passes.iter().fold(image.clone(), |current, pass| {
+            framed_pass(pass, &current, chain, origin, full)
+        }),
+        pass => pass.run(image, None, None, chain.frame, chain.seed),
+    }
+}
+
+fn vignette_at(image: &Image, pass: &Vignette, origin: [u32; 2], full: [u32; 2]) -> Image {
+    if pass.strength.abs() < 1e-8 {
+        return image.clone();
+    }
+    let w = full[0].max(1) as f32;
+    let h = full[1].max(1) as f32;
+    image.map_rgb(|x, y, c| {
+        let st_x = ((origin[0] + x) as f32 + 0.5) / w;
+        let st_y = ((origin[1] + y) as f32 + 0.5) / h;
+        let factor = match pass.kind {
+            VignetteKind::Power => {
+                let uv_x = st_x * 2.0 - 1.0;
+                let uv_y = st_y * 2.0 - 1.0;
+                let r = (uv_x * uv_x + (uv_y * pass.aspect).powi(2)).sqrt() / pass.scale.max(1e-4);
+                1.0 - pass.strength * color::safe_pow(r.max(0.0), pass.power)
+            }
+            VignetteKind::Smoothstep => {
+                let dx = st_x - 0.5;
+                let dy = (st_y - 0.5) * pass.aspect;
+                let v = (dx * dx + dy * dy).sqrt();
+                1.0 - pass.strength * color::smoothstep(pass.inner, pass.outer, v)
+            }
+        };
+        [c[0] * factor, c[1] * factor, c[2] * factor]
+    })
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Reach {
+    pub pixels: u32,
+    pub align: u32,
+}
+
+impl Reach {
+    pub const NONE: Reach = Reach {
+        pixels: 0,
+        align: 1,
+    };
+
+    fn then(self, next: Reach) -> Reach {
+        let gcd = |mut a: u32, mut b: u32| {
+            while b != 0 {
+                (a, b) = (b, a % b);
+            }
+            a
+        };
+        Reach {
+            pixels: self.pixels + next.pixels,
+            align: self.align / gcd(self.align, next.align) * next.align,
+        }
+    }
+}
+
+pub fn reach(chain: &Chain) -> Reach {
+    chain
+        .passes
+        .iter()
+        .fold(Reach::NONE, |reach, pass| reach.then(pass_reach(pass)))
+}
+
+fn pass_reach(pass: &Pass) -> Reach {
+    match pass {
+        Pass::Grade(passes) => passes
+            .iter()
+            .fold(Reach::NONE, |reach, pass| reach.then(pass_reach(pass))),
+        Pass::Bloom(bloom) if !pass.is_local() => {
+            let down = bloom.down.max(1);
+            Reach {
+                pixels: down * (bloom.radius.min(64) + 3),
+                align: down,
+            }
+        }
+        _ => Reach::NONE,
+    }
+}
+
+pub fn crop_refusal<'a>(finish: impl Into<Look<'a>>, full: [u32; 2]) -> Option<String> {
     let look = finish.into();
     if look.overlay.is_some() {
         return Some("the recipe's overlay text is placed by the whole frame".into());
     }
-    look.chain.passes.iter().find_map(unlocal).map(|name| {
-        format!("the recipe's finish has {name}, which reads neighbours or the pixel's place in the frame")
+    if let Some(name) = look.chain.passes.iter().find_map(unframed) {
+        return Some(format!(
+            "the recipe's finish has {name}, which reads past a crop's margin or the pixel's place in the frame"
+        ));
+    }
+    let align = reach(look.chain).align;
+    (!full[0].is_multiple_of(align) || !full[1].is_multiple_of(align)).then(|| {
+        format!("the recipe's bloom works in {align}x{align} blocks, so the frame's sides must be multiples of {align}")
     })
 }
 
-fn unlocal(pass: &Pass) -> Option<&'static str> {
+fn unframed(pass: &Pass) -> Option<&'static str> {
     match pass {
-        Pass::Grade(passes) => passes.iter().find_map(unlocal),
-        Pass::Vignette(_) | Pass::Grain(_) | Pass::Dither(_) => Some(pass.name()),
+        Pass::Grade(passes) => passes.iter().find_map(unframed),
+        Pass::Vignette(_) => None,
+        Pass::Bloom(bloom) if bloom.kind != BloomKind::Rings => None,
+        Pass::Grain(_) | Pass::Dither(_) => Some(pass.name()),
         pass if pass.is_local() => None,
         pass => Some(pass.name()),
     }
@@ -376,6 +502,21 @@ fn sides(size: [u32; 2], pixels: &[[f32; 4]]) -> Result<[usize; 2], String> {
     Ok([width, height])
 }
 
+pub fn write_linear(path: &Path, size: [u32; 2], pixels: &[[f32; 4]]) -> Result<Format, String> {
+    let format = Format::of(path)
+        .filter(|format| *format != Format::Png)
+        .ok_or_else(|| format!("{}: linear pixels go to .exr or .hdr", path.display()))?;
+    if let Some(parent) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+    }
+    match format {
+        Format::Exr => write_exr(path, size, pixels)?,
+        _ => std::fs::write(path, hdr(size, pixels)?)
+            .map_err(|e| format!("{}: {e}", path.display()))?,
+    }
+    Ok(format)
+}
+
 pub fn write<'a>(path: &Path, film: &Film, finish: impl Into<Look<'a>>) -> Result<Format, String> {
     write_with(path, film, finish, true)
 }
@@ -572,6 +713,75 @@ mod tests {
     fn graded_finish() -> Chain {
         let recipe = manfred_recipe::parse("manfred = 1\nname = \"t\"\n").unwrap();
         manfred_scene::Lighting::of(&recipe).unwrap().finish
+    }
+
+    fn bloomed_finish() -> Chain {
+        let recipe = manfred_recipe::parse(
+            "manfred = 1\nname = \"t\"\n[look]\ngrade = { vignette = 0.3, saturation = 1.1, warmth = 0.05, bloom = 0.5, haze = 0.0 }\n",
+        )
+        .unwrap();
+        manfred_scene::Lighting::of(&recipe).unwrap().finish
+    }
+
+    #[test]
+    fn a_crop_finished_in_its_margin_is_the_whole_frames_finish_there() {
+        let full = [96, 64];
+        let pixels: Vec<[f32; 4]> = (0..full[0] * full[1])
+            .map(|n| {
+                let (x, y) = (n % full[0], n / full[0]);
+                let hot = if (x / 7 + y / 5) % 9 == 0 { 6.0 } else { 0.2 };
+                [
+                    hot * (1.0 + (x % 3) as f32 * 0.1),
+                    hot * 0.8,
+                    hot * (y % 4) as f32 * 0.3,
+                    1.0,
+                ]
+            })
+            .collect();
+        let film = |size, color: Vec<[f32; 4]>| Film {
+            size,
+            albedo: color.clone(),
+            normal: vec![[0.0, 0.0, 1.0, 1.0]; color.len()],
+            color,
+            denoised: None,
+            samples: 1,
+        };
+        let finish = bloomed_finish();
+        assert!(crop_refusal(&finish, full).is_none());
+        assert!(crop_refusal(&finish, [95, 64]).is_some());
+        let Reach {
+            pixels: margin,
+            align,
+        } = reach(&finish);
+        assert_eq!(align, 2);
+        let whole = finished(&film(full, pixels.clone()), &finish, false).unwrap();
+        let rect = [41, 23, 9, 7];
+        let origin = [(rect[0] - margin) / align * align, 0];
+        let size = [full[0] - origin[0], rect[1] + rect[3] + margin];
+        let inner = finished_at(
+            &film(size, cut(&pixels, full[0], origin, size)),
+            &finish,
+            false,
+            origin,
+            full,
+        )
+        .unwrap();
+        let at = [rect[0] - origin[0], rect[1] - origin[1]];
+        let got = cut(&inner, size[0], at, [rect[2], rect[3]]);
+        let want = cut(&whole, full[0], [rect[0], rect[1]], [rect[2], rect[3]]);
+        for (got, want) in got.iter().zip(&want) {
+            for k in 0..3 {
+                assert!((got[k] - want[k]).abs() < 1e-5, "{got:?} {want:?}");
+            }
+        }
+        let bare = cut(&pixels, full[0], [rect[0], rect[1]], [rect[2], rect[3]]);
+        let unframed = finished(&film([rect[2], rect[3]], bare), &finish, false).unwrap();
+        assert!(
+            unframed
+                .iter()
+                .zip(&want)
+                .any(|(a, b)| (a[0] - b[0]).abs() > 1e-3)
+        );
     }
 
     fn standard_finish(exposure: f64) -> Chain {

@@ -142,13 +142,12 @@ pub(super) struct Args {
     #[arg(
         long,
         value_name = "off|on",
-        default_value = "on",
         action = clap::ArgAction::Set,
         hide_possible_values = true,
         value_parser = PossibleValuesParser::new(["off", "on"]).map(|v| v == "on"),
-        help = "Off writes a .png from the raw trace; .exr and .hdr are never denoised"
+        help = "Denoise the trace [default: on for a .png or master, off for .exr and .hdr]"
     )]
-    denoise: bool,
+    denoise: Option<bool>,
     #[arg(
         long,
         value_name = "file",
@@ -206,6 +205,22 @@ impl Args {
 
     fn finished(&self) -> bool {
         Format::of(&self.out) == Some(Format::Png) || self.master.is_some()
+    }
+
+    fn png(&self) -> bool {
+        Format::of(&self.out) == Some(Format::Png)
+    }
+
+    fn denoised(&self) -> bool {
+        self.denoise != Some(false)
+    }
+
+    fn denoised_linear(&self) -> bool {
+        self.denoise == Some(true)
+    }
+
+    fn denoising(&self) -> bool {
+        (self.finished() && self.denoised()) || (!self.png() && self.denoised_linear())
     }
 
     fn samples(&self) -> u32 {
@@ -472,14 +487,10 @@ fn traced(
         set: &args.set,
         crop: args.crop.map(|rect| Crop {
             rect,
-            apron: if args.denoise && args.finished() {
-                DENOISE_APRON
-            } else {
-                0
-            },
+            apron: if args.denoising() { DENOISE_APRON } else { 0 },
             finished: args.finished(),
         }),
-        denoise: args.denoise && args.finished(),
+        denoise: args.denoising(),
     };
     let rendered = manfred_render::render(&request, registry, progress)?;
     progress(Step::Write);
@@ -507,20 +518,20 @@ fn traced(
 }
 
 fn written(args: &Args, rendered: &Rendered) -> Result<(), Fault> {
-    let look = (&rendered.finish, &rendered.overlay);
-    let film = &rendered.film;
-    let png = Format::of(&args.out) == Some(Format::Png);
-    if png || args.master.is_some() {
-        let pixels = manfred_render::finished(film, look, args.denoise)?;
+    let size = rendered.size();
+    if args.finished() {
+        let pixels = rendered.finished(args.denoised())?;
         if let Some(master) = &args.master {
-            manfred_render::write_master(master, film.size, &pixels)?;
+            manfred_render::write_master(master, size, &pixels)?;
         }
-        if png {
-            manfred_render::write_delivery(&args.out, film.size, args.origin(), &pixels)?;
+        if args.png() {
+            manfred_render::write_delivery(&args.out, size, args.origin(), &pixels)?;
         }
     }
-    if !png {
-        manfred_render::write_with(&args.out, film, look, args.denoise)?;
+    if !args.png() {
+        let film = rendered.crop();
+        let pixels = manfred_render::developed(&film, args.denoised_linear())?;
+        manfred_render::write_linear(&args.out, size, &pixels)?;
     }
     Ok(())
 }
@@ -612,7 +623,7 @@ mod tests {
                 crop: Some([10, 20, 30, 40]),
                 variant: Some("bare".into()),
                 set: vec!["sky.intensity=0.4".into(), "object.a.params.b=/x/y".into()],
-                denoise: false,
+                denoise: Some(false),
                 out: "tmp/a.exr".into(),
                 master: Some("tmp/a.master.png".into()),
                 progress: Progress::Json,
@@ -650,7 +661,7 @@ mod tests {
         assert_eq!(args.progress, Progress::Plain);
         assert_eq!(args.master, None);
         assert_eq!(args.seed, None);
-        assert!(args.denoise);
+        assert!(args.denoise.is_none() && args.denoising());
         assert_eq!(args.size(), [1586, 992]);
         assert_eq!(args.view(), View::Lens);
         let round = parse(&strings("a.toml --equirect --camera main --out sky.hdr")).unwrap();
@@ -1035,6 +1046,55 @@ mod tests {
             }
         }
         means
+    }
+
+    #[test]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
+    fn a_png_crop_through_bloom_and_vignette_is_the_full_frames_finish_there() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let recipe = root.join("tests/golden/toybox/toybox.toml");
+        let rect = [101, 47, 60, 40];
+        for (denoise, out, worst) in [
+            ("off", "tmp/render-crop.png", 1e-4),
+            ("on", "tmp/render-crop.png", 2.0 / 255.0),
+            ("on", "tmp/render-crop.exr", 2.0 / 255.0),
+        ] {
+            let line = |extra: &str| {
+                format!(
+                    "{} --camera main --size 320x200 --seed 3 --spp 32 --threshold 0.05 --min-samples 8 --set look.grade.bloom=0.6 --set look.grade.vignette=0.4 --denoise {denoise} --out {} {extra}",
+                    recipe.display(),
+                    root.join(out).display()
+                )
+            };
+            let full = parse(&strings(&line(""))).unwrap();
+            let (whole, _) = traced(&full, &Registry::new(), &mut |_| {}).unwrap();
+            let crop = parse(&strings(&line(&format!(
+                "--crop {},{},{},{}",
+                rect[0], rect[1], rect[2], rect[3]
+            ))))
+            .unwrap();
+            let (part, _) = traced(&crop, &Registry::new(), &mut |_| {}).unwrap();
+            let (got, want) = if out.ends_with(".png") {
+                let on = denoise == "on";
+                (part.finished(on).unwrap(), whole.finished(on).unwrap())
+            } else {
+                (
+                    part.crop().denoised.unwrap(),
+                    whole.film.denoised.clone().unwrap(),
+                )
+            };
+            let want = manfred_render::cut(&want, 320, [rect[0], rect[1]], [rect[2], rect[3]]);
+            assert_eq!(got.len(), want.len());
+            let differences: Vec<f32> = got
+                .iter()
+                .zip(&want)
+                .flat_map(|(a, b)| (0..3).map(move |k| (a[k] - b[k]).abs()))
+                .collect();
+            let most = differences.iter().copied().fold(0.0, f32::max);
+            let mean = differences.iter().sum::<f32>() / differences.len() as f32;
+            println!("--denoise {denoise} {out}: mean {mean:.6}, most {most:.6}");
+            assert!(most <= worst, "--denoise {denoise} {out}: {most} > {worst}");
+        }
     }
 
     #[test]
