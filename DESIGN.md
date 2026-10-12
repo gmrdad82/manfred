@@ -51,14 +51,14 @@ Linux with Vulkan, Wayland for the window. Every crate has one job.
 | `crates/generators` | manfred-generators | the kit for an app's generators: noise, CPython's and numpy's random, params, Blender's face-list rules | build, mesh |
 | `crates/render` | manfred-render | path-traced stills, equirect, ortho; PNG, EXR and HDR out; pacing and GPU turns | pfx-trace, -gpu, png, exr |
 | `crates/runtime` | manfred-runtime | an app's loader: a GLB and a facts sidecar to a scene, and the scene to live instances, surfaces, lights, baked detail and content | pfx-load, -live, -gpu, -geom, -materials, -post, -bake |
-| `crates/ui` | manfred-ui | the egui shell: panels, viewport, gizmos; the window host and the offscreen shot come from pfx-editor-shell, the widgets and the theming from pfx-editor-style; its own look is `theme.rs`, and `tape.rs` plays a tape on the offscreen window, frame by frame, for a clip | egui, egui-wgpu 0.33.3, pfx-editor-shell, pfx-editor-style |
+| `crates/ui` | manfred-ui | the egui shell: panels, viewport, gizmos; the window host and the offscreen shot come from pfx-editor-shell, the widgets and the theming from pfx-editor-style; its own look is `theme.rs`, and `tape.rs` plays a tape on the offscreen window, frame by frame, for a clip | egui, egui-wgpu 0.36.2, pfx-editor-shell, pfx-editor-style |
 | root | manfred | the `manfred` binary and the CLI it shares with an app's build binary: commands, the window, and the calls into the reporter | the crates above, pfx-report |
 
 The binary reports its crashes, the progress of long jobs and the window's heartbeat through pfx-report, whose every call does nothing: `main` starts the reporter and names the command, the CLI's long commands keep a job record, and the window beats once a frame. A build that wants real reports patches in a reporter with the same API, with no change here. A build of this tree sends nothing anywhere.
 
 A library facade, `manfred` as a lib target with the recipe, mesh, glb, build, generators and runtime crates re-exported, is what an app links in its own build binary to register its generators, sidecar writer and material catalogue by name, and to add commands of its own (`docs/apps.md`). The recipe references a generator and its params; the window treats a generator's output as read-only geometry it can still place. No scripting language, and no Python.
 
-The engine crates are pinned by one ref in the workspace and move in one commit, egui with them. The engine is on wgpu 27, and egui 0.33.3 is the egui release on that wgpu. `scene`, `render`, `runtime`, `ui` and `glb` call the engine. The root `Cargo.toml` holds the pin.
+The engine crates are pinned by one ref in the workspace and move in one commit, egui with them. The engine is on wgpu 30, and egui 0.36.2 is the egui release on that wgpu. The tracer takes the GPU's ray queries when the adapter offers them and its own BVH otherwise. `scene`, `render`, `runtime`, `ui` and `glb` call the engine. The root `Cargo.toml` holds the pin.
 
 ## 5. Process model
 

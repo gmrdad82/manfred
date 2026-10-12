@@ -2,6 +2,12 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v0.19.6 — 2026-10-12
+
+### Changed
+
+- The pfx crates move to v0.27.0, on wgpu 30, and the window to egui 0.36.2. The tracer takes the GPU's hardware ray queries when the adapter offers them (on Vulkan, `VK_KHR_ray_query`) and its own BVH otherwise. Measured on an RX 9060 XT, best of three, same samples a pixel as v0.19.5: the showcase workshop's 4K final 12.1 s (from 39.2 s), 10.7 s on the GPU (from 37.4 s); its 4K draft 2.6 s (from 6.6 s); a 640x400 crop of the showcase hero at 4K 2.1 s (from 8.1 s). The first render on a machine waits a few seconds while the driver compiles the ray-query shader; its cache keeps it after that.
+
 ## v0.19.5 — 2026-10-12
 
 ### Added
