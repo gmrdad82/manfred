@@ -3858,7 +3858,7 @@ heading = 0.0
 
     fn typed(field: &str, erase: usize, text: &str) -> String {
         format!(
-            "frame\n{field}\nkey End\n{}text {text}\nkey Enter\nframe",
+            "frame\n{field}\nframe\nkey End\n{}text {text}\nkey Enter\nframe",
             "key Backspace\n".repeat(erase)
         )
     }
