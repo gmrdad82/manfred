@@ -26,3 +26,10 @@ Test data written by Manfred's own code for its tests, under the MIT licence:
 
 The bundled JetBrains Mono Nerd Font is under the SIL Open Font License
 (assets/fonts/OFL.txt).
+
+The manfred binary includes pfx-denoise (https://github.com/gmrdad82/pfx,
+crates/denoise, MIT), a port of Intel Open Image Denoise 2.5.1
+(https://github.com/RenderKit/oidn, tag v2.5.1), Copyright 2018 Intel
+Corporation, with the RT filter's trained weights (rt_hdr_alb_nrm.tza, from
+https://github.com/RenderKit/oidn-weights, commit 28883d1), Copyright Intel
+Corporation, both under the Apache License 2.0 (assets/licenses/Apache-2.0.txt).

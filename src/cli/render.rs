@@ -16,7 +16,7 @@ const STAGES: [&str; 3] = ["stage", "trace", "write"];
 const PROGRESS_LINES: u32 = 20;
 const JSON_EVERY: Duration = Duration::from_secs(1);
 const PLAIN_EVERY: Duration = Duration::from_secs(30);
-const DENOISE_APRON: u32 = 16;
+const DENOISE_APRON: u32 = 96;
 
 fn threshold(text: &str) -> Result<f32, String> {
     match text.parse::<f32>() {
@@ -459,6 +459,7 @@ fn traced(
             },
             finished: args.finished(),
         }),
+        denoise: args.denoise && args.finished(),
     };
     let rendered = manfred_render::render(&request, registry, progress)?;
     progress(Step::Write);

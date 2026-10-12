@@ -12,6 +12,7 @@ description = "Manfred's renders: path-traced stills, equirect and ortho, PNG, E
 [dependencies]
 pfx.workspace = true
 pfx-trace.workspace = true
+pfx-denoise.workspace = true
 pfx-gpu.workspace = true
 pfx-live.workspace = true
 pfx-materials.workspace = true

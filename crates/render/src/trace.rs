@@ -4,6 +4,7 @@ use crate::text::Overlay;
 use manfred_build::Registry;
 use manfred_recipe::{Camera, Recipe};
 use pfx::adapter::{Report, TurnState, turn_reporting};
+use pfx_denoise::Denoiser;
 use pfx_gpu::Gpu;
 use pfx_gpu::pace::{Pacer, Stats};
 use pfx_post::Chain;
@@ -104,6 +105,7 @@ pub struct Request<'a> {
     pub variant: Option<&'a str>,
     pub set: &'a [String],
     pub crop: Option<Crop>,
+    pub denoise: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -325,15 +327,30 @@ pub fn render(
     };
     let gpu = manfred_scene::headless()?;
     let seed = request.seed.unwrap_or_else(|| manfred_scene::seed(&recipe));
+    let mut denoiser = request.denoise.then(|| denoiser(&gpu)).transpose()?;
     let (film, paced, mean_samples, most_samples) = match adaptive {
-        Some(adaptive) => converge(&gpu, &staged, region, adaptive, seed, progress, &mut turn)?,
+        Some(adaptive) => converge(
+            &gpu,
+            &staged,
+            Shot {
+                region,
+                seed,
+                denoiser: denoiser.as_mut(),
+            },
+            adaptive,
+            progress,
+            &mut turn,
+        )?,
         None => {
             let (film, paced) = trace_in(
                 &gpu,
                 &staged,
-                region,
+                Shot {
+                    region,
+                    seed,
+                    denoiser: denoiser.as_mut(),
+                },
                 request.samples,
-                seed,
                 progress,
                 &mut turn,
             )?;
@@ -366,6 +383,7 @@ pub struct Reel {
     pub seed: u32,
     staging: Staging,
     gpu: Gpu,
+    denoiser: Option<Denoiser>,
 }
 
 impl Reel {
@@ -386,11 +404,12 @@ impl Reel {
             seed,
             staging,
             gpu,
+            denoiser: None,
         })
     }
 
     pub fn frame(
-        &self,
+        &mut self,
         camera: &Camera,
         size: [u32; 2],
         samples: u32,
@@ -403,8 +422,20 @@ impl Reel {
         let mut turn = turn_reporting;
         let staged = self.staging.stage(eyepiece(camera, View::Lens, size)?)?;
         turn(Report::default());
-        let (film, paced) = trace(
-            &self.gpu, &staged, size, samples, self.seed, progress, &mut turn,
+        if self.denoiser.is_none() {
+            self.denoiser = Some(denoiser(&self.gpu)?);
+        }
+        let (film, paced) = trace_in(
+            &self.gpu,
+            &staged,
+            Shot {
+                region: Region::whole(size),
+                seed: self.seed,
+                denoiser: self.denoiser.as_mut(),
+            },
+            samples,
+            progress,
+            &mut turn,
         )?;
         Ok(Rendered {
             film,
@@ -430,29 +461,42 @@ pub fn trace(
     trace_in(
         gpu,
         staged,
-        Region::whole(size),
+        Shot {
+            region: Region::whole(size),
+            seed,
+            denoiser: None,
+        },
         samples,
-        seed,
         progress,
         turn,
     )
 }
 
+pub struct Shot<'a> {
+    pub region: Region,
+    pub seed: u32,
+    pub denoiser: Option<&'a mut Denoiser>,
+}
+
 fn trace_in(
     gpu: &Gpu,
     staged: &Staged<Environment>,
-    region: Region,
+    shot: Shot<'_>,
     samples: u32,
-    seed: u32,
     progress: &mut dyn FnMut(Step),
     turn: &mut dyn FnMut(Report),
 ) -> Result<(Film, Paced), Fault> {
+    let Shot {
+        region,
+        seed,
+        denoiser,
+    } = shot;
     let mut trace = region.open(gpu, staged)?;
     let mut turns = Turns::new(turn);
     let paced = sampled(samples, &mut turns, progress, |pacer, between| {
         trace.sample_paced(gpu, 1, seed, pacer, between)
     })?;
-    let film = developed(gpu, &trace, region.size, samples)?;
+    let film = developed(gpu, &trace, region.size, samples, denoiser)?;
     turns.now();
     Ok((film, paced))
 }
@@ -460,12 +504,16 @@ fn trace_in(
 pub fn converge(
     gpu: &Gpu,
     staged: &Staged<Environment>,
-    region: Region,
+    shot: Shot<'_>,
     adaptive: Adaptive,
-    seed: u32,
     progress: &mut dyn FnMut(Step),
     turn: &mut dyn FnMut(Report),
 ) -> Result<(Film, Paced, f64, u32), Fault> {
+    let Shot {
+        region,
+        seed,
+        denoiser,
+    } = shot;
     let mut trace = region.open(gpu, staged)?;
     let mut turns = Turns::new(turn);
     let mut pacer = Pacer::default();
@@ -505,7 +553,8 @@ pub fn converge(
         .map_err(|e| Fault::Failed(format!("the tracer: {e}")))?;
     let mut paced = Paced::default();
     paced.add(&converged.stats);
-    let film = developed(gpu, &trace, region.size, cap)?;
+    turns.now();
+    let film = developed(gpu, &trace, region.size, cap, denoiser)?;
     turns.now();
     Ok((
         film,
@@ -515,7 +564,28 @@ pub fn converge(
     ))
 }
 
-fn developed(gpu: &Gpu, trace: &Trace, size: [u32; 2], samples: u32) -> Result<Film, Fault> {
+fn denoiser(gpu: &Gpu) -> Result<Denoiser, Fault> {
+    Denoiser::new(gpu).map_err(|e| Fault::Failed(format!("the denoiser: {e}")))
+}
+
+fn developed(
+    gpu: &Gpu,
+    trace: &Trace,
+    size: [u32; 2],
+    samples: u32,
+    denoiser: Option<&mut Denoiser>,
+) -> Result<Film, Fault> {
+    let denoised = denoiser
+        .map(|denoiser| {
+            denoiser.denoise_textures(
+                gpu,
+                &trace.color.texture,
+                &trace.albedo.texture,
+                &trace.normal.texture,
+            )
+        })
+        .transpose()
+        .map_err(|e| Fault::Failed(format!("the denoiser: {e}")))?;
     let output = trace
         .readback(gpu)
         .map_err(|e| Fault::Failed(format!("the tracer's readback: {e}")))?;
@@ -524,6 +594,7 @@ fn developed(gpu: &Gpu, trace: &Trace, size: [u32; 2], samples: u32) -> Result<F
         color: floats(&output.color),
         albedo: floats(&output.albedo),
         normal: floats(&output.normal),
+        denoised,
         samples,
     })
 }
@@ -819,6 +890,7 @@ mod tests {
             variant: None,
             set: &[],
             crop: None,
+            denoise: false,
         };
         assert!(render(&request, &Registry::new(), &mut |s| steps.push(s)).is_err());
         assert!(steps.is_empty());

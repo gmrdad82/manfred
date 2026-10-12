@@ -11,5 +11,5 @@ pub use staging::{Eyepiece, IDENTITY, Staging, View, eyepiece};
 pub use text::{Letter, Lettering, Overlay, Way};
 pub use trace::{
     Crop, DRAFT, EQUIRECT_SIZE, Fault, NOISE, Noise, Paced, Plan, Reel, Region, Rendered, Request,
-    SAMPLES, SIZE, Step, converge, render, trace,
+    SAMPLES, SIZE, Shot, Step, converge, render, trace,
 };

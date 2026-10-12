@@ -708,6 +708,7 @@ mod tests {
             variant: None,
             set: &[],
             crop: None,
+            denoise: true,
         };
         let rendered = manfred_render::render(&request, &Registry::new(), &mut |_| {}).unwrap();
         let still = dir.join("render.png");

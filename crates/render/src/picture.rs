@@ -34,6 +34,7 @@ pub struct Film {
     pub color: Vec<[f32; 4]>,
     pub albedo: Vec<[f32; 4]>,
     pub normal: Vec<[f32; 4]>,
+    pub denoised: Option<Vec<[f32; 4]>>,
     pub samples: u32,
 }
 
@@ -52,6 +53,7 @@ impl Film {
             color: take(&self.color),
             albedo: take(&self.albedo),
             normal: take(&self.normal),
+            denoised: self.denoised.as_deref().map(take),
             samples: self.samples,
         }
     }
@@ -117,7 +119,9 @@ pub fn finished<'a>(
 ) -> Result<Vec<[f32; 4]>, String> {
     let look = finish.into();
     let [width, height] = film.size;
-    let pixels = if denoised {
+    let pixels = if let (true, Some(pixels)) = (denoised, &film.denoised) {
+        pixels.clone()
+    } else if denoised {
         denoise::filter(
             width,
             height,
@@ -547,6 +551,7 @@ mod tests {
             color: vec![[0.18, 0.18, 0.18, 1.0]; 8],
             albedo: vec![[0.5, 0.5, 0.5, 1.0]; 8],
             normal: vec![[0.0, 0.0, 1.0, 1.0]; 8],
+            denoised: None,
             samples: 16,
         };
         let plain = looked(&film, &Chain::new()).unwrap();
@@ -583,6 +588,7 @@ mod tests {
             color: linear.map(|v| [v, v, v, 1.0]).to_vec(),
             albedo: vec![[0.5, 0.5, 0.5, 1.0]; 4],
             normal: vec![[0.0, 0.0, 1.0, 1.0]; 4],
+            denoised: None,
             samples: 1,
         };
         looked_with(&film, finish, false)
@@ -626,6 +632,7 @@ mod tests {
             color: vec![[0.5, 0.5, 0.5, 1.0], [0.0, 0.0, 0.0, 1.0]],
             albedo: vec![[0.5, 0.5, 0.5, 1.0]; 2],
             normal: vec![[0.0, 0.0, 1.0, 1.0]; 2],
+            denoised: None,
             samples: 4,
         };
         let raw = looked_with(&film, &Chain::new(), false).unwrap();

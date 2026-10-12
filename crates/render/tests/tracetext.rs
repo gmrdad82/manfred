@@ -362,6 +362,7 @@ fn overlay_text_is_painted_after_the_finish_only_where_it_lies() {
         color: vec![[0.1, 0.2, 0.3, 1.0]; (SIZE[0] * SIZE[1]) as usize],
         albedo: Vec::new(),
         normal: Vec::new(),
+        denoised: None,
         samples: 1,
     };
     let bare = manfred_render::looked_with(&film, &staging.finish, false).unwrap();
