@@ -6,7 +6,8 @@ use std::time::{Duration, Instant};
 use clap::builder::{PossibleValuesParser, TypedValueParser};
 use manfred_build::Registry;
 use manfred_render::{
-    DRAFT, EQUIRECT_SIZE, Fault, Format, NOISE, Noise, Rendered, Request, SAMPLES, SIZE, Step, View,
+    Crop, DRAFT, EQUIRECT_SIZE, Fault, Format, NOISE, Noise, Rendered, Request, SAMPLES, SIZE,
+    Step, View,
 };
 
 use super::{pair, refuse, size};
@@ -15,11 +16,24 @@ const STAGES: [&str; 3] = ["stage", "trace", "write"];
 const PROGRESS_LINES: u32 = 20;
 const JSON_EVERY: Duration = Duration::from_secs(1);
 const PLAIN_EVERY: Duration = Duration::from_secs(30);
+const DENOISE_APRON: u32 = 16;
 
 fn threshold(text: &str) -> Result<f32, String> {
     match text.parse::<f32>() {
         Ok(value) if value.is_finite() && value >= 0.0 => Ok(value),
         _ => Err("is not a number of 0 or more".into()),
+    }
+}
+
+fn rect(text: &str) -> Result<[u32; 4], String> {
+    let parts: Vec<u32> = text
+        .split(',')
+        .map(|part| part.trim().parse::<u32>())
+        .collect::<Result<_, _>>()
+        .map_err(|_| "is not x,y,w,h in whole pixels".to_string())?;
+    match parts[..] {
+        [x, y, width, height] if width > 0 && height > 0 => Ok([x, y, width, height]),
+        _ => Err("is not x,y,w,h with a width and height above 0".into()),
     }
 }
 
@@ -109,6 +123,13 @@ pub(super) struct Args {
     ortho: bool,
     #[arg(
         long,
+        value_name = "x,y,w,h",
+        value_parser = rect,
+        help = "Render only this rectangle of the frame, the same pixels as the full frame's"
+    )]
+    crop: Option<[u32; 4]>,
+    #[arg(
+        long,
         value_name = "name",
         help = "Render this variant instead of the recipe"
     )]
@@ -164,6 +185,22 @@ impl Args {
         }
     }
 
+    fn framing(&self) -> String {
+        let [width, height] = self.size();
+        match self.crop {
+            Some([x, y, w, h]) => format!("{w}x{h} at {x},{y} of {width}x{height}"),
+            None => format!("{width}x{height}"),
+        }
+    }
+
+    fn origin(&self) -> [u32; 2] {
+        self.crop.map_or([0, 0], |[x, y, _, _]| [x, y])
+    }
+
+    fn finished(&self) -> bool {
+        Format::of(&self.out) == Some(Format::Png) || self.master.is_some()
+    }
+
     fn samples(&self) -> u32 {
         if self.draft { DRAFT.0 } else { self.samples }
     }
@@ -216,11 +253,10 @@ fn record(args: &Args) -> super::process::Record {
     super::process::Record::start(
         &format!("render {}", args.out.display()),
         &format!(
-            "{} {} {}x{} {}",
+            "{} {} {} {}",
             args.recipe.display(),
             args.camera,
-            args.size()[0],
-            args.size()[1],
+            args.framing(),
             args.sampling()
         ),
         &args.out,
@@ -263,10 +299,18 @@ impl Watch {
         let elapsed = at.as_secs_f64();
         match (self.progress, step) {
             (Progress::Plain, Step::Trace { done, total }) => progress_line(done, total),
-            (Progress::Plain, Step::Converge { gpu_ms, cap }) => {
+            (
+                Progress::Plain,
+                Step::Converge {
+                    gpu_ms,
+                    cap,
+                    done,
+                    total,
+                },
+            ) => {
                 let threshold = self.threshold;
                 self.due(at, PLAIN_EVERY, gpu_ms == 0)
-                    .then(|| converge_line(gpu_ms, cap, threshold))
+                    .then(|| converge_line(gpu_ms, cap, threshold, fraction(done, total)))
             }
             (Progress::Plain, _) => None,
             (Progress::Json, Step::Stage) => Some(json_line("stage", elapsed, [])),
@@ -291,9 +335,19 @@ impl Watch {
                         ],
                     )
                 }),
-            (Progress::Json, Step::Converge { gpu_ms, cap }) => {
+            (
+                Progress::Json,
+                Step::Converge {
+                    gpu_ms,
+                    cap,
+                    done,
+                    total,
+                },
+            ) => {
                 let threshold = self.threshold;
                 self.due(at, JSON_EVERY, gpu_ms == 0).then(|| {
+                    let eta = (done > 0)
+                        .then(|| elapsed / done as f64 * total.saturating_sub(done) as f64);
                     json_line(
                         "trace",
                         elapsed,
@@ -301,8 +355,11 @@ impl Watch {
                             ("cap", cap.into()),
                             ("threshold", rounded(f64::from(threshold), 6)),
                             ("gpu_s", rounded(gpu_ms as f64 / 1000.0, 1)),
-                            ("fraction", serde_json::Value::Null),
-                            ("eta_s", serde_json::Value::Null),
+                            ("fraction", rounded(fraction(done, total), 4)),
+                            (
+                                "eta_s",
+                                eta.map_or(serde_json::Value::Null, |e| rounded(e, 1)),
+                            ),
                         ],
                     )
                 })
@@ -318,7 +375,7 @@ impl Watch {
                 [
                     ("out", out.display().to_string().into()),
                     ("mean_samples", rounded(rendered.mean_samples, 1)),
-                    ("most_samples", rendered.film.samples.into()),
+                    ("most_samples", rendered.most_samples.into()),
                     ("gpu_s", rounded(rendered.paced.gpu_ms / 1000.0, 1)),
                 ],
             )
@@ -345,9 +402,17 @@ fn json_line<const N: usize>(
     serde_json::Value::Object(line).to_string()
 }
 
-fn converge_line(gpu_ms: u64, cap: u32, threshold: f32) -> String {
+fn fraction(done: u64, total: u64) -> f64 {
+    if total == 0 {
+        return 0.0;
+    }
+    (done as f64 / total as f64).min(1.0)
+}
+
+fn converge_line(gpu_ms: u64, cap: u32, threshold: f32, fraction: f64) -> String {
     format!(
-        "progress {:.0} s on the GPU, each pixel to a noise of {threshold} or {cap} samples",
+        "progress {:.0}%, {:.0} s on the GPU, each pixel to a noise of {threshold} or {cap} samples",
+        fraction * 100.0,
         gpu_ms as f64 / 1000.0
     )
 }
@@ -362,8 +427,10 @@ fn note(record: &super::process::Record, watch: &mut Watch, step: Step) {
             record.stage(STAGES[1], Some(u64::from(total)), "samples")
         }
         Step::Trace { done, .. } => record.progress(u64::from(done)),
-        Step::Converge { gpu_ms: 0, .. } => record.stage(STAGES[1], None, "ms on the GPU"),
-        Step::Converge { gpu_ms, .. } => record.progress(gpu_ms),
+        Step::Converge {
+            gpu_ms: 0, total, ..
+        } => record.stage(STAGES[1], Some(total), "pixel samples"),
+        Step::Converge { done, .. } => record.progress(done),
         Step::Write => record.stage(STAGES[2], None, "files"),
     }
 }
@@ -383,6 +450,15 @@ fn traced(
         view: args.view(),
         variant: args.variant.as_deref(),
         set: &args.set,
+        crop: args.crop.map(|rect| Crop {
+            rect,
+            apron: if args.denoise && args.finished() {
+                DENOISE_APRON
+            } else {
+                0
+            },
+            finished: args.finished(),
+        }),
     };
     let rendered = manfred_render::render(&request, registry, progress)?;
     progress(Step::Write);
@@ -392,16 +468,15 @@ fn traced(
         Some(noise) => format!(
             "{:.1} samples a pixel on average, {} at most of {}, threshold {}",
             rendered.mean_samples,
-            rendered.film.samples,
+            rendered.most_samples,
             args.samples(),
             noise.threshold
         ),
         None => format!("{} samples", args.samples()),
     };
     let summary = format!(
-        "{}x{}, {samples}, seed {}: {} submissions, the longest {:.2} ms, {:.0} ms on the GPU",
-        args.size()[0],
-        args.size()[1],
+        "{}, {samples}, seed {}: {} submissions, the longest {:.2} ms, {:.0} ms on the GPU",
+        args.framing(),
         rendered.seed,
         paced.submissions,
         paced.longest_ms,
@@ -420,7 +495,7 @@ fn written(args: &Args, rendered: &Rendered) -> Result<(), Fault> {
             manfred_render::write_master(master, film.size, &pixels)?;
         }
         if png {
-            manfred_render::write_delivery(&args.out, film.size, &pixels)?;
+            manfred_render::write_delivery(&args.out, film.size, args.origin(), &pixels)?;
         }
     }
     if !png {
@@ -496,7 +571,7 @@ mod tests {
     #[test]
     fn every_flag_is_read() {
         let args = parse(&strings(
-            "table.toml --camera main --spp 64 --threshold 0.02 --min-samples 16 --seed 9 --size 320x200 --ortho --variant bare --set sky.intensity=0.4 --set object.a.params.b=/x/y --denoise off --out tmp/a.exr --master tmp/a.master.png --progress json",
+            "table.toml --camera main --spp 64 --threshold 0.02 --min-samples 16 --seed 9 --size 320x200 --ortho --crop 10,20,30,40 --variant bare --set sky.intensity=0.4 --set object.a.params.b=/x/y --denoise off --out tmp/a.exr --master tmp/a.master.png --progress json",
         ))
         .unwrap();
         assert_eq!(
@@ -512,6 +587,7 @@ mod tests {
                 frame: Some([320, 200]),
                 equirect: false,
                 ortho: true,
+                crop: Some([10, 20, 30, 40]),
                 variant: Some("bare".into()),
                 set: vec!["sky.intensity=0.4".into(), "object.a.params.b=/x/y".into()],
                 denoise: false,
@@ -584,6 +660,9 @@ mod tests {
             "a.toml --camera main --out a.png --min-samples 1",
             "a.toml --camera main --out a.png --master a.exr",
             "a.toml --camera main --out a.png --progress yaml",
+            "a.toml --camera main --out a.png --crop 1,2,3",
+            "a.toml --camera main --out a.png --crop 1,2,0,4",
+            "a.toml --camera main --out a.png --crop a,b,c,d",
         ] {
             assert!(parse(&strings(text)).is_err(), "{text:?}");
         }
@@ -680,6 +759,8 @@ mod tests {
                     Step::Converge {
                         gpu_ms: 0,
                         cap: 1024,
+                        done: 0,
+                        total: 1000,
                     },
                     at(1.0),
                 )
@@ -687,19 +768,24 @@ mod tests {
         );
         assert_eq!(start["cap"], 1024);
         assert_eq!(start["threshold"], 0.01);
-        assert!(start["fraction"].is_null());
+        assert_eq!(start["fraction"], 0.0);
+        assert!(start["eta_s"].is_null());
         let later = fields(
             &adaptive
                 .line(
                     Step::Converge {
                         gpu_ms: 61_234,
                         cap: 1024,
+                        done: 250,
+                        total: 1000,
                     },
                     at(90.0),
                 )
                 .unwrap(),
         );
         assert_eq!(later["gpu_s"], 61.2);
+        assert_eq!(later["fraction"], 0.25);
+        assert_eq!(later["eta_s"], 270.0);
         assert_eq!(
             fields(&adaptive.line(Step::Write, at(91.0)).unwrap())["stage"],
             "write"
@@ -728,7 +814,9 @@ mod tests {
                 .line(
                     Step::Converge {
                         gpu_ms: 0,
-                        cap: 1024
+                        cap: 1024,
+                        done: 0,
+                        total: 1000,
                     },
                     at(1)
                 )
@@ -738,7 +826,9 @@ mod tests {
             watch.line(
                 Step::Converge {
                     gpu_ms: 9_000,
-                    cap: 1024
+                    cap: 1024,
+                    done: 100,
+                    total: 1000,
                 },
                 at(10)
             ),
@@ -749,12 +839,14 @@ mod tests {
                 .line(
                     Step::Converge {
                         gpu_ms: 30_000,
-                        cap: 1024
+                        cap: 1024,
+                        done: 300,
+                        total: 1000,
                     },
                     at(31)
                 )
                 .as_deref(),
-            Some("progress 30 s on the GPU, each pixel to a noise of 0.01 or 1024 samples")
+            Some("progress 30%, 30 s on the GPU, each pixel to a noise of 0.01 or 1024 samples")
         );
     }
 
@@ -964,12 +1056,15 @@ mod tests {
             steps[1],
             Step::Converge {
                 gpu_ms: 0,
-                cap: 256
+                cap: 256,
+                done: 0,
+                total: 25_600_000,
             }
         );
         assert!(rendered.mean_samples >= 16.0, "{}", rendered.mean_samples);
         assert!(rendered.mean_samples < 200.0, "{}", rendered.mean_samples);
-        assert!(rendered.film.samples <= 256);
+        assert!(rendered.most_samples <= 256);
+        assert_eq!(rendered.film.samples, 256);
         assert!(rendered.paced.longest_ms < 300.0, "{:?}", rendered.paced);
         let (size, rgba) = manfred_scene::read_png(&out).unwrap();
         assert_eq!(size, [400, 250]);
@@ -985,5 +1080,34 @@ mod tests {
                 .unwrap();
         let near = manfred_render::dithered(size, &fixed);
         assert_eq!(rgba, near);
+    }
+
+    #[test]
+    #[ignore = "GPU: pgpu run --class clip --as manfred -- cargo test -- --ignored"]
+    fn a_crop_traces_the_same_pixels_as_the_full_frame() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let recipe = root.join("tests/golden/table/table.toml");
+        for sampling in [
+            "--spp 32 --threshold 0",
+            "--spp 64 --threshold 0.05 --min-samples 8",
+        ] {
+            let line = |extra: &str| {
+                format!(
+                    "{} --camera main --size 320x200 --seed 3 {sampling} --denoise off --out {} {extra}",
+                    recipe.display(),
+                    root.join("tmp/render-crop.exr").display()
+                )
+            };
+            let full = parse(&strings(&line(""))).unwrap();
+            let (whole, _) = traced(&full, &Registry::new(), &mut |_| {}).unwrap();
+            let crop = parse(&strings(&line("--crop 100,50,60,40"))).unwrap();
+            let (part, summary) = traced(&crop, &Registry::new(), &mut |_| {}).unwrap();
+            println!("{sampling}: {summary}");
+            assert_eq!(part.film.size, [60, 40]);
+            assert!(
+                part.film == whole.film.cut([100, 50], [60, 40]),
+                "{sampling}: the crop differs from the full frame"
+            );
+        }
     }
 }

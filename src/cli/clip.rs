@@ -707,6 +707,7 @@ mod tests {
             view: manfred_render::View::Lens,
             variant: None,
             set: &[],
+            crop: None,
         };
         let rendered = manfred_render::render(&request, &Registry::new(), &mut |_| {}).unwrap();
         let still = dir.join("render.png");

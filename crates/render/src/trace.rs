@@ -9,7 +9,8 @@ use pfx_gpu::pace::{Pacer, Stats};
 use pfx_post::Chain;
 use pfx_trace::sky::Environment;
 use pfx_trace::stage::Staged;
-use pfx_trace::{Adaptive, Trace, TraceError};
+use pfx_trace::{Adaptive, Round, Trace, TraceError};
+use std::cell::RefCell;
 use std::fmt;
 use std::path::Path;
 
@@ -50,8 +51,16 @@ impl Noise {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     Stage,
-    Trace { done: u32, total: u32 },
-    Converge { gpu_ms: u64, cap: u32 },
+    Trace {
+        done: u32,
+        total: u32,
+    },
+    Converge {
+        gpu_ms: u64,
+        cap: u32,
+        done: u64,
+        total: u64,
+    },
     Write,
 }
 
@@ -94,6 +103,127 @@ pub struct Request<'a> {
     pub view: View,
     pub variant: Option<&'a str>,
     pub set: &'a [String],
+    pub crop: Option<Crop>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Crop {
+    pub rect: [u32; 4],
+    pub apron: u32,
+    pub finished: bool,
+}
+
+impl Crop {
+    pub fn fits(rect: [u32; 4], size: [u32; 2]) -> bool {
+        let [x, y, width, height] = rect;
+        width > 0
+            && height > 0
+            && x.checked_add(width).is_some_and(|end| end <= size[0])
+            && y.checked_add(height).is_some_and(|end| end <= size[1])
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Region {
+    pub full: [u32; 2],
+    pub origin: [u32; 2],
+    pub size: [u32; 2],
+}
+
+impl Region {
+    pub fn whole(size: [u32; 2]) -> Region {
+        Region {
+            full: size,
+            origin: [0, 0],
+            size,
+        }
+    }
+
+    pub fn around(full: [u32; 2], rect: [u32; 4], apron: u32) -> Region {
+        let [x, y, width, height] = rect;
+        let low = [x.saturating_sub(apron), y.saturating_sub(apron)];
+        let high = [
+            (x + width).saturating_add(apron).min(full[0]),
+            (y + height).saturating_add(apron).min(full[1]),
+        ];
+        Region {
+            full,
+            origin: low,
+            size: [high[0] - low[0], high[1] - low[1]],
+        }
+    }
+
+    fn open(&self, gpu: &Gpu, staged: &Staged<Environment>) -> Result<Trace, Fault> {
+        let mut trace = staged
+            .trace(gpu, self.size[0], self.size[1])
+            .map_err(refused)?;
+        if *self != Region::whole(self.full) {
+            trace
+                .set_window(self.full, self.origin)
+                .map_err(|e| Fault::Failed(format!("the tracer's window: {e}")))?;
+        }
+        Ok(trace)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Plan {
+    rounds: Vec<u32>,
+    reached: usize,
+    active: u64,
+    work: u64,
+    work_ms: f64,
+}
+
+impl Plan {
+    pub fn new(adaptive: &Adaptive, pixels: u64) -> Plan {
+        Plan {
+            rounds: adaptive.rounds(),
+            reached: 0,
+            active: pixels,
+            work: 0,
+            work_ms: 0.0,
+        }
+    }
+
+    fn before(&self) -> u32 {
+        self.reached.checked_sub(1).map_or(0, |k| self.rounds[k])
+    }
+
+    pub fn reach(&mut self, round: Round, gpu_ms: f64) {
+        self.work += u64::from(round.samples.saturating_sub(self.before())) * self.active;
+        self.active = round.active;
+        self.reached = (self.reached + 1).min(self.rounds.len());
+        self.work_ms = gpu_ms;
+        if round.active == 0 {
+            self.reached = self.rounds.len();
+        }
+    }
+
+    fn next(&self) -> u64 {
+        self.rounds.get(self.reached).map_or(0, |&samples| {
+            u64::from(samples - self.before()) * self.active
+        })
+    }
+
+    pub fn total(&self) -> u64 {
+        let mut total = self.work;
+        let mut before = self.before();
+        for &samples in &self.rounds[self.reached..] {
+            total += u64::from(samples - before) * self.active;
+            before = samples;
+        }
+        total
+    }
+
+    pub fn done(&self, gpu_ms: f64) -> u64 {
+        if self.work == 0 || self.work_ms <= 0.0 {
+            return 0;
+        }
+        let rate = self.work as f64 / self.work_ms;
+        let partial = ((gpu_ms - self.work_ms).max(0.0) * rate) as u64;
+        self.work + partial.min(self.next())
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -147,6 +277,7 @@ pub struct Rendered {
     pub paced: Paced,
     pub seed: u32,
     pub mean_samples: f64,
+    pub most_samples: u32,
 }
 
 pub fn render(
@@ -164,38 +295,60 @@ pub fn render(
     turn(Report::default());
     let staging = Staging::of(&recipe, &built.parts)?;
     let camera = manfred_scene::camera(&recipe, request.camera)?;
+    if let Some(crop) = request.crop
+        && crop.finished
+        && let Some(reason) =
+            crate::picture::crop_refusal((&staging.finish, &Overlay::of(&staging.text)))
+    {
+        return Err(Fault::Refused(format!(
+            "a crop's .png or master cannot match the full frame: {reason}; crop to .exr or .hdr"
+        )));
+    }
     let staged = staging.stage(eyepiece(camera, request.view, request.size)?)?;
     turn(Report::default());
-    let gpu = manfred_scene::headless()?;
-    let seed = request.seed.unwrap_or_else(|| manfred_scene::seed(&recipe));
     let adaptive = request
         .noise
         .and_then(|noise| noise.adaptive(request.samples));
-    let ((film, paced), mean_samples) = match adaptive {
-        Some(adaptive) => {
-            let (film, paced, mean) = converge(
-                &gpu,
-                &staged,
-                request.size,
-                adaptive,
-                seed,
-                progress,
-                &mut turn,
-            )?;
-            ((film, paced), mean)
+    let region = match request.crop {
+        Some(crop) if !Crop::fits(crop.rect, request.size) => {
+            return Err(Fault::Refused(format!(
+                "the crop {:?} does not lie inside the {}x{} frame",
+                crop.rect, request.size[0], request.size[1]
+            )));
         }
-        None => (
-            trace(
+        Some(crop) => Region::around(
+            request.size,
+            crop.rect,
+            crop.apron.max(adaptive.map_or(0, |a| a.margin())),
+        ),
+        None => Region::whole(request.size),
+    };
+    let gpu = manfred_scene::headless()?;
+    let seed = request.seed.unwrap_or_else(|| manfred_scene::seed(&recipe));
+    let (film, paced, mean_samples, most_samples) = match adaptive {
+        Some(adaptive) => converge(&gpu, &staged, region, adaptive, seed, progress, &mut turn)?,
+        None => {
+            let (film, paced) = trace_in(
                 &gpu,
                 &staged,
-                request.size,
+                region,
                 request.samples,
                 seed,
                 progress,
                 &mut turn,
-            )?,
-            f64::from(request.samples),
+            )?;
+            (film, paced, f64::from(request.samples), request.samples)
+        }
+    };
+    let film = match request.crop {
+        Some(crop) => film.cut(
+            [
+                crop.rect[0] - region.origin[0],
+                crop.rect[1] - region.origin[1],
+            ],
+            [crop.rect[2], crop.rect[3]],
         ),
+        None => film,
     };
     Ok(Rendered {
         film,
@@ -204,6 +357,7 @@ pub fn render(
         paced,
         seed,
         mean_samples,
+        most_samples,
     })
 }
 
@@ -259,6 +413,7 @@ impl Reel {
             paced,
             seed: self.seed,
             mean_samples: f64::from(samples),
+            most_samples: samples,
         })
     }
 }
@@ -272,12 +427,32 @@ pub fn trace(
     progress: &mut dyn FnMut(Step),
     turn: &mut dyn FnMut(Report),
 ) -> Result<(Film, Paced), Fault> {
-    let mut trace = staged.trace(gpu, size[0], size[1]).map_err(refused)?;
+    trace_in(
+        gpu,
+        staged,
+        Region::whole(size),
+        samples,
+        seed,
+        progress,
+        turn,
+    )
+}
+
+fn trace_in(
+    gpu: &Gpu,
+    staged: &Staged<Environment>,
+    region: Region,
+    samples: u32,
+    seed: u32,
+    progress: &mut dyn FnMut(Step),
+    turn: &mut dyn FnMut(Report),
+) -> Result<(Film, Paced), Fault> {
+    let mut trace = region.open(gpu, staged)?;
     let mut turns = Turns::new(turn);
     let paced = sampled(samples, &mut turns, progress, |pacer, between| {
         trace.sample_paced(gpu, 1, seed, pacer, between)
     })?;
-    let film = developed(gpu, &trace, size, samples)?;
+    let film = developed(gpu, &trace, region.size, samples)?;
     turns.now();
     Ok((film, paced))
 }
@@ -285,34 +460,59 @@ pub fn trace(
 pub fn converge(
     gpu: &Gpu,
     staged: &Staged<Environment>,
-    size: [u32; 2],
+    region: Region,
     adaptive: Adaptive,
     seed: u32,
     progress: &mut dyn FnMut(Step),
     turn: &mut dyn FnMut(Report),
-) -> Result<(Film, Paced, f64), Fault> {
-    let mut trace = staged.trace(gpu, size[0], size[1]).map_err(refused)?;
+) -> Result<(Film, Paced, f64, u32), Fault> {
+    let mut trace = region.open(gpu, staged)?;
     let mut turns = Turns::new(turn);
     let mut pacer = Pacer::default();
     let cap = adaptive.max_samples;
+    let pixels = u64::from(region.size[0]) * u64::from(region.size[1]);
+    let watch = RefCell::new((Plan::new(&adaptive, pixels), 0.0f64, progress));
+    let tell = |watch: &mut (Plan, f64, &mut dyn FnMut(Step))| {
+        let (plan, gpu_ms, progress) = watch;
+        progress(Step::Converge {
+            gpu_ms: *gpu_ms as u64,
+            cap,
+            done: plan.done(*gpu_ms),
+            total: plan.total(),
+        });
+    };
     turns.now();
-    progress(Step::Converge { gpu_ms: 0, cap });
-    let mut gpu_ms = 0.0;
+    tell(&mut watch.borrow_mut());
     let converged = trace
-        .sample_adaptive(gpu, adaptive, seed, &mut pacer, |ms| {
-            gpu_ms += ms;
-            progress(Step::Converge {
-                gpu_ms: gpu_ms as u64,
-                cap,
-            });
-            turns.soon(ms)
-        })
+        .sample_adaptive_with(
+            gpu,
+            adaptive,
+            seed,
+            &mut pacer,
+            |ms| {
+                let mut watch = watch.borrow_mut();
+                watch.1 += ms;
+                tell(&mut watch);
+                turns.soon(ms)
+            },
+            |round| {
+                let mut watch = watch.borrow_mut();
+                let gpu_ms = watch.1;
+                watch.0.reach(round, gpu_ms);
+                tell(&mut watch);
+            },
+        )
         .map_err(|e| Fault::Failed(format!("the tracer: {e}")))?;
     let mut paced = Paced::default();
     paced.add(&converged.stats);
-    let film = developed(gpu, &trace, size, converged.max_samples())?;
+    let film = developed(gpu, &trace, region.size, cap)?;
     turns.now();
-    Ok((film, paced, converged.mean_samples()))
+    Ok((
+        film,
+        paced,
+        converged.mean_samples(),
+        converged.max_samples(),
+    ))
 }
 
 fn developed(gpu: &Gpu, trace: &Trace, size: [u32; 2], samples: u32) -> Result<Film, Fault> {
@@ -517,6 +717,67 @@ mod tests {
     }
 
     #[test]
+    fn the_plan_counts_pixel_samples_and_shrinks_as_pixels_stop() {
+        let adaptive = Adaptive {
+            threshold: 0.01,
+            min_samples: 16,
+            max_samples: 100,
+            growth: 1.5,
+        };
+        let mut plan = Plan::new(&adaptive, 10);
+        assert_eq!(plan.total(), 1000);
+        assert_eq!(plan.done(5.0), 0);
+        plan.reach(
+            Round {
+                samples: 8,
+                active: 10,
+            },
+            8.0,
+        );
+        assert_eq!(plan.total(), 1000);
+        assert_eq!(plan.done(8.0), 80);
+        assert_eq!(plan.done(12.0), 120);
+        assert_eq!(plan.done(1e6), 160);
+        plan.reach(
+            Round {
+                samples: 16,
+                active: 4,
+            },
+            16.0,
+        );
+        assert_eq!(plan.total(), 160 + 84 * 4);
+        plan.reach(
+            Round {
+                samples: 24,
+                active: 0,
+            },
+            19.0,
+        );
+        assert_eq!(plan.total(), 192);
+        assert_eq!(plan.done(30.0), 192);
+    }
+
+    #[test]
+    fn a_crop_grows_by_its_apron_inside_the_frame() {
+        assert_eq!(
+            Region::around([100, 50], [10, 40, 20, 10], 12),
+            Region {
+                full: [100, 50],
+                origin: [0, 28],
+                size: [42, 22],
+            }
+        );
+        assert_eq!(
+            Region::around([100, 50], [0, 0, 100, 50], 9),
+            Region::whole([100, 50])
+        );
+        assert!(Crop::fits([90, 0, 10, 50], [100, 50]));
+        for rect in [[91, 0, 10, 1], [0, 0, 0, 1], [u32::MAX, 0, 2, 1]] {
+            assert!(!Crop::fits(rect, [100, 50]), "{rect:?}");
+        }
+    }
+
+    #[test]
     fn readback_bytes_become_pixels() {
         let bytes: Vec<u8> = [1.0f32, 0.5, -2.0, 1.0, 0.0, 3.25, 7.0, 1.0]
             .iter()
@@ -557,6 +818,7 @@ mod tests {
             view: View::Lens,
             variant: None,
             set: &[],
+            crop: None,
         };
         assert!(render(&request, &Registry::new(), &mut |s| steps.push(s)).is_err());
         assert!(steps.is_empty());

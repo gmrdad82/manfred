@@ -1,9 +1,9 @@
 # Path-traced renders
 
-`manfred render` traces a recipe through pfx's offline path tracer (`pfx_trace`, v0.18.15). It stages the same parts, materials, sky, sun and lights the live renderer draws, so a render and a `manfred shot` of one recipe show one scene.
+`manfred render` traces a recipe through pfx's offline path tracer (`pfx_trace`, pfx rev `075fb1b`). It stages the same parts, materials, sky, sun and lights the live renderer draws, so a render and a `manfred shot` of one recipe show one scene.
 
 ```
-manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--variant V] [--set key=value]... [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file>
+manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--crop x,y,w,h] [--variant V] [--set key=value]... [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file>
 ```
 
 | Option | Default | Meaning |
@@ -17,6 +17,7 @@ manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples
 | `--size` | 1586x992, or 2048x1024 with `--equirect` | the picture, each side 1 to 16384 |
 | `--ortho` | | an orthographic view of the camera's `ortho_height` |
 | `--equirect` | | the full sphere around the camera |
+| `--crop` | | `x,y,w,h` in the frame's pixels: renders only that rectangle, the same pixels the full frame has there (below) |
 | `--variant` | | a `[variants.<name>]` of the recipe |
 | `--denoise` | `on` | `off` writes a `.png` from the raw trace, without the denoiser; `.exr` and `.hdr` are never denoised |
 | `--set` | | `key=value`, replaces a value the recipe has, after the variant; as often as needed (`docs/recipe.md`, overrides) |
@@ -34,14 +35,20 @@ A final still is the defaults: adaptive to 128 samples at threshold 0.01, denois
 
 ## Progress
 
-Plain progress (the default) prints `progress <done>/<total>` about twenty times when every pixel runs to `--spp`, and, with adaptive sampling, a line every 30 seconds with the GPU time so far. `--progress json` prints one JSON object a line on stderr instead, at most one a second while tracing:
+Plain progress (the default) prints `progress <done>/<total>` about twenty times when every pixel runs to `--spp`, and, with adaptive sampling, a line every 30 seconds with the fraction and the GPU time so far. `--progress json` prints one JSON object a line on stderr instead, at most one a second while tracing:
 
 | `stage` | Fields beside `stage` and `elapsed_s` (wall seconds since the render began) |
 | --- | --- |
 | `stage` | none: the recipe is read and staged |
-| `trace` | to `--spp` for every pixel: `done`, `total`, `fraction` (0 to 1) and `eta_s` (null before the first sample). With adaptive sampling: `cap`, `threshold`, `gpu_s`, and `fraction` and `eta_s` as null, since the tracer does not yet report its rounds while it runs |
+| `trace` | to `--spp` for every pixel: `done`, `total`, `fraction` (0 to 1) and `eta_s` (null before the first sample). With adaptive sampling: `cap`, `threshold`, `gpu_s`, `fraction` and `eta_s`, counted in pixel-samples: the rounds done, the current round by its GPU time, and the rounds left as if every pixel still running ran them, so the fraction only grows and the ETA is an upper bound that falls as pixels stop |
 | `write` | none: the picture is being written |
 | `done` | `out`, `mean_samples`, `most_samples`, `gpu_s` |
+
+## Crops
+
+`--crop x,y,w,h` traces only that rectangle of the `--size` frame, with the tracer's window (`Trace::set_window`): every pixel keeps the random stream, the ray, the lens shift and the depth of field of its place in the full frame, so a crop is the full frame's pixels there, for a key-down or lit variant of one part of a plate. With adaptive sampling the trace runs on the rectangle grown by one pixel a round on each side (convergence spreads through its 3×3 neighbourhood one pixel a round) and keeps the middle; with the denoiser it grows by at least 16 pixels, the denoiser's reach. The same recipe, size, camera, seed, samples, threshold and denoise give the same pixels as the full frame on one GPU and driver, and the `.png` dither is laid by the full frame's coordinates.
+
+A `.png` or `--master` crop goes through the recipe's finish, which must then work pixel by pixel: a finish with vignette, grain, its own dither, bloom, outlines or any pass that reads neighbours, or overlay text, is refused for a `.png` or master crop (exit 1), and a `.exr` or `.hdr` crop, the raw trace, always works.
 
 ## The scene it traces
 

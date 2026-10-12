@@ -273,6 +273,7 @@ fn traced(path: &Path, camera: &str, registry: &Registry, samples: u32) -> manfr
         view: View::Lens,
         variant: None,
         set: &[],
+        crop: None,
     };
     let film = render(&request, registry, &mut |_| {}).unwrap().film;
     pfx::adapter::turn();

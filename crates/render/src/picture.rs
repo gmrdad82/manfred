@@ -38,6 +38,24 @@ pub struct Film {
 }
 
 impl Film {
+    pub fn cut(&self, origin: [u32; 2], size: [u32; 2]) -> Film {
+        let take = |pixels: &[[f32; 4]]| {
+            (origin[1]..origin[1] + size[1])
+                .flat_map(|y| {
+                    let at = (y * self.size[0] + origin[0]) as usize;
+                    pixels[at..at + size[0] as usize].iter().copied()
+                })
+                .collect()
+        };
+        Film {
+            size,
+            color: take(&self.color),
+            albedo: take(&self.albedo),
+            normal: take(&self.normal),
+            samples: self.samples,
+        }
+    }
+
     pub fn mean(&self) -> [f64; 3] {
         let mut sum = [0.0f64; 3];
         for pixel in &self.color {
@@ -132,13 +150,36 @@ pub fn finished<'a>(
     Ok(finished.pixels)
 }
 
+pub fn crop_refusal<'a>(finish: impl Into<Look<'a>>) -> Option<String> {
+    let look = finish.into();
+    if look.overlay.is_some() {
+        return Some("the recipe's overlay text is placed by the whole frame".into());
+    }
+    look.chain.passes.iter().find_map(unlocal).map(|name| {
+        format!("the recipe's finish has {name}, which reads neighbours or the pixel's place in the frame")
+    })
+}
+
+fn unlocal(pass: &Pass) -> Option<&'static str> {
+    match pass {
+        Pass::Grade(passes) => passes.iter().find_map(unlocal),
+        Pass::Vignette(_) | Pass::Grain(_) | Pass::Dither(_) => Some(pass.name()),
+        pass if pass.is_local() => None,
+        pass => Some(pass.name()),
+    }
+}
+
 pub fn dithered(size: [u32; 2], pixels: &[[f32; 4]]) -> Vec<u8> {
+    dithered_at(size, [0, 0], pixels)
+}
+
+pub fn dithered_at(size: [u32; 2], origin: [u32; 2], pixels: &[[f32; 4]]) -> Vec<u8> {
     let width = size[0].max(1);
     pixels
         .iter()
         .enumerate()
         .flat_map(|(at, pixel)| {
-            let (x, y) = (at as u32 % width, at as u32 / width);
+            let (x, y) = (origin[0] + at as u32 % width, origin[1] + at as u32 / width);
             let offset = (bayer(x, y) - 0.5) / 255.0;
             let [r, g, b] = [0, 1, 2].map(|k| {
                 ((pixel[k].clamp(0.0, 1.0) + offset).clamp(0.0, 1.0) * 255.0).round() as u8
@@ -168,13 +209,18 @@ pub fn write_master(path: &Path, size: [u32; 2], pixels: &[[f32; 4]]) -> Result<
     )
 }
 
-pub fn write_delivery(path: &Path, size: [u32; 2], pixels: &[[f32; 4]]) -> Result<(), String> {
+pub fn write_delivery(
+    path: &Path,
+    size: [u32; 2],
+    origin: [u32; 2],
+    pixels: &[[f32; 4]],
+) -> Result<(), String> {
     fast_png(
         path,
         size,
         pixels.len(),
         png::BitDepth::Eight,
-        &dithered(size, pixels),
+        &dithered_at(size, origin, pixels),
     )
 }
 
