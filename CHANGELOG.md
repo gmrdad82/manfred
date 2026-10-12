@@ -2,6 +2,15 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v0.19.3 — 2026-10-12
+
+### Changed
+
+- `manfred render` denoises on the GPU with pfx's port of Intel Open Image Denoise, read from the tracer's textures: about 2 s at 4K instead of about 5 s on the CPU. The pixels of a denoised `.png` change, so a plate and its crops come from one version.
+- A denoised crop grows by 96 pixels around the rectangle, the new denoiser's reach; it matches the full frame closely rather than bit for bit, and `--denoise off`, `.exr` and `.hdr` crops stay exact.
+- `manfred clip --trace` keeps one denoiser across its frames.
+- The pfx crates move to pfx 0.26.0's revision.
+
 ## v0.19.2 — 2026-10-12
 
 ### Added
