@@ -256,6 +256,7 @@ impl Plan {
                     unit: MouseWheelUnit::Line,
                     delta: Vec2::new(0.0, *lines),
                     modifiers: self.held,
+                    phase: egui::TouchPhase::Move,
                 }]);
             }
             Step::Frame => self.frame(Vec::new()),
@@ -370,8 +371,9 @@ impl Player<'_, '_> {
             time: Some(time),
             predicted_dt: 1.0 / self.fps as f32,
             focused: true,
-            modifiers: frame.modifiers,
-            events: frame.events.clone(),
+            events: std::iter::once(Event::ModifiersChanged(frame.modifiers))
+                .chain(frame.events.iter().cloned())
+                .collect(),
             ..RawInput::default()
         };
         input.viewports.insert(
@@ -383,10 +385,10 @@ impl Player<'_, '_> {
             },
         );
         let app = &mut *self.app;
-        let mut output = self.ctx.run(input, |ctx| {
-            app.ui(ctx);
+        let mut output = self.ctx.run_ui(input, |ui| {
+            app.ui(ui);
             if let Some(at) = frame.pointer {
-                pointer(ctx, at, frame.down);
+                pointer(ui.ctx(), at, frame.down);
             }
         });
         self.textures
@@ -468,7 +470,7 @@ impl Player<'_, '_> {
             size_in_pixels: self.size,
             pixels_per_point: output.pixels_per_point,
         };
-        let textures = std::mem::take(&mut self.textures);
+        let mut textures = std::mem::take(&mut self.textures);
         let Player {
             gpu,
             painter,
@@ -477,12 +479,18 @@ impl Player<'_, '_> {
             turns,
             ..
         } = self;
-        turns
-            .time(|| {
-                painter.paint(gpu, &target.view, &screen, &textures, &primitives, theme.bg);
-                gpu.readback_rgba8(target)
-            })
-            .map_err(Error)
+        let rgba = turns.time(|| {
+            painter.paint(gpu, &target.view, &screen, &textures, &primitives, theme.bg);
+            gpu.readback_rgba8(target)
+        });
+        textures.clear();
+        rgba.map_err(Error)
+    }
+}
+
+impl Drop for Player<'_, '_> {
+    fn drop(&mut self) {
+        self.textures.clear();
     }
 }
 

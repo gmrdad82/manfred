@@ -1,5 +1,5 @@
 use egui::{
-    Align, Align2, CentralPanel, Context, Frame, Id, Layout, Pos2, Rect, Sense, UiBuilder, Vec2,
+    Align, Align2, CentralPanel, Frame, Id, Layout, Pos2, Rect, Sense, Ui, UiBuilder, Vec2,
 };
 
 use crate::shell::{Shell, TABS};
@@ -65,10 +65,11 @@ fn cell(index: usize) -> Rect {
     )
 }
 
-pub fn ui(shell: &mut Shell, fixture: Fixture, ctx: &Context) {
+pub fn ui(shell: &mut Shell, fixture: Fixture, ui: &mut Ui) {
+    let ctx = &ui.ctx().clone();
     CentralPanel::default()
         .frame(Frame::NONE.fill(BG_BASE))
-        .show(ctx, |ui| {
+        .show(ui, |ui| {
             let painter = ui.painter();
             painter.text(
                 Pos2::new(12.0, 12.0),
@@ -139,10 +140,10 @@ mod tests {
 
     fn run(fixture: Fixture) -> Shell {
         let mut shell = Shell::fixture(fixture);
-        let ctx = Context::default();
+        let ctx = egui::Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
         let script = Script::parse(fixture.script()).unwrap();
-        drive(&ctx, fixture.size(), &script, |ctx| shell.ui(ctx));
+        drive(&ctx, fixture.size(), &script, |ui| shell.ui(ui));
         shell
     }
 

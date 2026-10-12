@@ -919,7 +919,7 @@ impl<P: Painter> Raster<P> {
         gpu.queue.submit([encoder.finish()]);
         buffer.slice(..).map_async(wgpu::MapMode::Read, |_| {});
         self.settle()?;
-        let bytes = buffer.slice(..).get_mapped_range();
+        let bytes = buffer.slice(..).get_mapped_range().expect("a mapped range");
         let mut ids = Vec::with_capacity((width * height) as usize);
         for y in 0..height {
             let start = (y * row) as usize;

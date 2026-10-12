@@ -3,9 +3,8 @@ use std::fmt;
 use egui::epaint::RectShape;
 use egui::{
     Align, Align2, Button, CentralPanel, Color32, ComboBox, Context, CornerRadius, Event, Frame,
-    Id, Key, Layout, Margin, Painter, Pos2, Rect, Response, RichText, Sense, Shape, SidePanel,
-    Slider, Stroke, StrokeKind, TextEdit, TextureHandle, TextureId, TextureOptions, TopBottomPanel,
-    Ui, UiBuilder, Vec2,
+    Id, Key, Layout, Margin, Painter, Pos2, Rect, Response, RichText, Sense, Shape, Slider, Stroke,
+    StrokeKind, TextEdit, TextureHandle, TextureId, TextureOptions, Ui, UiBuilder, Vec2,
 };
 use manfred_build::Registry;
 use manfred_scene::Eye;
@@ -232,14 +231,14 @@ pub(crate) fn small(ui: &Ui, text: impl Into<String>, colour: Color32) -> RichTe
 const WHOLE: Rect = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
 
 fn bar(
-    panel: TopBottomPanel,
+    panel: egui::Panel,
     height: f32,
     fill: Color32,
-    ctx: &Context,
+    ui: &mut Ui,
     body: impl FnOnce(&mut Ui),
 ) -> Rect {
     panel
-        .exact_height(height)
+        .exact_size(height)
         .show_separator_line(false)
         .resizable(false)
         .frame(
@@ -247,16 +246,16 @@ fn bar(
                 .fill(fill)
                 .inner_margin(Margin::symmetric(10, 0)),
         )
-        .show(ctx, |ui| {
+        .show(ui, |ui| {
             ui.with_layout(Layout::left_to_right(Align::Center), body);
         })
         .response
         .rect
 }
 
-fn side(panel: SidePanel, width: f32, ctx: &Context, body: impl FnOnce(&mut Ui)) {
+fn side(panel: egui::Panel, width: f32, ui: &mut Ui, body: impl FnOnce(&mut Ui)) {
     panel
-        .exact_width(width)
+        .exact_size(width)
         .resizable(false)
         .show_separator_line(false)
         .frame(
@@ -264,7 +263,7 @@ fn side(panel: SidePanel, width: f32, ctx: &Context, body: impl FnOnce(&mut Ui))
                 .fill(BG_BASE)
                 .inner_margin(Margin::same(GAP as i8)),
         )
-        .show(ctx, |ui| {
+        .show(ui, |ui| {
             ui.spacing_mut().item_spacing.y = GAP;
             body(ui);
         });
@@ -837,9 +836,10 @@ impl Shell {
         }
     }
 
-    pub fn ui(&mut self, ctx: &Context) {
+    pub fn ui(&mut self, ui: &mut Ui) {
+        let ctx = &ui.ctx().clone();
         if let Some(fixture) = self.fixture {
-            fixture::ui(self, fixture, ctx);
+            fixture::ui(self, fixture, ui);
             return;
         }
         self.drain(ctx);
@@ -853,12 +853,12 @@ impl Shell {
                 ctx.load_texture("viewport", viewport::checker(), TextureOptions::NEAREST)
             })
             .clone();
-        self.top(ctx);
-        self.status(ctx);
-        self.hints(ctx);
-        self.left(ctx);
-        self.right(ctx);
-        self.centre(ctx, &texture);
+        self.top(ui);
+        self.status(ui);
+        self.hints(ui);
+        self.left(ui);
+        self.right(ui);
+        self.centre(ui, &texture);
         self.open_layer(ctx);
         self.reveal = false;
         self.drain(ctx);
@@ -1139,7 +1139,7 @@ impl Shell {
             return;
         }
         let in_picker = ctx.memory(|memory| memory.has_focus(crate::open::field_id()));
-        if ctx.wants_keyboard_input() && !in_picker {
+        if ctx.egui_wants_keyboard_input() && !in_picker {
             self.keys = Keys::default();
             return;
         }
@@ -1550,8 +1550,8 @@ impl Shell {
         });
     }
 
-    fn top(&mut self, ctx: &Context) {
-        let rect = bar(TopBottomPanel::top("A"), TOP, BG_DEEP, ctx, |ui| {
+    fn top(&mut self, ui: &mut Ui) {
+        let rect = bar(egui::Panel::top("A"), TOP, BG_DEEP, ui, |ui| {
             let kind = if self.scene { "scene" } else { "recipe" };
             self.header(ui, Panel::A, Header::new("A", kind).width(92.0));
             ui.label(
@@ -1573,7 +1573,7 @@ impl Shell {
             });
         });
         self.panels.push((Panel::A, rect));
-        self.border_over(ctx, Panel::A, rect);
+        self.border_over(ui.ctx(), Panel::A, rect);
     }
 
     fn border_over(&self, ctx: &Context, panel: Panel, rect: Rect) {
@@ -1599,8 +1599,8 @@ impl Shell {
         }
     }
 
-    fn status(&mut self, ctx: &Context) {
-        let rect = bar(TopBottomPanel::bottom("D1"), STATUS, BG_DEEP, ctx, |ui| {
+    fn status(&mut self, ui: &mut Ui) {
+        let rect = bar(egui::Panel::bottom("D1"), STATUS, BG_DEEP, ui, |ui| {
             self.header(ui, Panel::D1, Header::new("D1", "status").width(92.0));
             let kind = if self.scene { "scene" } else { "recipe" };
             item(ui, kind, &self.document.path, TEXT_CODE);
@@ -1661,11 +1661,11 @@ impl Shell {
                     });
         });
         self.panels.push((Panel::D1, rect));
-        self.border_over(ctx, Panel::D1, rect);
+        self.border_over(ui.ctx(), Panel::D1, rect);
     }
 
-    fn hints(&mut self, ctx: &Context) {
-        bar(TopBottomPanel::bottom("hints"), HINTS, BG_BASE, ctx, |ui| {
+    fn hints(&mut self, ui: &mut Ui) {
+        bar(egui::Panel::bottom("hints"), HINTS, BG_BASE, ui, |ui| {
             ui.label(code(ui, self.focus.code(), TEXT_DIM));
             let hints = if self.scene {
                 Shell::viewing_hints(self.focus)
@@ -1746,8 +1746,8 @@ impl Shell {
         self.panels.push((panel, rect));
     }
 
-    fn left(&mut self, ctx: &Context) {
-        side(SidePanel::left("B"), LEFT, ctx, |ui| {
+    fn left(&mut self, ui: &mut Ui) {
+        side(egui::Panel::left("B"), LEFT, ui, |ui| {
             let total = ui.available_height();
             let outliner = total - CAMERAS_HEIGHT - LIGHTS_HEIGHT - 2.0 * GAP;
             let count = format!("{} objects", self.document.objects.len());
@@ -1758,8 +1758,8 @@ impl Shell {
         });
     }
 
-    fn right(&mut self, ctx: &Context) {
-        side(SidePanel::right("C"), RIGHT, ctx, |ui| {
+    fn right(&mut self, ui: &mut Ui) {
+        side(egui::Panel::right("C"), RIGHT, ui, |ui| {
             let total = ui.available_height();
             let properties = total - RENDER_HEIGHT - GAP;
             let name = match (self.lit_shown, self.object) {
@@ -1776,14 +1776,14 @@ impl Shell {
         });
     }
 
-    fn centre(&mut self, ctx: &Context, texture: &TextureHandle) {
+    fn centre(&mut self, ui: &mut Ui, texture: &TextureHandle) {
         CentralPanel::default()
             .frame(
                 Frame::NONE
                     .fill(BG_BASE)
                     .inner_margin(Margin::symmetric(0, GAP as i8)),
             )
-            .show(ctx, |ui| {
+            .show(ui, |ui| {
                 let height = ui.available_height();
                 let info = self.view_info();
                 self.section(ui, Panel::C1, height, &info, |shell, ui| {
@@ -2008,7 +2008,8 @@ impl Shell {
             self.gizmo.hover(handle);
         }
         if response.hovered() && self.grab.is_none() {
-            let scroll = ui.input(|input| input.raw_scroll_delta.y);
+            let options = ui.ctx().options(|options| options.input_options);
+            let scroll = ui.input(|input| scrolled(input, &options));
             if scroll != 0.0
                 && let Some(eye) = self.eye
             {
@@ -3149,6 +3150,38 @@ fn divider(ui: &mut Ui) {
     );
 }
 
+fn scrolled(input: &egui::InputState, options: &egui::InputOptions) -> f32 {
+    let page = input.viewport_rect().height();
+    input
+        .events
+        .iter()
+        .map(|event| match event {
+            Event::MouseWheel {
+                unit,
+                delta,
+                modifiers,
+                ..
+            } => {
+                let delta = match unit {
+                    egui::MouseWheelUnit::Point => *delta,
+                    egui::MouseWheelUnit::Line => options.line_scroll_speed * *delta,
+                    egui::MouseWheelUnit::Page => page * *delta,
+                };
+                let horizontal = modifiers.matches_any(options.horizontal_scroll_modifier);
+                let vertical = modifiers.matches_any(options.vertical_scroll_modifier);
+                if horizontal && !vertical {
+                    0.0
+                } else if !horizontal && vertical {
+                    delta.x + delta.y
+                } else {
+                    delta.y
+                }
+            }
+            _ => 0.0,
+        })
+        .sum()
+}
+
 pub(crate) fn text_field(
     ui: &mut Ui,
     text: &mut String,
@@ -3158,7 +3191,7 @@ pub(crate) fn text_field(
 ) -> Response {
     let back = ui.painter().add(Shape::Noop);
     let mut edit = TextEdit::singleline(text)
-        .frame(false)
+        .frame(Frame::NONE)
         .margin(Margin::symmetric(6, 2))
         .desired_width(width - 12.0)
         .font(Theme::of(ui.ctx()).font(SIZE_CODE))
@@ -3259,8 +3292,8 @@ heading = 0.0
     fn run(shell: &mut Shell, size: [u32; 2], script: &str) {
         let ctx = Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
-        drive(&ctx, size, &Script::parse(script).unwrap(), |ctx| {
-            shell.ui(ctx)
+        drive(&ctx, size, &Script::parse(script).unwrap(), |ui| {
+            shell.ui(ui)
         });
     }
 
@@ -3559,7 +3592,7 @@ heading = 0.0
         );
         let ctx = Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
-        let output = drive(&ctx, [1586, 992], &Script::default(), |ctx| shell.ui(ctx));
+        let output = drive(&ctx, [1586, 992], &Script::default(), |ui| shell.ui(ui));
         let mut texts = Vec::new();
         for clipped in &output.shapes {
             painted(&clipped.shape, &mut texts);
@@ -3800,11 +3833,14 @@ heading = 0.0
                 Pos2::ZERO,
                 Vec2::new(SIZE[0] as f32, SIZE[1] as f32),
             )),
-            modifiers,
-            events: vec![event(true), event(false)],
+            events: vec![
+                Event::ModifiersChanged(modifiers),
+                event(true),
+                event(false),
+            ],
             ..RawInput::default()
         };
-        let _ = ctx.run(input, |ctx| shell.ui(ctx));
+        ctx.run_ui(input, |ui| shell.ui(ui)).textures_delta.clear();
     }
 
     fn undo(shell: &mut Shell) {
@@ -3848,7 +3884,7 @@ heading = 0.0
                 events,
                 ..RawInput::default()
             };
-            let _ = ctx.run(input, |ctx| shell.ui(ctx));
+            ctx.run_ui(input, |ui| shell.ui(ui)).textures_delta.clear();
         };
         pass(&mut shell, vec![], 0.0);
         pass(&mut shell, vec![Event::PointerMoved(at)], 0.1);
@@ -5029,7 +5065,7 @@ clearcoat_roughness = 0.07
         let (mut shell, viewer, path) = live(name, LABELLED);
         let ctx = Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
-        drive(&ctx, SIZE, &Script::default(), |ctx| shell.ui(ctx));
+        drive(&ctx, SIZE, &Script::default(), |ui| shell.ui(ui));
         (shell, viewer, path, ctx)
     }
 
@@ -5045,7 +5081,7 @@ clearcoat_roughness = 0.07
         assert!(ctx.read_response(span_field(1)).is_some());
         assert!(ctx.read_response(span_field(2)).is_none());
         shell.select(1);
-        drive(&ctx, SIZE, &Script::default(), |ctx| shell.ui(ctx));
+        drive(&ctx, SIZE, &Script::default(), |ui| shell.ui(ui));
         assert!(ctx.read_response(span_field(0)).is_none());
     }
 
@@ -5057,10 +5093,10 @@ clearcoat_roughness = 0.07
         assert!(ctx.read_response(name).is_some());
         assert!(ctx.read_response(material).is_none());
         shell.select(1);
-        drive(&ctx, SIZE, &Script::default(), |ctx| shell.ui(ctx));
+        drive(&ctx, SIZE, &Script::default(), |ui| shell.ui(ui));
         assert!(ctx.read_response(material).is_some());
         shell.select(0);
-        drive(&ctx, SIZE, &Script::default(), |ctx| shell.ui(ctx));
+        drive(&ctx, SIZE, &Script::default(), |ui| shell.ui(ui));
         assert!(ctx.read_response(material).is_none());
         assert!(ctx.read_response(span_field(0)).is_some());
     }
@@ -5074,8 +5110,8 @@ clearcoat_roughness = 0.07
             "click {} {}\nkey End\ntext ,headless\nframe\nkey Enter\n",
             field.x, field.y
         );
-        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ctx| {
-            shell.ui(ctx)
+        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ui| {
+            shell.ui(ui)
         });
         let gestures = shell.edits().take();
         assert_eq!(gestures.len(), 1, "{gestures:?}");
@@ -5098,8 +5134,8 @@ clearcoat_roughness = 0.07
             "click {} {}\nkey End\ntext more\nframe\nkey Escape\nframe\n",
             field.x, field.y
         );
-        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ctx| {
-            shell.ui(ctx)
+        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ui| {
+            shell.ui(ui)
         });
         assert!(shell.edits().is_empty());
         assert_eq!(shell.spans.rows[1].text, " draws");
@@ -5111,8 +5147,8 @@ clearcoat_roughness = 0.07
         let field = centre_of(&ctx, span_field(0));
         let size = Pos2::new(field.x, field.y + ROW_HEIGHT + GAP);
         let script = format!("drag {} {} {} {}\n", size.x, size.y, size.x + 40.0, size.y);
-        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ctx| {
-            shell.ui(ctx)
+        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ui| {
+            shell.ui(ui)
         });
         let gestures = shell.edits().take();
         assert_eq!(gestures.len(), 1, "{gestures:?}");
@@ -5150,8 +5186,8 @@ clearcoat_roughness = 0.07
         let ctx = Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
         let generation = viewer.follow().generation();
-        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ctx| {
-            shell.ui(ctx);
+        drive(&ctx, SIZE, &Script::parse(&script).unwrap(), |ui| {
+            shell.ui(ui);
             viewer.sync(&mut shell);
         });
         assert_eq!(viewer.follow().generation(), generation);
@@ -5220,8 +5256,8 @@ clearcoat_roughness = 0.07
         assert!(shell.document().path.is_empty());
         let ctx = Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
-        drive(&ctx, SIZE, &Script::parse("frame").unwrap(), |ctx| {
-            shell.ui(ctx)
+        drive(&ctx, SIZE, &Script::parse("frame").unwrap(), |ui| {
+            shell.ui(ui)
         });
         assert!(ctx.read_response(crate::open::field_id()).is_some());
         assert!(!shell.picker.shown());
@@ -5230,14 +5266,14 @@ clearcoat_roughness = 0.07
             &ctx,
             SIZE,
             &Script::parse("key ctrl+o\nframe").unwrap(),
-            |ctx| shell.ui(ctx),
+            |ui| shell.ui(ui),
         );
         assert!(shell.picker.shown());
         drive(
             &ctx,
             SIZE,
             &Script::parse("key Escape\nframe").unwrap(),
-            |ctx| shell.ui(ctx),
+            |ui| shell.ui(ui),
         );
         assert!(!shell.picker.shown());
         assert!(ctx.read_response(crate::open::field_id()).is_some());

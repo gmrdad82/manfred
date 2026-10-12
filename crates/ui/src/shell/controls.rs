@@ -124,7 +124,7 @@ fn recipe(name: &str) -> Bench {
 fn pass(shell: &mut Shell) -> Context {
     let ctx = Context::default();
     theme::apply_theme(&ctx, &theme::manfred());
-    drive(&ctx, SIZE, &Script::default(), |ctx| shell.ui(ctx));
+    drive(&ctx, SIZE, &Script::default(), |ui| shell.ui(ui));
     ctx
 }
 
@@ -225,8 +225,8 @@ fn scene(name: &str) -> Bench {
     let mut shell = Shell::open(&path.display().to_string());
     let ctx = Context::default();
     theme::apply_theme(&ctx, &theme::manfred());
-    drive(&ctx, SIZE, &Script::default(), |ctx| {
-        shell.ui(ctx);
+    drive(&ctx, SIZE, &Script::default(), |ui| {
+        shell.ui(ui);
         viewer.sync(&mut shell);
     });
     quiet_shots(&mut shell, &path);
@@ -378,15 +378,15 @@ fn probe((make, ready): (Make, Ready), name: &str, script: &str, focus: Option<P
         &ctx,
         SIZE,
         &Script::parse(&format!("frame\n{script}\nframe\nframe")).unwrap(),
-        |ctx| {
-            bench.shell.ui(ctx);
+        |ui| {
+            bench.shell.ui(ui);
             passes += 1;
             if passes == 2 {
                 if let Some(focus) = focus {
                     bench.shell.focus = focus;
                 }
-                ready(ctx);
-                before = Some(seen(&bench.shell, ctx, &path));
+                ready(ui.ctx());
+                before = Some(seen(&bench.shell, ui.ctx(), &path));
             }
         },
     );
@@ -454,8 +454,8 @@ fn centre_of(ctx: &Context, id: Id) -> Pos2 {
 fn run(shell: &mut Shell, script: &str) -> Context {
     let ctx = Context::default();
     theme::apply_theme(&ctx, &theme::manfred());
-    drive(&ctx, SIZE, &Script::parse(script).unwrap(), |ctx| {
-        shell.ui(ctx)
+    drive(&ctx, SIZE, &Script::parse(script).unwrap(), |ui| {
+        shell.ui(ui)
     });
     ctx
 }

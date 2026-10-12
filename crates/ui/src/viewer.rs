@@ -111,6 +111,7 @@ impl Drawing {
                     depth_stencil_attachment: None,
                     timestamp_writes: None,
                     occlusion_query_set: None,
+                    multiview_mask: None,
                 });
                 gpu.queue.submit([encoder.finish()]);
                 Ok(())
@@ -982,8 +983,8 @@ mod tests {
         let size = [1586, 992];
         let mut passes = 0;
         for _ in 0..12 {
-            drive(&ctx, size, &Script::default(), |ctx| {
-                shell.ui(ctx);
+            drive(&ctx, size, &Script::default(), |ui| {
+                shell.ui(ui);
                 viewer.stage(None, size);
                 viewer.sync(&mut shell);
                 passes += 1;
@@ -1083,9 +1084,9 @@ mod tests {
         shell: &mut Shell,
         viewer: &mut Viewer,
     ) {
-        drive(ctx, [800, 500], &Script::default(), |ctx| {
-            shell.ui(ctx);
-            viewer.frame(gpu, painter.renderer(), shell, ctx.pixels_per_point());
+        drive(ctx, [800, 500], &Script::default(), |ui| {
+            shell.ui(ui);
+            viewer.frame(gpu, painter.renderer(), shell, ui.ctx().pixels_per_point());
         });
     }
 
@@ -1318,25 +1319,29 @@ mod tests {
                 time: Some(self.time),
                 predicted_dt: 1.0 / 60.0,
                 focused: true,
-                modifiers,
-                events,
+                events: std::iter::once(egui::Event::ModifiersChanged(modifiers))
+                    .chain(events)
+                    .collect(),
                 ..egui::RawInput::default()
             };
             self.time += 1.0 / 60.0;
             let (shell, viewer) = (&mut self.shell, &mut self.viewer);
-            let _ = self.ctx.run(input, |ctx| {
-                shell.ui(ctx);
-                viewer.stage(None, WIDE);
-                viewer.point(shell);
-            });
+            self.ctx
+                .run_ui(input, |ui| {
+                    shell.ui(ui);
+                    viewer.stage(None, WIDE);
+                    viewer.point(shell);
+                })
+                .textures_delta
+                .clear();
         }
 
         fn script(&mut self, text: &str) {
             let ctx = egui::Context::default();
             theme::apply_theme(&ctx, &theme::manfred());
             let (shell, viewer) = (&mut self.shell, &mut self.viewer);
-            drive(&ctx, WIDE, &Script::parse(text).unwrap(), |ctx| {
-                shell.ui(ctx);
+            drive(&ctx, WIDE, &Script::parse(text).unwrap(), |ui| {
+                shell.ui(ui);
                 viewer.stage(None, WIDE);
                 viewer.point(shell);
             });
@@ -1636,7 +1641,7 @@ mod tests {
         let ctx = egui::Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
         let mut time = 0.0;
-        let mut textures = egui::TexturesDelta::default();
+        let textures = std::cell::RefCell::new(egui::TexturesDelta::default());
         let mut frame = |events: Vec<egui::Event>,
                          shell: &mut Shell,
                          viewer: &mut Viewer,
@@ -1653,12 +1658,13 @@ mod tests {
                 ..egui::RawInput::default()
             };
             time += 1.0 / 60.0;
-            let mut output = ctx.run(input, |ctx| {
-                shell.ui(ctx);
-                viewer.frame(&gpu, painter.renderer(), shell, ctx.pixels_per_point());
+            let mut output = ctx.run_ui(input, |ui| {
+                shell.ui(ui);
+                viewer.frame(&gpu, painter.renderer(), shell, ui.ctx().pixels_per_point());
             });
-            textures.append(std::mem::take(&mut output.textures_delta));
-            output.textures_delta = textures.clone();
+            textures
+                .borrow_mut()
+                .append(std::mem::take(&mut output.textures_delta));
             output
         };
         for _ in 0..3 {
@@ -1718,7 +1724,7 @@ mod tests {
             &gpu,
             &target.view,
             &screen,
-            &output.textures_delta,
+            &textures.borrow(),
             &primitives,
             theme::BG_BASE,
         );
@@ -1735,14 +1741,15 @@ mod tests {
             manfred_recipe::apply(&mut loaded, patch).unwrap();
         }
         manfred_recipe::save_to(&loaded, &root.join("tmp/gizmo-bench.toml")).unwrap();
+        textures.borrow_mut().clear();
         gpu_turn(since);
     }
 
     fn scene_pass(shell: &mut Shell, viewer: &mut Viewer, text: &str) {
         let ctx = egui::Context::default();
         theme::apply_theme(&ctx, &theme::manfred());
-        drive(&ctx, WIDE, &Script::parse(text).unwrap(), |ctx| {
-            shell.ui(ctx);
+        drive(&ctx, WIDE, &Script::parse(text).unwrap(), |ui| {
+            shell.ui(ui);
             viewer.stage(None, WIDE);
             viewer.sync(shell);
             viewer.point(shell);

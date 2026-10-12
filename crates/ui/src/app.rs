@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use egui::Context;
 use egui_wgpu::Renderer;
 use pfx_editor_shell::worker::Wake;
 use pfx_editor_shell::{App, Pgpu, Timing, Watch};
@@ -93,7 +92,7 @@ fn start(viewer: &mut Viewer, shell: &mut Shell, wake: &Wake) {
 }
 
 impl App for Manfred<'_> {
-    fn ui(&mut self, ctx: &Context) {
+    fn ui(&mut self, ui: &mut egui::Ui) {
         if self.wake.is_some()
             && let Some(viewer) = self.viewer.get_mut()
         {
@@ -104,7 +103,7 @@ impl App for Manfred<'_> {
                 self.shell.set_timing_drops(viewer.timing_drops());
             }
         }
-        self.shell.ui(ctx);
+        self.shell.ui(ui);
     }
 
     fn viewport(&self) -> bool {
@@ -238,10 +237,10 @@ mod tests {
         assert_eq!(app.watched().every, follow::EVERY);
         assert!(!app.opened());
         let script = format!("key ctrl+o\ntext {}\nkey Enter\nframe", second.display());
-        let ctx = Context::default();
+        let ctx = egui::Context::default();
         crate::theme::apply_theme(&ctx, &crate::theme::manfred());
-        drive(&ctx, [1586, 992], &Script::parse(&script).unwrap(), |ctx| {
-            app.ui(ctx)
+        drive(&ctx, [1586, 992], &Script::parse(&script).unwrap(), |ui| {
+            app.ui(ui)
         });
         assert!(app.opened());
         assert!(!app.opened());
