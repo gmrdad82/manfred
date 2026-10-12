@@ -2,6 +2,16 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v0.19.4 — 2026-10-12
+
+### Added
+
+- A recipe's `[trace]` takes `spp`, `threshold` and `min_samples`, the adaptive sampling `manfred render` uses for it; `--spp`, `--threshold` and `--min-samples` still override them, and `--draft` ignores them.
+
+### Changed
+
+- The pfx crates move to a revision whose tracer splits a dense band of the frame into column pieces instead of dropping to one lane, so 4K frames with large busy areas trace several times faster. The traced pixels are unchanged.
+
 ## v0.19.3 — 2026-10-12
 
 ### Changed
