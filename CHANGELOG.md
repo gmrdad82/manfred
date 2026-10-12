@@ -2,6 +2,17 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v0.19.5 — 2026-10-12
+
+### Added
+
+- `manfred render --crop` writes a `.png` or `--master` through a finish with bloom and vignette: it traces and finishes a margin around the rectangle (the bloom's reach, aligned to its 2×2 blocks), lays the vignette by the full frame's coordinates, then cuts the rectangle out. A frame whose sides are odd, overlay text, grain, a film dither and outlines are still refused for a `.png` or master crop.
+- `--denoise on` denoises an `.exr` or `.hdr` too, a crop included; without it they stay the raw trace, as before.
+
+### Changed
+
+- A denoised crop's traced window is aligned to 16 pixels of the full frame, the denoiser's pooling grid. Measured on the showcase hero at 3840x2160, two 640x400 crops against the full frame's `.png`: mean 0.04 and 0.03 levels, p99 1 level, at most 2 at the defaults; mean 0.07 at most with `--draft`. With `--denoise off` a finished crop equals the full frame. Full frames render exactly as in v0.19.4.
+
 ## v0.19.4 — 2026-10-12
 
 ### Added
