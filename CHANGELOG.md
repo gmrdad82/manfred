@@ -10,6 +10,7 @@ Every release of Manfred, newest first. Earlier versions were developed privatel
 - A denoised crop grows by 96 pixels around the rectangle, the new denoiser's reach; it matches the full frame closely rather than bit for bit, and `--denoise off`, `.exr` and `.hdr` crops stay exact.
 - `manfred clip --trace` keeps one denoiser across its frames.
 - The pfx crates move to pfx 0.26.0's revision.
+- Measured on an RX 9060 XT, release build, the showcase workshop's hero camera at 3840x2160 with the GPU to itself: a final at the defaults in 39.5 s end to end (37.4 s on the GPU, 118.3 samples a pixel on average), from 57.4 s in v0.19.2; a draft in 6.5 s (5.1 s on the GPU), from about 12 s.
 
 ## v0.19.2 — 2026-10-12
 
