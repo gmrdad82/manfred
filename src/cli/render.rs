@@ -74,7 +74,7 @@ pub(super) struct Args {
         alias = "samples",
         value_name = "N",
         value_parser = clap::value_parser!(u32).range(1..),
-        help = "Samples per pixel, the most any pixel takes [default: the recipe's trace.spp, else 128]"
+        help = "Samples per pixel, the most any pixel takes [default: the recipe's trace.spp, else 64]"
     )]
     samples: Option<u32>,
     #[arg(
@@ -587,9 +587,9 @@ mod tests {
     }
 
     #[test]
-    fn the_defaults_are_adaptive_to_128_samples_and_the_frame_or_a_two_to_one_sphere() {
+    fn the_defaults_are_adaptive_to_64_samples_and_the_frame_or_a_two_to_one_sphere() {
         let args = parse(&strings("a.toml --out a.png --camera main")).unwrap();
-        assert_eq!(args.samples(), 128);
+        assert_eq!(args.samples(), 64);
         assert_eq!(
             args.noise(),
             Some(Noise {
@@ -598,12 +598,12 @@ mod tests {
             })
         );
         let draft = parse(&strings("a.toml --out a.png --camera main --draft")).unwrap();
-        assert_eq!(draft.samples(), 16);
+        assert_eq!(draft.samples(), 12);
         assert_eq!(
             draft.noise(),
             Some(Noise {
                 threshold: 0.05,
-                min_samples: 8
+                min_samples: 6
             })
         );
         assert!(

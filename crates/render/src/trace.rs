@@ -9,13 +9,14 @@ use pfx_gpu::Gpu;
 use pfx_gpu::pace::{Pacer, Stats};
 use pfx_post::Chain;
 use pfx_trace::sky::Environment;
+use pfx_trace::sobol::Sampler;
 use pfx_trace::stage::Staged;
 use pfx_trace::{Adaptive, Round, Trace, TraceError};
 use std::cell::RefCell;
 use std::fmt;
 use std::path::Path;
 
-pub const SAMPLES: u32 = 128;
+pub const SAMPLES: u32 = 64;
 pub const SIZE: [u32; 2] = [1586, 992];
 pub const EQUIRECT_SIZE: [u32; 2] = [2048, 1024];
 pub const NOISE: Noise = Noise {
@@ -23,10 +24,10 @@ pub const NOISE: Noise = Noise {
     min_samples: 16,
 };
 pub const DRAFT: (u32, Noise) = (
-    16,
+    12,
     Noise {
         threshold: 0.05,
-        min_samples: 8,
+        min_samples: 6,
     },
 );
 const GROWTH: f32 = 1.5;
@@ -377,7 +378,10 @@ pub fn render(
         }
         _ => Reach::NONE,
     };
-    let staged = staging.stage(eyepiece(camera, request.view, request.size)?)?;
+    let mut staged = staging.stage(eyepiece(camera, request.view, request.size)?)?;
+    staged.detail.sampler = Sampler::Sobol {
+        samples: request.samples,
+    };
     turn(Report::default());
     let adaptive = request
         .noise
@@ -496,7 +500,8 @@ impl Reel {
         }
         progress(Step::Stage);
         let mut turn = turn_reporting;
-        let staged = self.staging.stage(eyepiece(camera, View::Lens, size)?)?;
+        let mut staged = self.staging.stage(eyepiece(camera, View::Lens, size)?)?;
+        staged.detail.sampler = Sampler::Sobol { samples };
         turn(Report::default());
         if self.denoiser.is_none() {
             self.denoiser = Some(denoiser(&self.gpu)?);
