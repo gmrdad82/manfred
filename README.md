@@ -18,7 +18,7 @@ You describe a scene in a TOML recipe: its objects and how they are built, where
 
 The window on `showcase/workshop.toml`: pick a part in the outliner or the viewport, move it with the gizmo or the panels, and the change lands in the recipe file.
 
-It is for people and AI agents who build 3D scenes as text: a game's set dressing, product shots, app icons and cards. Recipes diff and review like code, so a scene can live in a repository next to the program that uses it. It is not a modeller: there is no sculpting and no hand mesh editing. Meshes come from Manfred's primitives and 2.5D outlines, or from generators an app writes in Rust and registers through the `manfred` library ([docs/apps.md](docs/apps.md)).
+It is for people and AI agents alike, made with agentic development in mind: building 3D scenes as text (a game's set dressing, product shots, app icons and cards). Recipes diff and review like code, so a scene can live in a repository next to the program that uses it. It is not a modeller: there is no sculpting and no hand mesh editing. Meshes come from Manfred's primitives and 2.5D outlines, or from generators an app writes in Rust and registers through the `manfred` library ([docs/apps.md](docs/apps.md)).
 
 Manfred is built on [pfx](https://github.com/gmrdad82/pfx), and runs on Linux with a Vulkan GPU; the window needs Wayland.
 
