@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/gmrdad82/manfred/actions/workflows/ci.yml/badge.svg)](https://github.com/gmrdad82/manfred/actions/workflows/ci.yml) [![Version](https://img.shields.io/github/v/tag/gmrdad82/manfred)](https://github.com/gmrdad82/manfred/tags)
 
-Manfred is a lighter Blender, part of [PITO](https://pitomd.com): scenes as recipes, GLB headless, a live window, path-traced stills, and all of it plain data.
+Manfred is a lighter Blender, part of [PITO MD](https://pitomd.com): scenes as recipes, GLB headless, a live window, path-traced stills, and all of it plain data.
 
 <p align="center"><img src="docs/images/hero.png" width="800" alt="A path-traced still life on a blueprint-blue backdrop under a low warm sun: a blue lacquer case with a glowing manfred = 1 display and an amber knob in a brass-rimmed pocket, its cable curling to a gold ring, a chrome ball, an amber capsule, a cream porcelain vase on an oak plinth, a wine glass, and a paper note reading hero.toml, all casting long shadows across the backdrop."></p>
 
@@ -169,4 +169,4 @@ Issues and pull requests are welcome. Please read the [code of conduct](CODE_OF_
 
 ## Licence
 
-The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The Manfred and PITO names and their logos are © Catalin Ilinca, all rights reserved, and are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)). The bundled JetBrains Mono Nerd Font is under the SIL Open Font License ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).
+The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The Manfred and PITO MD names and their logos are © Catalin Ilinca, all rights reserved, and are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)). The bundled JetBrains Mono Nerd Font is under the SIL Open Font License ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).
