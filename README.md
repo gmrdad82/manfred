@@ -263,4 +263,6 @@ Issues and pull requests are welcome. Please read the [code of conduct](CODE_OF_
 
 ## Licence
 
+<img src="assets/marks/lockup.svg" width="320" alt="Manfred, the dog mark and the Manfred wordmark">
+
 The code is MIT licensed ([LICENSE](LICENSE)), © Catalin Ilinca. The Manfred and PITO MD names and their logos are © Catalin Ilinca, all rights reserved, and are not covered by the MIT licence ([TRADEMARKS.md](TRADEMARKS.md)). The bundled JetBrains Mono Nerd Font is under the SIL Open Font License ([assets/fonts/OFL.txt](assets/fonts/OFL.txt)).

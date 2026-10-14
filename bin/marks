@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+assets="${PITO_ASSETS:?PITO_ASSETS names the checkout of the PITO MD brand masters}"
+rev=df8903f179657cb36ca89268a37383e1ecb967be
+mkdir -p assets/marks .github
+for file in manfred.svg wordmark.svg lockup.svg manfred-icon.png; do
+  git -C "$assets" show "$rev:exports/manfred/assets/marks/$file" > "assets/marks/$file"
+done
+git -C "$assets" show "$rev:exports/manfred/.github/icon.png" > .github/icon.png
