@@ -2,6 +2,16 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v1.0.1 — 2026-10-14
+
+### Added
+
+- Each release now carries `docs-vX.Y.Z.tar.gz`, Manfred's section of the PITO MD docs site: an overview, install, seven guides (a first scene, building GLBs, the window, path-traced stills, camera clips, filming the window headless, an app's own generators), the file formats, the command line, the recipe schema, this changelog and the API reference.
+
+### Fixed
+
+- `manfred render --help` now gives the draft's real settings, 12 samples at most and 6 first; it still said 16 and 8 after 0.19.8 lowered them.
+
 ## v1.0.0 — 2026-10-14
 
 Manfred 1.0.0: the same scene tool as 0.19.8, now with a prebuilt Linux binary and a README that shows what it does.
