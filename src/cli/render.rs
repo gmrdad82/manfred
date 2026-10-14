@@ -94,7 +94,7 @@ pub(super) struct Args {
     #[arg(
         long,
         conflicts_with_all = ["samples", "threshold", "min_samples"],
-        help = "A quick look: 16 spp at most, threshold 0.05, 8 samples first"
+        help = "A quick look: 12 spp at most, threshold 0.05, 6 samples first"
     )]
     draft: bool,
     #[arg(

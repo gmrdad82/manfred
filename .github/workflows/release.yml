@@ -42,10 +42,14 @@ jobs:
           cp target/release/manfred LICENSE NOTICE README.md dist/pack/
           cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt dist/pack/licenses/
           tar -czf "dist/$NAME" -C dist/pack manfred LICENSE NOTICE README.md licenses
+      - name: docs bundle
+        run: bin/docs-bundle --bin target/release/manfred --out dist
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: linux-x86_64
-          path: dist/${{ env.NAME }}
+          path: |
+            dist/${{ env.NAME }}
+            dist/docs-${{ env.TAG }}.tar.gz
           if-no-files-found: error
           retention-days: 1
 
@@ -70,7 +74,7 @@ jobs:
           merge-multiple: true
       - name: checksums
         working-directory: dist
-        run: sha256sum manfred-* > SHA256SUMS && cat SHA256SUMS
+        run: sha256sum manfred-* docs-* > SHA256SUMS && cat SHA256SUMS
       - name: notes from the changelog
         run: |
           awk -v version="${TAG#v}" '

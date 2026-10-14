@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+usage() {
+  echo "usage: bin/docs-bundle [--bin <manfred>] [--out <dir>]" >&2
+  exit 2
+}
+bin=target/release/manfred
+out=dist
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --bin) [ $# -ge 2 ] || usage; bin=$2; shift 2 ;;
+    --out) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
+    *) usage ;;
+  esac
+done
+fail() {
+  echo "bin/docs-bundle: $*" >&2
+  exit 1
+}
+[ -x "$bin" ] || fail "no manfred binary at $bin; build it with cargo build --release, or pass --bin"
+version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+tag="v$version"
+[ "$(NO_COLOR=1 "$bin" --version)" = "manfred $version" ] || fail "$bin is not manfred $version"
+
+stage=target/docs-bundle
+docs="$stage/docs"
+rm -rf "$stage"
+mkdir -p "$docs/reference" "$docs/images"
+cp -R docs/site/. "$docs/"
+
+front() {
+  printf -- '---\ntitle: %s\ndescription: %s\nsidebar:\n  order: %s\n---\n\n' "$1" "$2" "$3"
+}
+
+help_of() {
+  printf '```text\n'
+  NO_COLOR=1 "$bin" "$@" --help
+  printf '```\n'
+}
+
+commands=$(NO_COLOR=1 "$bin" --help | awk '/^Commands:/ { on = 1; next } on && /^$/ { exit } on && $1 != "help" { print $1 }')
+{
+  front "Command line" "Every manfred command and flag, as its built-in help prints it." 1
+  cat <<EOF
+Generated from the help of \`manfred $version\`. \`manfred help <command>\` prints the same in a terminal.
+
+A line Manfred cannot parse gets clap's short error on stderr and exits 2; a recipe, camera or file it refuses after that is one line on stderr, \`manfred <command>: …\`, and exits 1.
+
+## manfred
+
+EOF
+  help_of
+  for command in $commands; do
+    printf '\n## manfred %s\n\n' "$command"
+    help_of "$command"
+  done
+} > "$docs/reference/cli.md"
+
+{
+  front "The recipe" "The recipe schema, every table and key: objects, includes, cameras and their paths, sun, sky, lights, variants, look, trace, sidecar and bake." 2
+  sed '1{/^# /d}' docs/recipe.md | sed '1{/^$/d}'
+} > "$docs/reference/recipe.md"
+
+{
+  front "Changelog" "Every release of Manfred, newest first." 99
+  sed '1{/^# /d}' CHANGELOG.md | sed '1{/^$/d}'
+} > "$docs/changelog.md"
+
+find "$docs" -name '*.md' -exec sed -i "s#github.com/gmrdad82/manfred/blob/main/#github.com/gmrdad82/manfred/blob/$tag/#g" {} +
+
+rm -rf target/doc
+cargo doc --workspace --no-deps --lib --locked
+cp -R target/doc "$docs/api"
+rm -f "$docs/api/.lock"
+printf '<!doctype html>\n<meta charset="utf-8">\n<title>Manfred API</title>\n<meta http-equiv="refresh" content="0; url=manfred/index.html">\n<a href="manfred/index.html">manfred</a>\n' > "$docs/api/index.html"
+
+while IFS= read -r image; do
+  [ -f "docs/images/$image" ] || fail "a page shows images/$image, which docs/images does not hold"
+  grep -q "docs/images/$image" NOTICE || fail "docs/images/$image is not named in NOTICE"
+  cp "docs/images/$image" "$docs/images/"
+done < <(grep -rhoE '\]\(([.][.]/)*images/[A-Za-z0-9._-]+\)' "$docs" --include='*.md' | sed -E 's#.*images/([^)]+)\)#\1#' | sort -u)
+
+problems=0
+while IFS= read -r page; do
+  rel=${page#"$docs"/}
+  head -1 "$page" | grep -qx -- '---' || { echo "bin/docs-bundle: $rel has no frontmatter" >&2; problems=1; }
+  for key in 'title:' 'description:' '  order:'; do
+    sed -n '2,/^---$/p' "$page" | grep -q "^$key" || { echo "bin/docs-bundle: $rel has no ${key% *}" >&2; problems=1; }
+  done
+  if grep -nE '/home/|/Users/|\.dev/|prompts/RESUME' "$page" >&2; then
+    echo "bin/docs-bundle: $rel names a local or private path" >&2
+    problems=1
+  fi
+  dir=$(dirname "$rel")
+  case "$rel" in
+    index.md) url="" ;;
+    */index.md) url="$dir/" ;;
+    *) url="${rel%.md}/" ;;
+  esac
+  while IFS= read -r link; do
+    target=${link#*](}
+    target=${target%)}
+    target=${target%%#*}
+    case "$target" in
+      http://* | https://* | mailto:* | "") continue ;;
+    esac
+    if [ "${link:0:1}" = "!" ]; then
+      base="$dir/"
+      [ "$dir" = . ] && base=""
+    else
+      base=$url
+    fi
+    resolved=$(realpath -m "/r/$base$target")
+    resolved=${resolved#/r}
+    resolved=${resolved#/}
+    resolved=${resolved%/}
+    if [ -z "$resolved" ] || [ -f "$docs/$resolved.md" ] || [ -f "$docs/$resolved/index.md" ] || [ -f "$docs/$resolved" ]; then
+      continue
+    fi
+    echo "bin/docs-bundle: $rel links to $target, which is no page or file of the bundle" >&2
+    problems=1
+  done < <(grep -oE '!?\[[^]]*\]\([^) ]+\)' "$page" || true)
+done < <(find "$docs" -name '*.md' -not -path "$docs/api/*" | sort)
+[ "$problems" = 0 ] || exit 1
+
+mkdir -p "$out"
+bundle="$out/docs-$tag.tar.gz"
+tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner -C "$stage" -cf - docs | gzip -n > "$bundle"
+echo "$bundle"
