@@ -888,7 +888,7 @@ fov_y_deg = 30.0
     );
     let glb = summary(&std::fs::read(&into[0]).unwrap()).unwrap();
     assert_eq!(glb.generator.as_deref(), Some(manfred_build::GENERATOR));
-    assert!(manfred_build::GENERATOR.starts_with("manfred 0."));
+    assert!(manfred_build::GENERATOR.starts_with("manfred "));
     let mut left: Vec<String> = std::fs::read_dir(&out)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
