@@ -1,0 +1,32 @@
+title = "MANFRED 0.19.8, MILLISECONDS"
+unit = "WALL CLOCK OF THE WHOLE COMMAND"
+better = "lower"
+subtitle = "RYZEN 9 9950X, RADEON RX 9060 XT, LINUX"
+date = "2026-10-14"
+suffix = " MS"
+decimals = 0
+notes = ["HEADLESS: MEDIAN OF 5. GPU: BEST OF 3, EACH ITS OWN PGPU BENCH JOB.", "4K: SHOWCASE/WORKSHOP.TOML'S HERO CAMERA, DENOISED, FROM THE 0.19.8 RELEASE BENCH (2026-10-12)."]
+
+[[parties]]
+name = "MANFRED"
+
+[[groups]]
+name = "RECIPE TO GLB, HEADLESS"
+rows = [
+  { label = "WORKSHOP.TOML", values = [29] },
+  { label = "HERO.TOML", values = [82] },
+]
+
+[[groups]]
+name = "LIVE RENDERER"
+rows = [
+  { label = "WINDOW TO FIRST FRAME", values = [875] },
+  { label = "1080P STILL", values = [1047] },
+]
+
+[[groups]]
+name = "PATH-TRACED 4K"
+rows = [
+  { label = "DRAFT, 12 SAMPLES", values = [2900] },
+  { label = "FINAL, 64 SAMPLES", values = [7500] },
+]

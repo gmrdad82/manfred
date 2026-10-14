@@ -1,0 +1,19 @@
+title = "INSTALLED SIZE ON LINUX"
+unit = "MEGABYTES"
+better = "lower"
+subtitle = "MANFRED 0.19.8 AGAINST BLENDER 5.2.2 LINUX X64"
+date = "2026-10-14"
+suffix = " MB"
+decimals = 1
+words = { better = "SMALLER", worse = "LARGER", same = "SAME SIZE" }
+notes = ["MANFRED: ONE BINARY. BLENDER: 5,593 FILES FROM A 383.3 MB TAR.XZ."]
+
+[[parties]]
+name = "MANFRED"
+
+[[parties]]
+name = "BLENDER"
+
+[[groups]]
+name = "ON DISK"
+rows = [{ label = "INSTALLED", values = [39.8, 1236.5] }]

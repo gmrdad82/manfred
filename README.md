@@ -4,31 +4,117 @@
 
 [![CI](https://github.com/gmrdad82/manfred/actions/workflows/ci.yml/badge.svg)](https://github.com/gmrdad82/manfred/actions/workflows/ci.yml) [![Version](https://img.shields.io/github/v/tag/gmrdad82/manfred)](https://github.com/gmrdad82/manfred/tags)
 
-Manfred is a lighter Blender, part of [PITO MD](https://pitomd.com): scenes as recipes, GLB headless, a live window, path-traced stills, and all of it plain data.
+Manfred is a lighter Blender, part of [PITO MD](https://pitomd.com): 3D scenes written as TOML recipes, built into GLB headless, arranged and lit in a live window, and path-traced into stills and clips on the GPU. No Blender anywhere: one 39.8 MB binary does it all.
+
+- **31× smaller than Blender:** 39.8 MB, one file, against Blender 5.2.2's 1,236.5 MB in 5,593 files.
+- **Recipe to GLB in 29 ms:** `showcase/workshop.toml`, 19 objects, 13 MB of memory at most, the same bytes on every run.
+- **Window to first frame in 0.88 s,** the workshop scene loaded, built and drawn.
+- **A 4K path-traced final in 7.5 s,** adaptive to 64 samples and denoised; a 4K draft in 2.9 s.
+
+Every number is measured on a Ryzen 9 9950X with a Radeon RX 9060 XT on Linux; [Speed and size](#speed-and-size) says how.
 
 <p align="center"><img src="docs/images/hero.png" width="800" alt="A path-traced still life on a blueprint-blue backdrop under a low warm sun: a blue lacquer case with a glowing manfred = 1 display and an amber knob in a brass-rimmed pocket, its cable curling to a gold ring, a chrome ball, an amber capsule, a cream porcelain vase on an oak plinth, a wine glass, and a paper note reading hero.toml, all casting long shadows across the backdrop."></p>
 
-Rendered by Manfred from `showcase/hero.toml`.
+Rendered by Manfred from [`showcase/hero.toml`](showcase/hero.toml), 314 lines of TOML.
 
-## What it is
+## What it does
 
-You describe a scene in a TOML recipe: its objects and how they are built, where they sit, the cameras, lights, sky, text and materials. `manfred build` turns the recipe, headless and byte for byte the same every time, into a GLB and a JSON sidecar a game or app can load. `manfred gui` shows the same recipe live in a window where you look around, arrange, light and render, and every edit you make goes back into the recipe, keeping its comments and formatting. `manfred render` path-traces a still on the GPU.
+You describe a scene in a TOML recipe: its objects and how they are built, where they sit, the cameras, lights, sky, text and materials. Manfred builds it, shows it, lets you arrange it, and renders it, and the recipe stays the one source of truth. It is for people and AI agents alike, made with agentic development in mind: building 3D scenes as text (a game's set dressing, product shots, app icons and cards). Recipes diff and review like code, so a scene can live in a repository next to the program that uses it.
 
-<p align="center"><img src="docs/images/window.png" width="800" alt="Manfred's window on showcase/workshop.toml: an outliner listing the scene's nineteen objects and their materials, panels for the four cameras and for the daylight, sky and lamp with an hour slider, a live viewport of a teal case, a vase, a glass jar, a brass ring, a mirror ball and a cable on an oak workbench with the bench top's move gizmo, the selection's properties, a render panel, and a status bar of key hints."></p>
+It is not a modeller: there is no sculpting and no hand mesh editing. Meshes come from Manfred's primitives (bevelled boxes, spheres, cylinders, tori, capsules, lathes, sweeps, pockets, cards and 3D text), from 2.5D outlines, or from generators an app writes in Rust.
 
-The window on `showcase/workshop.toml`: pick a part in the outliner or the viewport, move it with the gizmo or the panels, and the change lands in the recipe file.
+### Recipes to GLB, headless
 
-It is for people and AI agents alike, made with agentic development in mind: building 3D scenes as text (a game's set dressing, product shots, app icons and cards). Recipes diff and review like code, so a scene can live in a repository next to the program that uses it. It is not a modeller: there is no sculpting and no hand mesh editing. Meshes come from Manfred's primitives and 2.5D outlines, or from generators an app writes in Rust and registers through the `manfred` library ([docs/apps.md](docs/apps.md)).
+<p align="center"><img src="docs/images/build.gif" width="800" alt="A terminal: head shows the start of desk.toml, a recipe with an output table, a plane named top and a bevelled box; manfred check desk.toml prints valid; manfred build desk.toml --out out writes out/desk.glb and out/desk.json; a second build into again/ and sha256sum show the two GLBs with the same hash."></p>
 
-Manfred is built on [pfx](https://github.com/gmrdad82/pfx), and runs on Linux with a Vulkan GPU; the window needs Wayland.
+`manfred build` turns a recipe into a GLB and a JSON sidecar a game or app can load, with no window and no GPU, in milliseconds: 29 ms for the 19-object workshop, 82 ms for the hero scene. The build is deterministic, so the same recipe gives the same bytes on any machine, and a changed GLB in a diff is a changed scene. `manfred check` lists a recipe's problems at their line, and `manfred diff` compares two GLBs by structure, or draws both alike and compares them by PSNR.
+
+### Arrange it in a live window
+
+<p align="center"><img src="docs/images/edit.gif" width="800" alt="Manfred's window on showcase/workshop.toml: a click picks the mirror ball and its move gizmo slides it along x across the workbench; a click picks the vase and its material list makes it brass; Ctrl+Z twice puts the vase's glaze and the ball's place back."></p>
+
+`manfred gui` opens the same recipe in a window drawn by the engine's live renderer, in 0.88 s from launch to the first frame. Pick a part in the viewport or the outliner, move, rotate and scale it with the gizmo or the panels, give it another material, set a camera from the view, and scrub the hour of the day to move the sun. Every edit is written straight back into the recipe file, keeping its comments and formatting, and Ctrl+Z puts it back.
+
+### Path-traced stills
+
+<p align="center"><img src="docs/images/render.gif" width="800" alt="Manfred's window on showcase/hero.toml: the Render button in the render panel path-traces the hero camera, and the finished render, a still life of a blue case, a porcelain vase, a wine glass and a chrome ball under a low sun, fills the viewport."></p>
+
+`manfred render` path-traces a still on the GPU with the engine's tracer (hardware ray queries, adaptive sampling, a port of Intel Open Image Denoise), headless or from the window's Render button. On the RX 9060 XT a 4K final of the workshop's hero camera takes 7.5 s, adaptive to 64 samples a pixel and denoised, and a 4K draft takes 2.9 s. It writes PNG, EXR or HDR, renders a crop of a bigger frame, and takes equirectangular and orthographic cameras.
+
+### Camera clips
+
+<p align="center"><img src="docs/images/orbit.gif" width="800" alt="A path-traced orbit around showcase/workshop.toml: the camera circles the workbench once, past the teal case, the vase, the glass jar and the mirror ball, with the window's striped light on the wall."></p>
+
+A camera with a path (an orbit, or keyframes) turns into frames and a video with `manfred clip`, live or path-traced. The orbit above is 180 frames of the workshop traced at 32 samples a pixel. `manfred gui --clip` films the window itself playing a tape of clicks, keys and waits, frame by frame and byte for byte the same on every run: every window clip on this page is one of [showcase/](showcase/)'s tapes.
+
+### Your app's own generators
+
+An app links the `manfred` library into a small build binary of its own and registers what only it knows: generators that make meshes, the sidecar its loader reads, and its material catalogue. That binary is `manfred` with the app's names added ([docs/apps.md](docs/apps.md), [examples/app_build.rs](examples/app_build.rs)):
+
+```rust
+fn cube(call: &Call) -> Result<Vec<Piece>, String> {
+    let name = call.params.get("name").and_then(|v| v.as_str()).ok_or("wants a `name`")?;
+    let mut mesh = rounded_box([1.0; 3], 0.0, 1);
+    mesh.set_material("cube");
+    Ok(vec![Piece { name: name.to_string(), mesh }])
+}
+
+fn main() -> ExitCode {
+    let mut registry = Registry::new();
+    registry.register("app/cube", cube);
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    manfred::cli::main(&args, &registry)
+}
+```
+
+A recipe then asks for it with `kind = "generator"`, `generator = "app/cube"` and its `params`.
+
+## Speed and size
+
+<p align="center"><img src="docs/images/speed.png" width="640" alt="Single bars, milliseconds, lower is better, Manfred 0.19.8 on a Ryzen 9 9950X with a Radeon RX 9060 XT: recipe to GLB 29 ms for workshop.toml and 82 ms for hero.toml; window to first frame 875 ms and a 1080p live still 1047 ms; path-traced 4K draft at 12 samples 2900 ms and final at 64 samples 7500 ms."></p>
+
+<p align="center"><img src="docs/images/size.png" width="640" alt="Paired bars, installed size on Linux in megabytes, lower is better: Manfred 0.19.8 39.8 MB against Blender 5.2.2 1236.5 MB, 31 times smaller; Blender is 5,593 files from a 383.3 MB tar.xz."></p>
+
+| What | Number | How it was measured |
+| --- | --- | --- |
+| Binary | 39.8 MB, one file | the 0.19.8 release build (LTO, debug info stripped), as installed |
+| Blender 5.2.2 | 1,236.5 MB in 5,593 files | `blender-5.2.2-linux-x64.tar.xz` (383.3 MB) from download.blender.org, unpacked |
+| Recipe to GLB | 29 ms (workshop, 19 objects), 82 ms (hero, 18 objects) | `manfred build`, whole command, median of 5 runs |
+| Peak memory of a build | 13 MB (workshop), 22 MB (hero) | the same runs' maximum resident set |
+| Window to first frame | 875 ms | `manfred gui showcase/workshop.toml --shot`, offscreen at 1586x992, whole command, best of 3 |
+| A live 1080p still | 1,047 ms | `manfred shot showcase/workshop.toml --camera hero --size 1920x1080`, whole command, best of 3 |
+| 4K path-traced final | 7.5 s wall, 6.1 s on the GPU | the workshop's hero camera at 3840x2160, adaptive to 64 samples (59.9 a pixel on average), denoised, best of 3 |
+| 4K path-traced draft | 2.9 s wall, 1.5 s on the GPU | the same with `--draft`, adaptive to 12 samples (11.5 on average) |
+| Code | 68,563 lines of Rust in 158 files, tests included | non-blank lines in the repository |
+| Dependencies | pfx, its engine, and 16 maintained crates | direct dependencies of the workspace (clap, serde, serde_json, toml, toml_edit, egui, egui-wgpu, glam, gltf, gltf-json, png, exr, half, zune-jpeg, ttf-parser, i_overlay); 308 crates in the whole build |
+
+The machine is a Ryzen 9 9950X with a Radeon RX 9060 XT (RADV) on Linux. GPU commands ran as their own job in the `pgpu` queue, so no other job shared the card; the 4K renders are the 0.19.8 release's speed budgets of 2026-10-12, and the rest was measured on 2026-10-14. The charts are drawn by [pito-compare](https://github.com/gmrdad82/pito-compare) from [docs/charts/](docs/charts/). Manfred runs only on Linux today, so no other GPU or OS is measured.
 
 ## Install
+
+Manfred runs on Linux (x86_64) with a Vulkan GPU, and its window needs Wayland. It is built on [pfx](https://github.com/gmrdad82/pfx), and Windows and macOS are not supported today. Each [release](https://github.com/gmrdad82/manfred/releases/latest) carries a Linux binary with a `SHA256SUMS` file; it needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and later).
+
+```
+v=$(basename "$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/gmrdad82/manfred/releases/latest)")
+mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-linux-x86_64.tar.gz" | tar -xz -C ~/.local/bin manfred
+```
+
+`~/.local/bin` needs to be on your `PATH`. Then, in 30 seconds:
+
+```
+manfred gui                                               the window, on Manfred's own mark; Ctrl+O opens a recipe
+git clone --depth 1 https://github.com/gmrdad82/manfred && cd manfred
+manfred gui showcase/workshop.toml                        the workshop, live
+manfred render showcase/hero.toml --camera hero --draft --out hero.png
+```
+
+**From source,** with Rust 1.97 or newer, `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu):
 
 ```
 cargo install --locked --git https://github.com/gmrdad82/manfred --tag vX.Y.Z manfred
 ```
 
-Replace `vX.Y.Z` with a [release](https://github.com/gmrdad82/manfred/releases) tag. Building needs Rust 1.97 or newer, `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu).
+Replace `vX.Y.Z` with a [release](https://github.com/gmrdad82/manfred/releases) tag.
 
 Manfred can use three optional command-line tools when they are on the `PATH`, and works without them:
 
@@ -117,8 +203,6 @@ manfred gui desk.toml                                           opens the window
 
 <p align="center"><img src="docs/images/start.png" width="800" alt="Manfred's window on its start scene: the amber line-art badge of a Jack Russell's head on a dark blue tile and the extruded word Manfred beside it, selected together under their parent with a move gizmo, over a floor grid with its axes."></p>
 
-A camera with a path turns into frames and a video with `manfred clip`, and `manfred gui --clip` films the window itself playing a tape of clicks, keys and waits: the clip at the top of this page is `showcase/tour.tape` ([docs/editing.md](docs/editing.md), "Clips of the window").
-
 [docs/recipe.md](docs/recipe.md) is the whole schema, and [showcase/](showcase/README.md) has bigger scenes to open and render.
 
 ## Commands
@@ -150,6 +234,16 @@ manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> [--size WxH] [--fps 3
 - [docs/recipe.md](docs/recipe.md): the recipe schema.
 - [docs/apps.md](docs/apps.md): linking the `manfred` library from an app's own build binary, with its generators, sidecar writer and materials.
 - [docs/render.md](docs/render.md), [docs/cameras.md](docs/cameras.md), [docs/editing.md](docs/editing.md), [docs/theme.md](docs/theme.md): rendering, cameras, editing in the window, and the look.
+
+## Part of PITO MD
+
+Manfred is one of [PITO MD](https://pitomd.com)'s open tools, and works with its siblings:
+
+- [pfx](https://github.com/gmrdad82/pfx), the game and render engine Manfred is built on: its live renderer draws the window, its tracer renders the stills, and a game loads the GLBs Manfred builds.
+- [pfx-scene](https://github.com/gmrdad82/pfx-scene), the engine's scene format, which the window opens and reloads as it is saved.
+- [pgpu](https://github.com/gmrdad82/pgpu), the GPU queue renders and clips wait their turn on.
+- [pconv](https://github.com/gmrdad82/pconv), which encodes `manfred clip`'s videos and made this page's GIFs.
+- [prec](https://github.com/gmrdad82/prec), which recorded the terminal clip, and [pito-compare](https://github.com/gmrdad82/pito-compare), which drew the charts.
 
 ## Build and test
 
