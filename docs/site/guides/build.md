@@ -1,6 +1,6 @@
 ---
-title: Build GLBs from recipes
-description: Build a recipe, its variants and one-off overrides into GLB and sidecar files, and compare two builds.
+title: "Build GLBs from recipes"
+description: "Build a recipe, its variants and one-off overrides into GLB and sidecar files, and compare two builds."
 sidebar:
   order: 2
 ---

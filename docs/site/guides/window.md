@@ -1,6 +1,6 @@
 ---
-title: Arrange a scene in the window
-description: Open a recipe in Manfred's window, pick and move parts, change materials, set cameras and scrub the sun, with every edit written back into the recipe.
+title: "Arrange a scene in the window"
+description: "Open a recipe in Manfred's window, pick and move parts, change materials, set cameras and scrub the sun, with every edit written back into the recipe."
 sidebar:
   order: 3
 ---

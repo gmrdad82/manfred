@@ -1,6 +1,6 @@
 ---
-title: Film a camera path
-description: Give a camera an orbit or keyframes and turn it into numbered frames and a video, live or path-traced.
+title: "Film a camera path"
+description: "Give a camera an orbit or keyframes and turn it into numbered frames and a video, live or path-traced."
 sidebar:
   order: 5
 ---

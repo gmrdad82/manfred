@@ -1,6 +1,6 @@
 ---
-title: Path-trace a still
-description: Render a recipe's camera on the GPU path tracer as a final or a draft, in PNG, EXR or HDR, whole or cropped, with progress as JSON.
+title: "Path-trace a still"
+description: "Render a recipe's camera on the GPU path tracer as a final or a draft, in PNG, EXR or HDR, whole or cropped, with progress as JSON."
 sidebar:
   order: 4
 ---

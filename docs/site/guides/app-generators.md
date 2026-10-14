@@ -1,6 +1,6 @@
 ---
-title: Your app's own generators
-description: Link the manfred library into a small build binary of your app's own, with generators that make meshes, a sidecar writer and a material catalogue, and load the result back with the runtime loader.
+title: "Your app's own generators"
+description: "Link the manfred library into a small build binary of your app's own, with generators that make meshes, a sidecar writer and a material catalogue, and load the result back with the runtime loader."
 sidebar:
   order: 7
 ---

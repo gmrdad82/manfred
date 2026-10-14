@@ -1,6 +1,6 @@
 ---
-title: Your first scene
-description: Write a small recipe, check it, build it into a GLB, draw it live and path-trace it.
+title: "Your first scene"
+description: "Write a small recipe, check it, build it into a GLB, draw it live and path-trace it."
 sidebar:
   order: 1
 ---

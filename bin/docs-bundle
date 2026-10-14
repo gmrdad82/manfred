@@ -30,8 +30,12 @@ rm -rf "$stage"
 mkdir -p "$docs/reference" "$docs/images"
 cp -R docs/site/. "$docs/"
 
+quoted() {
+  printf '"%s"' "$(printf '%s' "$1" | sed 's/[\\"]/\\&/g')"
+}
+
 front() {
-  printf -- '---\ntitle: %s\ndescription: %s\nsidebar:\n  order: %s\n---\n\n' "$1" "$2" "$3"
+  printf -- '---\ntitle: %s\ndescription: %s\nsidebar:\n  order: %s\n---\n\n' "$(quoted "$1")" "$(quoted "$2")" "$3"
 }
 
 help_of() {
@@ -86,9 +90,13 @@ problems=0
 while IFS= read -r page; do
   rel=${page#"$docs"/}
   head -1 "$page" | grep -qx -- '---' || { echo "bin/docs-bundle: $rel has no frontmatter" >&2; problems=1; }
-  for key in 'title:' 'description:' '  order:'; do
-    sed -n '2,/^---$/p' "$page" | grep -q "^$key" || { echo "bin/docs-bundle: $rel has no ${key% *}" >&2; problems=1; }
+  for key in 'title: "' 'description: "' '  order: '; do
+    sed -n '2,/^---$/p' "$page" | grep -q "^$key" || { echo "bin/docs-bundle: $rel has no ${key%:*}, or not as a quoted string" >&2; problems=1; }
   done
+  if sed -n '2,/^---$/p' "$page" | grep -qE '^ *label: [^"]'; then
+    echo "bin/docs-bundle: $rel has a sidebar label that is not a quoted string" >&2
+    problems=1
+  fi
   if grep -nE '/home/|/Users/|\.dev/|prompts/RESUME' "$page" >&2; then
     echo "bin/docs-bundle: $rel names a local or private path" >&2
     problems=1

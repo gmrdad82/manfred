@@ -1,6 +1,6 @@
 ---
-title: File formats
-description: The files and JSON outputs Manfred reads and writes, and the exit codes its commands promise.
+title: "File formats"
+description: "The files and JSON outputs Manfred reads and writes, and the exit codes its commands promise."
 sidebar:
   order: 3
 ---

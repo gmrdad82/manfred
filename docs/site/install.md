@@ -1,6 +1,6 @@
 ---
-title: Install
-description: Install Manfred on Linux from the release binary or from source, then open and render a scene in 30 seconds.
+title: "Install"
+description: "Install Manfred on Linux from the release binary or from source, then open and render a scene in 30 seconds."
 sidebar:
   order: 1
 ---

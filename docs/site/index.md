@@ -1,6 +1,6 @@
 ---
-title: Manfred
-description: A lighter Blender, part of PITO MD. 3D scenes written as TOML recipes, built into GLB headless, arranged in a live window and path-traced on the GPU.
+title: "Manfred"
+description: "A lighter Blender, part of PITO MD. 3D scenes written as TOML recipes, built into GLB headless, arranged in a live window and path-traced on the GPU."
 sidebar:
   order: 0
 ---

@@ -1,6 +1,6 @@
 ---
-title: Shoot and film the window headless
-description: Draw one frame of Manfred's window offscreen, drive it with a script of clicks and keys, and film it playing a tape, byte for byte the same on every run.
+title: "Shoot and film the window headless"
+description: "Draw one frame of Manfred's window offscreen, drive it with a script of clicks and keys, and film it playing a tape, byte for byte the same on every run."
 sidebar:
   order: 6
 ---
