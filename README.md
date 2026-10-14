@@ -43,9 +43,9 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 
 ### Camera clips
 
-<p align="center"><img src="docs/images/orbit.gif" width="800" alt="A path-traced orbit around showcase/workshop.toml: the camera circles the workbench once, past the teal case, the vase, the glass jar and the mirror ball, with the window's striped light on the wall."></p>
+<p align="center"><img src="docs/images/orbit.png" width="800" alt="Four path-traced frames of an orbit around showcase/workshop.toml, a quarter turn apart: the teal case, the vase, the glass jar, the mirror ball and the cable on the oak workbench seen from the front, the right, the back and the left."></p>
 
-A camera with a path (an orbit, or keyframes) turns into frames and a video with `manfred clip`, live or path-traced. The orbit above is 180 frames of the workshop traced at 32 samples a pixel. `manfred gui --clip` films the window itself playing a tape of clicks, keys and waits, frame by frame and byte for byte the same on every run: every window clip on this page is one of [showcase/](showcase/)'s tapes.
+A camera with a path (an orbit, or keyframes) turns into frames with `manfred clip`, live or path-traced, and `--video clip.webm` encodes them through pconv. Above are four frames, a quarter turn apart, of a 180-frame orbit of the workshop traced at 32 samples a pixel. `manfred gui --clip` films the window itself playing a tape of clicks, keys and waits, frame by frame and byte for byte the same on every run: every window clip on this page is one of [showcase/](showcase/)'s tapes.
 
 ### Your app's own generators
 

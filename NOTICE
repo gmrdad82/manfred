@@ -18,7 +18,7 @@ which stays reserved as above:
 - docs/images/tour.gif: manfred gui --clip of showcase/tour.tape on showcase/, made a GIF by pconv
 - docs/images/edit.gif: manfred gui --clip of showcase/edit.tape on showcase/workshop.toml, made a GIF by pconv
 - docs/images/render.gif: manfred gui --clip of showcase/render.tape on showcase/hero.toml, made a GIF by pconv
-- docs/images/orbit.gif: manfred clip --trace of showcase/workshop.toml's orbit camera, made a GIF by pconv
+- docs/images/orbit.png: four frames of manfred clip --trace of showcase/workshop.toml's orbit camera
 
 Pictures of Manfred's own commands and numbers, under the MIT licence like
 the code:

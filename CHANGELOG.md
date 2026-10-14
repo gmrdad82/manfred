@@ -2,6 +2,20 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v1.0.0 — 2026-10-14
+
+Manfred 1.0.0: the same scene tool as 0.19.8, now with a prebuilt Linux binary and a README that shows what it does.
+
+### Added
+
+- Each release now carries a ready-to-run Linux x86_64 binary, `manfred-vX.Y.Z-linux-x86_64.tar.gz`, with a `SHA256SUMS` file, so installing is one download instead of a build from source.
+
+### Changed
+
+- The README shows every feature with its own clip or chart: building recipes headless, editing in the window, path-traced renders and camera clips, with the speed and size measured: 39.8 MB against Blender 5.2.2's 1,236.5 MB, a recipe to GLB in 29 ms, the window's first frame in 0.88 s and a 4K path-traced final in 7.5 s.
+- The brand reads PITO MD in the README and the trademark notice.
+- The version is 1.0.0; scenes render and build exactly as in 0.19.8, and only the version written into each GLB changes.
+
 ## v0.19.8 — 2026-10-12
 
 ### Changed
