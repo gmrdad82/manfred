@@ -85,7 +85,7 @@ A recipe then asks for it with `kind = "generator"`, `generator = "app/cube"` an
 | A live 1080p still | 1,047 ms | `manfred shot showcase/workshop.toml --camera hero --size 1920x1080`, whole command, best of 3 |
 | 4K path-traced final | 7.5 s wall, 6.1 s on the GPU | the workshop's hero camera at 3840x2160, adaptive to 64 samples (59.9 a pixel on average), denoised, best of 3 |
 | 4K path-traced draft | 2.9 s wall, 1.5 s on the GPU | the same with `--draft`, adaptive to 12 samples (11.5 on average) |
-| Code | 68,563 lines of Rust in 158 files, tests included | non-blank lines in the repository |
+| Code | 68,842 lines of Rust in 158 files, tests included | non-blank lines in the repository |
 | Dependencies | pfx, its engine, and 16 maintained crates | direct dependencies of the workspace (clap, serde, serde_json, toml, toml_edit, egui, egui-wgpu, glam, gltf, gltf-json, png, exr, half, zune-jpeg, ttf-parser, i_overlay); 308 crates in the whole build |
 
 The machine is a Ryzen 9 9950X with a Radeon RX 9060 XT (RADV) on Linux. GPU commands ran as their own job in the `pgpu` queue, so no other job shared the card; the 4K renders are the 0.19.8 release's speed budgets of 2026-10-12, and the rest was measured on 2026-10-14. The charts are drawn by [pito-compare](https://github.com/gmrdad82/pito-compare) from [docs/charts/](docs/charts/). Manfred runs only on Linux today, so no other GPU or OS is measured.
