@@ -40,6 +40,7 @@ fn node(name: &str, mesh: Mesh) -> Node {
         mesh,
         transform: DMat4::IDENTITY,
         keep_transform: false,
+        targets: None,
     }
 }
 

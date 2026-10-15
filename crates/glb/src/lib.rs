@@ -11,7 +11,7 @@ pub use sidecars::{
 pub use writer::{write, write_tree, write_with_extras};
 
 pub use glam::DMat4;
-use manfred_mesh::Mesh;
+use manfred_mesh::{Mesh, Morph};
 use serde::Serialize;
 use std::fmt;
 
@@ -21,6 +21,13 @@ pub struct Node {
     pub mesh: Mesh,
     pub transform: DMat4,
     pub keep_transform: bool,
+    pub targets: Option<Box<Targets>>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Targets {
+    pub base: Mesh,
+    pub morph: Morph,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

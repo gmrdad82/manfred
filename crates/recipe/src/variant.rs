@@ -1,7 +1,7 @@
 use toml_edit::{Item, Table, Value};
 
 use crate::include::Edit;
-use crate::patch::edit_root;
+use crate::patch::{edit_root, morph_room};
 use crate::read::{Main, read_main};
 use crate::{Error, Key, Output, Recipe, SCENE_SUFFIX, Variant};
 
@@ -163,7 +163,9 @@ pub(crate) fn apply_to_table(
                 "expected a number, string, boolean, array or table",
             )
         })?;
-        edit_root(doc, &keys(dotted), Some(Item::Value(value)))
+        let path = keys(dotted);
+        morph_room(doc, &path);
+        edit_root(doc, &path, Some(Item::Value(value)))
             .map_err(|text| Error::new(format!("{at}.set.{dotted}"), None, text))?;
     }
     for dotted in &variant.remove {

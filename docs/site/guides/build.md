@@ -54,7 +54,7 @@ manfred build desk.toml --all-variants     # the recipe, then every variant in n
 
 ## One-off overrides
 
-`--set key=value` replaces a value the recipe already has, for that run only; the file is never written. `build`, `shot`, `render` and `clip` take it, as often as needed:
+`--set key=value` replaces a value the recipe already has (or adds a mesh object's morph weight, `object.<name>.morph.<target>`), for that run only; the file is never written. `build`, `shot`, `render` and `clip` take it, as often as needed:
 
 ```
 $ manfred build desk.toml --set object.ball.radius=0.08 --out big

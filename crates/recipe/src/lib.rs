@@ -238,6 +238,7 @@ pub enum Kind {
     Mesh {
         path: String,
         node: Option<String>,
+        morph: BTreeMap<String, f64>,
     },
     Generator {
         generator: String,

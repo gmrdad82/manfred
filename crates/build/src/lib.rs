@@ -1,5 +1,6 @@
 use glam::{DMat4, DVec3};
-use manfred_glb::{Node, Order, sidecar_text};
+use manfred_glb::{Node, Order, Targets, sidecar_text};
+use manfred_mesh::Morph;
 use manfred_recipe::{self as recipe, Kind, Object, Recipe, Shadow};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -720,13 +721,23 @@ fn make(
     taken: impl FnOnce(Vec<&str>, &Made) -> Result<(), Error>,
 ) -> Result<Made, Error> {
     let object = &recipe.objects[index];
+    let mut morph: Option<Morph> = None;
     let generated = if matches!(object.kind, Kind::Generator { .. }) {
         generate(recipe, index, base, registry)?
     } else {
+        let mesh = match &object.kind {
+            Kind::Mesh { path, node, .. } => {
+                let (mesh, mut found) = shape::imported(object, base, path, node.as_deref())?;
+                shape::weights(object, &mut found)?;
+                morph = (!found.is_empty()).then_some(found);
+                mesh
+            }
+            _ => shape::local(object, cuts, base)?,
+        };
         Generated {
             pieces: vec![Piece {
                 name: object.name.clone(),
-                mesh: shape::local(object, cuts, base)?,
+                mesh,
             }],
             ..Generated::default()
         }
@@ -747,21 +758,36 @@ fn make(
     )?;
     let matrix = matrix?;
     for Piece { name, mut mesh } in pieces {
-        shape::uvs(recipe, object, matrix, &mut mesh)?;
-        detail_uv::apply(object, matrix, &mut mesh)?;
+        let mut morph = morph.take();
+        let follow = |morph: &mut Option<Morph>, sources: Option<Vec<u32>>| {
+            if let (Some(morph), Some(sources)) = (morph.as_mut(), sources) {
+                morph.remap(&sources);
+            }
+        };
+        follow(&mut morph, shape::uvs(recipe, object, matrix, &mut mesh)?);
+        follow(&mut morph, detail_uv::apply(object, matrix, &mut mesh)?);
         shape::materials(object, &mut mesh)?;
         let transform = if object.keep_transform {
             matrix
         } else {
             manfred_mesh::transform(&mut mesh, matrix);
+            if let Some(morph) = morph.as_mut() {
+                morph.transform(matrix);
+            }
             DMat4::IDENTITY
         };
-        shape::normals(object, &mut mesh);
+        shape::normals(object, &mut mesh, morph.as_mut());
+        let targets = morph.map(|morph| {
+            let base = mesh.clone();
+            morph.pose(&mut mesh);
+            Box::new(Targets { base, morph })
+        });
         made.nodes.push(Node {
             name,
             mesh,
             transform,
             keep_transform: object.keep_transform,
+            targets,
         });
     }
     Ok(made)

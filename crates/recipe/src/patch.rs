@@ -534,6 +534,38 @@ fn label_of(t: &Table) -> Option<&str> {
         .and_then(Item::as_str)
 }
 
+pub(crate) fn morph_room(t: &mut Table, path: &[Key]) -> bool {
+    let [
+        Key::Table(top),
+        Key::Table(name),
+        Key::Table(key),
+        Key::Table(_),
+    ] = path
+    else {
+        return false;
+    };
+    if top != "object" || key != "morph" {
+        return false;
+    }
+    let Some(object) = t
+        .get_mut("object")
+        .and_then(Item::as_array_of_tables_mut)
+        .and_then(|list| list.iter_mut().find(|o| label_of(o) == Some(name.as_str())))
+    else {
+        return false;
+    };
+    match object.get("morph") {
+        None => {
+            object.insert(
+                "morph",
+                Item::Value(Value::InlineTable(toml_edit::InlineTable::new())),
+            );
+            true
+        }
+        Some(item) => item.is_table_like(),
+    }
+}
+
 pub(crate) fn edit_root(t: &mut Table, path: &[Key], value: Option<Item>) -> Result<Done, String> {
     if path.is_empty() {
         return Err("the path is empty".to_string());

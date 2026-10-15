@@ -173,7 +173,7 @@ mod tests {
         ] {
             let object = recipe.objects.iter().find(|o| o.name == name).unwrap();
             assert!(
-                matches!(&object.kind, Kind::Mesh { path, node: None } if path == file),
+                matches!(&object.kind, Kind::Mesh { path, node: None, .. } if path == file),
                 "{name}: {:?}",
                 object.kind
             );

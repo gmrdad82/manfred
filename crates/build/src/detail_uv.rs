@@ -366,7 +366,8 @@ pub fn layout(world: &[[DVec3; 3]], texels_per_m: f64, gutter: u32) -> Result<La
     })
 }
 
-fn assign(m: &mut Mesh, corners: &[[f32; 2]]) {
+fn assign(m: &mut Mesh, corners: &[[f32; 2]]) -> Vec<u32> {
+    let mut sources: Vec<u32> = (0..m.positions.len() as u32).collect();
     let mut first: Vec<Option<[u32; 2]>> = vec![None; m.positions.len()];
     let mut copies: BTreeMap<(u32, [u32; 2]), u32> = BTreeMap::new();
     let mut uvs1 = vec![[0.0f32; 2]; m.positions.len()];
@@ -382,6 +383,7 @@ fn assign(m: &mut Mesh, corners: &[[f32; 2]]) {
             Some(_) => {
                 *slot = *copies.entry((old, bits)).or_insert_with(|| {
                     let i = old as usize;
+                    sources.push(old);
                     m.positions.push(m.positions[i]);
                     if m.normals.len() > i {
                         m.normals.push(m.normals[i]);
@@ -396,18 +398,23 @@ fn assign(m: &mut Mesh, corners: &[[f32; 2]]) {
         }
     }
     m.uvs1 = Some(uvs1);
+    sources
 }
 
-pub(crate) fn apply(object: &Object, matrix: DMat4, m: &mut Mesh) -> Result<(), Error> {
+pub(crate) fn apply(
+    object: &Object,
+    matrix: DMat4,
+    m: &mut Mesh,
+) -> Result<Option<Vec<u32>>, Error> {
     let Some(DetailUv {
         texels_per_m,
         gutter,
     }) = object.detail_uv
     else {
-        return Ok(());
+        return Ok(None);
     };
     if m.indices.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let flip = matrix.determinant() < 0.0;
     let mut world = m.world_triangles(matrix);
@@ -423,6 +430,5 @@ pub(crate) fn apply(object: &Object, matrix: DMat4, m: &mut Mesh) -> Result<(), 
             c.swap(1, 2);
         }
     }
-    assign(m, &found.corners);
-    Ok(())
+    Ok(Some(assign(m, &found.corners)))
 }

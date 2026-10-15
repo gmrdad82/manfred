@@ -724,12 +724,14 @@ fn a_mesh_object_imports_a_glb_node() {
             mesh: tri,
             transform: DMat4::IDENTITY,
             keep_transform: false,
+            targets: None,
         },
         Node {
             name: "pair".into(),
             mesh: other,
             transform: DMat4::IDENTITY,
             keep_transform: false,
+            targets: None,
         },
     ];
     std::fs::write(
@@ -793,6 +795,7 @@ fn a_mesh_object_keeps_the_glb_s_materials_unless_it_names_one() {
         mesh,
         transform: DMat4::IDENTITY,
         keep_transform: false,
+        targets: None,
     });
     std::fs::write(
         dir.join("parts.glb"),

@@ -291,6 +291,7 @@ mod tests {
             mesh,
             transform: DMat4::IDENTITY,
             keep_transform: false,
+            targets: None,
         };
         let path = dir.join(name);
         std::fs::write(&path, write(&[node], Order::File, "manfred test")).unwrap();

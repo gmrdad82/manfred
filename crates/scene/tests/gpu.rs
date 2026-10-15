@@ -45,6 +45,7 @@ fn part(name: &str, object: usize, mut mesh: Mesh, material: &str) -> Part {
             mesh,
             transform: DMat4::IDENTITY,
             keep_transform: false,
+            targets: None,
         },
         object,
         shadow: Shadow::Cast,

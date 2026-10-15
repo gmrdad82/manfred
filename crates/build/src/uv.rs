@@ -189,7 +189,8 @@ fn cylinder(
     out
 }
 
-fn assign(m: &mut Mesh, corner: &[[f32; 2]]) {
+fn assign(m: &mut Mesh, corner: &[[f32; 2]]) -> Vec<u32> {
+    let mut sources = Vec::new();
     let mut seen = BTreeMap::<(u32, [u32; 2]), u32>::new();
     let mut positions = Vec::new();
     let mut normals = Vec::new();
@@ -198,6 +199,7 @@ fn assign(m: &mut Mesh, corner: &[[f32; 2]]) {
     let mut indices = Vec::with_capacity(m.indices.len());
     for (&i, &uv) in m.indices.iter().zip(corner) {
         let id = *seen.entry((i, uv.map(f32::to_bits))).or_insert_with(|| {
+            sources.push(i);
             positions.push(m.positions[i as usize]);
             normals.push(m.normals.get(i as usize).copied().unwrap_or([0.0; 3]));
             uvs.push(uv);
@@ -215,6 +217,7 @@ fn assign(m: &mut Mesh, corner: &[[f32; 2]]) {
         m.uvs1 = Some(uvs1);
     }
     m.indices = indices;
+    sources
 }
 
 pub(crate) fn apply(
@@ -222,9 +225,9 @@ pub(crate) fn apply(
     object: &Object,
     matrix: DMat4,
     m: &mut Mesh,
-) -> Result<(), Error> {
+) -> Result<Option<Vec<u32>>, Error> {
     if m.indices.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let corner = match &object.uv {
         Some(Uv::Plate) => plate(m, &eye(recipe, object)?, matrix),
@@ -242,10 +245,9 @@ pub(crate) fn apply(
             wall,
             away,
         }) => cylinder(m, degrees, atlas, band, wall, away),
-        _ => return Ok(()),
+        _ => return Ok(None),
     };
-    assign(m, &corner);
-    Ok(())
+    Ok(Some(assign(m, &corner)))
 }
 
 #[cfg(test)]

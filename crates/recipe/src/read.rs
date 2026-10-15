@@ -1445,6 +1445,7 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
         "mesh" => Kind::Mesh {
             path: tab.req(cx, "path", STR)?,
             node: tab.opt(cx, "node", STR)?,
+            morph: read_morph(cx, tab)?,
         },
         "generator" => {
             let generator = tab.req(cx, "generator", STR)?;
@@ -1473,6 +1474,28 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
             ));
         }
     })
+}
+
+fn read_morph(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<BTreeMap<String, f64>, Error> {
+    let Some(item) = tab.peek(cx, "morph") else {
+        return Ok(BTreeMap::new());
+    };
+    let path = tab.kpath("morph");
+    let Some(table) = item.as_table_like() else {
+        return Err(bad_item(
+            cx,
+            &path,
+            item,
+            "a table of morph target names to weights",
+        ));
+    };
+    let mut out = BTreeMap::new();
+    for (name, value) in table.iter() {
+        let at = dotted(&path, name);
+        let weight = as_num(cx, &at, value)?;
+        out.insert(name.to_string(), weight);
+    }
+    Ok(out)
 }
 
 fn read_required_outline(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Outline, Error> {
@@ -1587,6 +1610,17 @@ fn read_object(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
         )?),
         None => None,
     };
+    if kind_name != "mesh"
+        && let Some(item) = tab.retired("morph")
+    {
+        return Err(Error::new(
+            tab.kpath("morph"),
+            Some(cx.item_line(item)),
+            format!(
+                "`morph` sets the weights of an imported mesh's morph targets, so it goes with kind = \"mesh\", found \"{kind_name}\""
+            ),
+        ));
+    }
     let kind = read_kind(cx, &mut tab, &kind_name)?;
     tab.finish(cx)?;
     Ok(Object {

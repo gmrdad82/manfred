@@ -1,5 +1,5 @@
 use crate::build::{cluster, degenerate};
-use crate::{Mesh, Slot};
+use crate::{Mesh, Morph, Slot};
 use glam::{DMat4, DVec3, Vec3};
 use std::collections::BTreeMap;
 
@@ -83,12 +83,118 @@ pub(crate) fn split(m: &mut Mesh, degrees: f64) {
 }
 
 pub(crate) fn split_with(m: &mut Mesh, degrees: f64, flat_faces: bool) {
+    split_core(m, degrees, flat_faces, None);
+}
+
+pub(crate) fn split_morphed(m: &mut Mesh, degrees: f64, flat_faces: bool, morph: &mut Morph) {
+    split_core(m, degrees, flat_faces, Some(morph));
+}
+
+fn moving(pos: &[DVec3], morph: &Morph) -> Vec<u32> {
+    let mut seen = BTreeMap::<Vec<u64>, u32>::new();
+    (0..pos.len())
+        .map(|i| {
+            let mut key: Vec<u64> = (pos[i] + DVec3::ZERO).to_array().map(f64::to_bits).to_vec();
+            for list in &morph.positions {
+                let d = list.get(i).copied().unwrap_or([0.0; 3]);
+                key.extend(d.map(|v| u64::from((v + 0.0).to_bits())));
+            }
+            *seen.entry(key).or_insert(i as u32)
+        })
+        .collect()
+}
+
+struct Corner {
+    source: u32,
+    root: usize,
+    triangle: usize,
+}
+
+fn morph_normals(
+    pos: &[DVec3],
+    tris: &[[u32; 3]],
+    regions: Option<&Regions>,
+    roots: &[usize],
+    corners: &[Corner],
+    base: &[[f32; 3]],
+    deltas: &[[f32; 3]],
+) -> Vec<[f32; 3]> {
+    let moved: Vec<DVec3> = pos
+        .iter()
+        .enumerate()
+        .map(|(i, p)| *p + Vec3::from(deltas.get(i).copied().unwrap_or([0.0; 3])).as_dvec3())
+        .collect();
+    let face: Vec<DVec3> = tris
+        .iter()
+        .map(|t| {
+            let (a, b, c) = (
+                moved[t[0] as usize],
+                moved[t[1] as usize],
+                moved[t[2] as usize],
+            );
+            (b - a).cross(c - a).normalize_or_zero()
+        })
+        .collect();
+    let mut planes = vec![DVec3::ZERO; regions.map_or(0, |r| r.normal.len())];
+    if let Some(r) = regions {
+        for (ti, t) in tris.iter().enumerate() {
+            if let Some(g) = r.flat[ti] {
+                let (a, b, c) = (
+                    moved[t[0] as usize],
+                    moved[t[1] as usize],
+                    moved[t[2] as usize],
+                );
+                planes[g] += (b - a).cross(c - a) * 0.5;
+            }
+        }
+        for (g, n) in planes.iter_mut().enumerate() {
+            let unit = n.normalize_or_zero();
+            *n = if unit == DVec3::ZERO {
+                r.normal[g]
+            } else {
+                unit
+            };
+        }
+    }
+    let mut sums = vec![DVec3::ZERO; tris.len() * 3];
+    for (ti, t) in tris.iter().enumerate() {
+        for c in 0..3 {
+            let root = roots[ti * 3 + c];
+            if let Some(g) = regions.and_then(|r| r.flat[ti]) {
+                sums[root] = planes[g];
+                continue;
+            }
+            let p = moved[t[c] as usize];
+            let u = (moved[t[(c + 1) % 3] as usize] - p).normalize_or_zero();
+            let v = (moved[t[(c + 2) % 3] as usize] - p).normalize_or_zero();
+            sums[root] += face[ti] * u.dot(v).clamp(-1.0, 1.0).acos();
+        }
+    }
+    corners
+        .iter()
+        .zip(base)
+        .map(|(corner, b)| {
+            let n = sums[corner.root].normalize_or_zero();
+            let n = if n == DVec3::ZERO {
+                face[corner.triangle]
+            } else {
+                n
+            };
+            (n - Vec3::from(*b).as_dvec3()).as_vec3().to_array()
+        })
+        .collect()
+}
+
+fn split_core(m: &mut Mesh, degrees: f64, flat_faces: bool, morph: Option<&mut Morph>) {
     let pos: Vec<DVec3> = m
         .positions
         .iter()
         .map(|&p| Vec3::from(p).as_dvec3())
         .collect();
-    let pid = cluster(&pos, 0.0);
+    let pid = match morph.as_deref() {
+        Some(morph) if !morph.positions.is_empty() => moving(&pos, morph),
+        _ => cluster(&pos, 0.0),
+    };
     let tris: Vec<[u32; 3]> = m
         .indices
         .chunks_exact(3)
@@ -163,6 +269,8 @@ pub(crate) fn split_with(m: &mut Mesh, degrees: f64, flat_faces: bool) {
     let mut uvs = Vec::new();
     let mut uvs1 = Vec::new();
     let mut indices = Vec::with_capacity(m.indices.len());
+    let mut corners = Vec::new();
+    let tracked = morph.is_some();
     for (ti, t) in tris.iter().enumerate() {
         for (c, &v) in t.iter().enumerate() {
             let v = v as usize;
@@ -171,6 +279,13 @@ pub(crate) fn split_with(m: &mut Mesh, degrees: f64, flat_faces: bool) {
             let uv1 = m.uvs1.as_ref().map_or([0.0, 0.0], |u| u[v]);
             let key = (root, uv.map(f32::to_bits), uv1.map(f32::to_bits));
             let id = *keys.entry(key).or_insert_with(|| {
+                if tracked {
+                    corners.push(Corner {
+                        source: v as u32,
+                        root,
+                        triangle: ti,
+                    });
+                }
                 positions.push(m.positions[v]);
                 let n = sums[root].normalize_or_zero();
                 let n = if n == DVec3::ZERO { face[ti] } else { n };
@@ -181,6 +296,28 @@ pub(crate) fn split_with(m: &mut Mesh, degrees: f64, flat_faces: bool) {
             });
             indices.push(id);
         }
+    }
+    if let Some(morph) = morph {
+        let roots: Vec<usize> = (0..tris.len() * 3).map(|i| find(&mut parent, i)).collect();
+        morph.normals = morph
+            .positions
+            .iter()
+            .map(|deltas| {
+                morph_normals(
+                    &pos,
+                    &tris,
+                    regions.as_ref(),
+                    &roots,
+                    &corners,
+                    &normals,
+                    deltas,
+                )
+            })
+            .collect();
+        let sources: Vec<u32> = corners.iter().map(|c| c.source).collect();
+        let kept = std::mem::take(&mut morph.normals);
+        morph.remap(&sources);
+        morph.normals = kept;
     }
     m.positions = positions;
     m.normals = normals;

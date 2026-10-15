@@ -1,7 +1,9 @@
 use crate::{Error, holes, rotation};
 use glam::{DMat4, DVec3};
 use manfred_mesh::outline::{self, Outline as Ring, Shape};
-use manfred_mesh::{self as mesh, Bend, Mesh, Pocket, Profile, ProfileKind, Sheet, Slot, UvMode};
+use manfred_mesh::{
+    self as mesh, Bend, Mesh, Morph, Pocket, Profile, ProfileKind, Sheet, Slot, UvMode,
+};
 use manfred_recipe::{self as recipe, BendForm, Caps, Kind, Object, Outline, Uv};
 use std::path::Path;
 
@@ -195,7 +197,70 @@ fn card(size: [f64; 2]) -> Mesh {
     m
 }
 
-fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Result<Mesh, Error> {
+fn target_names(m: &gltf::Mesh) -> Vec<String> {
+    m.extras()
+        .as_ref()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(raw.get()).ok())
+        .and_then(|extras| {
+            extras.get("targetNames").and_then(|names| {
+                names.as_array().map(|list| {
+                    list.iter()
+                        .map(|n| n.as_str().unwrap_or("").to_string())
+                        .collect()
+                })
+            })
+        })
+        .unwrap_or_default()
+}
+
+fn join(
+    morph: &mut Morph,
+    names: &[String],
+    weights: Option<&[f32]>,
+    targets: Vec<Vec<[f32; 3]>>,
+    matrix: DMat4,
+    before: usize,
+    count: usize,
+) {
+    let mut part = Morph {
+        positions: targets,
+        ..Morph::default()
+    };
+    part.transform(matrix);
+    for (i, deltas) in part.positions.into_iter().enumerate() {
+        let name = names
+            .get(i)
+            .filter(|n| !n.is_empty())
+            .cloned()
+            .unwrap_or_else(|| i.to_string());
+        let at = match morph.names.iter().position(|n| *n == name) {
+            Some(at) => at,
+            None => {
+                morph.names.push(name);
+                morph
+                    .weights
+                    .push(weights.and_then(|w| w.get(i)).copied().unwrap_or(0.0));
+                morph.positions.push(Vec::new());
+                morph.names.len() - 1
+            }
+        };
+        let list = &mut morph.positions[at];
+        if list.len() <= before {
+            list.resize(before, [0.0; 3]);
+            list.extend(deltas);
+        }
+    }
+    for list in &mut morph.positions {
+        list.resize(before + count, [0.0; 3]);
+    }
+}
+
+pub(crate) fn imported(
+    object: &Object,
+    base: &Path,
+    path: &str,
+    node: Option<&str>,
+) -> Result<(Mesh, Morph), Error> {
     let file = base.join(path);
     let bytes = std::fs::read(&file)
         .map_err(|e| fail(object, "path", format!("cannot read {path}: {e}")))?;
@@ -206,6 +271,7 @@ fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Res
         .map_err(|e| fail(object, "path", format!("{path}: buffers: {e}")))?;
     let document = &parsed.document;
     let mut out = Mesh::default();
+    let mut morph = Morph::default();
     let mut found = false;
     let roots: Vec<gltf::Node> = match document
         .default_scene()
@@ -236,6 +302,7 @@ fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Res
         };
         if chosen && let Some(m) = n.mesh() {
             found = true;
+            let names = target_names(&m);
             for primitive in m.primitives() {
                 if primitive.mode() != gltf::mesh::Mode::Triangles {
                     continue;
@@ -257,10 +324,22 @@ fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Res
                         .collect(),
                     None => (0..count as u32).collect(),
                 };
+                if indices.is_empty() {
+                    continue;
+                }
                 let uvs = reader
                     .read_tex_coords(0)
                     .map(|t| t.into_f32().collect::<Vec<[f32; 2]>>())
                     .filter(|uvs| uvs.len() == count);
+                let targets: Vec<Vec<[f32; 3]>> = reader
+                    .read_morph_targets()
+                    .map(|(deltas, _, _)| {
+                        deltas
+                            .map(|d| d.collect::<Vec<[f32; 3]>>())
+                            .filter(|d| d.len() == count)
+                            .unwrap_or_else(|| vec![[0.0; 3]; count])
+                    })
+                    .collect();
                 let mut part = Mesh {
                     normals: vec![[0.0; 3]; positions.len()],
                     positions,
@@ -271,7 +350,19 @@ fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Res
                 };
                 part.set_material(primitive.material().name().unwrap_or(""));
                 mesh::transform(&mut part, matrix);
+                let before = out.positions.len();
                 out.append(&part);
+                if !targets.is_empty() || !morph.is_empty() {
+                    join(
+                        &mut morph,
+                        &names,
+                        m.weights(),
+                        targets,
+                        matrix,
+                        before,
+                        count,
+                    );
+                }
             }
         }
         for child in n.children().collect::<Vec<_>>().into_iter().rev() {
@@ -284,8 +375,32 @@ fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Res
             "node",
             format!("{path} has no node `{want}` with a mesh"),
         )),
-        _ => Ok(out),
+        _ => Ok((out, morph)),
     }
+}
+
+pub(crate) fn weights(object: &Object, morph: &mut Morph) -> Result<(), Error> {
+    let Kind::Mesh {
+        path, morph: set, ..
+    } = &object.kind
+    else {
+        return Ok(());
+    };
+    for (name, &w) in set {
+        let Some(at) = morph.names.iter().position(|n| n == name) else {
+            let text = if morph.is_empty() {
+                format!("{path} has no morph targets")
+            } else {
+                format!(
+                    "{path} has no morph target `{name}`, expected one of: {}",
+                    morph.names.join(", ")
+                )
+            };
+            return Err(fail(object, &format!("morph.{name}"), text));
+        };
+        morph.weights[at] = w as f32;
+    }
+    Ok(())
 }
 
 pub(crate) fn local(object: &Object, pockets: &[&Object], base: &Path) -> Result<Mesh, Error> {
@@ -415,7 +530,7 @@ pub(crate) fn local(object: &Object, pockets: &[&Object], base: &Path) -> Result
             caps,
             along: None,
         } => mesh::sweep(path, radii, *ring, *closed, *caps),
-        Kind::Mesh { path, node } => imported(object, base, path, node.as_deref())?,
+        Kind::Mesh { path, node, .. } => imported(object, base, path, node.as_deref())?.0,
         Kind::Generator { generator, .. } => {
             return Err(fail(
                 object,
@@ -430,7 +545,8 @@ pub(crate) fn local(object: &Object, pockets: &[&Object], base: &Path) -> Result
     })
 }
 
-fn unweld(m: &mut Mesh) {
+fn unweld(m: &mut Mesh) -> Vec<u32> {
+    let sources = m.indices.clone();
     let mut positions = Vec::with_capacity(m.indices.len());
     for &i in &m.indices {
         positions.push(m.positions[i as usize]);
@@ -441,15 +557,14 @@ fn unweld(m: &mut Mesh) {
     m.normals = vec![[0.0; 3]; positions.len()];
     m.indices = (0..positions.len() as u32).collect();
     m.positions = positions;
+    sources
 }
 
-fn box_uvs(m: &mut Mesh) {
-    let Some([lo, hi]) = mesh::bounds(m) else {
-        return;
-    };
+fn box_uvs(m: &mut Mesh) -> Option<Vec<u32>> {
+    let [lo, hi] = mesh::bounds(m)?;
     let (lo, hi) = (DVec3::from(lo), DVec3::from(hi));
     let span = (hi - lo).max(DVec3::splat(1e-12));
-    unweld(m);
+    let sources = unweld(m);
     let mut uvs = vec![[0.0f32; 2]; m.positions.len()];
     for t in m.indices.chunks_exact(3) {
         let n = m.face_normal(t);
@@ -467,6 +582,7 @@ fn box_uvs(m: &mut Mesh) {
         }
     }
     m.uvs = Some(uvs);
+    Some(sources)
 }
 
 pub(crate) fn uvs(
@@ -474,19 +590,23 @@ pub(crate) fn uvs(
     object: &Object,
     matrix: DMat4,
     m: &mut Mesh,
-) -> Result<(), Error> {
-    match &object.uv {
-        _ if matches!(object.kind, Kind::Card { .. }) => {}
-        Some(Uv::None) => m.uvs = None,
-        None if generated(object) => {}
+) -> Result<Option<Vec<u32>>, Error> {
+    Ok(match &object.uv {
+        _ if matches!(object.kind, Kind::Card { .. }) => None,
+        Some(Uv::None) => {
+            m.uvs = None;
+            None
+        }
+        None if generated(object) => None,
         Some(Uv::Local) | None => {
             if m.uvs.is_none() && !m.indices.is_empty() {
-                box_uvs(m);
+                box_uvs(m)
+            } else {
+                None
             }
         }
         Some(_) => crate::uv::apply(recipe, object, matrix, m)?,
-    }
-    Ok(())
+    })
 }
 
 fn groups(object: &Object) -> Option<&'static [&'static str]> {
@@ -563,8 +683,17 @@ pub(crate) fn materials(object: &Object, m: &mut Mesh) -> Result<(), Error> {
     Ok(())
 }
 
-pub(crate) fn normals(object: &Object, m: &mut Mesh) {
+pub(crate) fn normals(object: &Object, m: &mut Mesh, morph: Option<&mut Morph>) {
     if m.indices.is_empty() {
+        return;
+    }
+    if let Some(morph) = morph {
+        let (degrees, flat_faces) = match (object.smooth_angle, object.smooth) {
+            (Some(angle), _) => (angle, object.flat_faces),
+            (None, true) => (180.0, false),
+            (None, false) => (0.01, false),
+        };
+        mesh::smooth_morphed(m, morph, degrees, flat_faces);
         return;
     }
     match (object.smooth_angle, object.smooth) {

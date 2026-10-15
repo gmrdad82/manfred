@@ -2,10 +2,11 @@ use crate::{Error, Node, Order};
 use gltf_json as json;
 use json::accessor::{ComponentType, GenericComponentType, Type};
 use json::buffer::Target;
+use json::mesh::MorphTarget;
 use json::mesh::{Mode, Primitive, Semantic};
 use json::validation::{Checked, USize64};
 use json::{Index, Root};
-use manfred_mesh::{Mesh, natural_cmp};
+use manfred_mesh::{Mesh, Morph, natural_cmp};
 use serde_json::Value;
 use std::collections::BTreeMap;
 
@@ -150,7 +151,37 @@ impl Builder {
         Index::new(at as u32)
     }
 
-    fn primitive(&mut self, mesh: &Mesh, material: &str, indices: &[u32]) -> Option<Primitive> {
+    fn targets(&mut self, morph: &Morph, kept: &[u32]) -> Vec<MorphTarget> {
+        let pick = |list: &Vec<[f32; 3]>| -> Vec<[f32; 3]> {
+            kept.iter()
+                .map(|&old| list.get(old as usize).copied().unwrap_or([0.0; 3]))
+                .collect()
+        };
+        let mut out = Vec::with_capacity(morph.names.len());
+        for t in 0..morph.names.len() {
+            let deltas = morph.positions.get(t).map(pick).unwrap_or_default();
+            let positions = Some(self.vec_accessor(&deltas, Type::Vec3));
+            let normals = morph
+                .normals
+                .get(t)
+                .map(pick)
+                .map(|n| self.vec_accessor(&n, Type::Vec3));
+            out.push(MorphTarget {
+                positions,
+                normals,
+                tangents: None,
+            });
+        }
+        out
+    }
+
+    fn primitive(
+        &mut self,
+        mesh: &Mesh,
+        morph: Option<&Morph>,
+        material: &str,
+        indices: &[u32],
+    ) -> Option<Primitive> {
         let vertices = mesh.positions.len();
         let normals = mesh.normals.len() == vertices;
         let uvs = mesh.uvs.as_ref().filter(|uvs| uvs.len() == vertices);
@@ -161,6 +192,7 @@ impl Builder {
         let mut uv_data = Vec::new();
         let mut uv1_data = Vec::new();
         let mut out = Vec::new();
+        let mut kept = Vec::new();
         for triangle in indices.chunks_exact(3) {
             if triangle.iter().any(|&i| i as usize >= vertices) {
                 continue;
@@ -169,6 +201,9 @@ impl Builder {
                 let slot = &mut remap[old as usize];
                 if *slot == u32::MAX {
                     *slot = positions.len() as u32;
+                    if morph.is_some() {
+                        kept.push(old);
+                    }
                     positions.push(mesh.positions[old as usize]);
                     if normals {
                         normal_data.push(mesh.normals[old as usize]);
@@ -210,6 +245,7 @@ impl Builder {
             );
         }
         let indices = self.index_accessor(&out);
+        let targets = morph.map(|morph| self.targets(morph, &kept));
         let material = self.material(material);
         Some(Primitive {
             attributes,
@@ -218,20 +254,20 @@ impl Builder {
             indices: Some(indices),
             material: Some(material),
             mode: Checked::Valid(Mode::Triangles),
-            targets: None,
+            targets,
         })
     }
 
-    fn primitives(&mut self, mesh: &Mesh) -> Vec<Primitive> {
+    fn primitives(&mut self, mesh: &Mesh, morph: Option<&Morph>) -> Vec<Primitive> {
         let mut out = Vec::new();
         if mesh.slots.is_empty() {
-            out.extend(self.primitive(mesh, DEFAULT_MATERIAL, &mesh.indices));
+            out.extend(self.primitive(mesh, morph, DEFAULT_MATERIAL, &mesh.indices));
             return out;
         }
         for slot in &mesh.slots {
             let start = (slot.start as usize).min(mesh.indices.len());
             let end = (start + slot.count as usize).min(mesh.indices.len());
-            out.extend(self.primitive(mesh, &slot.material, &mesh.indices[start..end]));
+            out.extend(self.primitive(mesh, morph, &slot.material, &mesh.indices[start..end]));
         }
         out
     }
@@ -316,16 +352,21 @@ pub fn write_tree(
     builder.root.asset.generator = Some(generator.to_string());
     let mut scene_nodes = Vec::new();
     for &(at, node, extras) in &sequence {
-        let primitives = builder.primitives(&node.mesh);
+        let (source, morph) = match &node.targets {
+            Some(targets) if !targets.morph.is_empty() => (&targets.base, Some(&targets.morph)),
+            _ => (&node.mesh, None),
+        };
+        let primitives = builder.primitives(source, morph);
         let mesh = if primitives.is_empty() {
             None
         } else {
             builder.root.meshes.push(json::Mesh {
                 extensions: None,
-                extras: Default::default(),
+                extras: morph
+                    .and_then(|m| raw(Some(&serde_json::json!({ "targetNames": m.names })))),
                 name: Some(node.name.clone()),
                 primitives,
-                weights: None,
+                weights: morph.map(|m| m.weights.clone()),
             });
             Some(Index::new(builder.root.meshes.len() as u32 - 1))
         };

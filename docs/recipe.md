@@ -97,6 +97,7 @@ Common keys on every `[[object]]`:
 | `two_sided` | draw both faces |
 | `hidden` | built, not exported; useful for cutters you want to see in the window |
 | `dynamic` | `true` or `false`: whether the object moves or changes at run time, so a baked plate leaves it out and the live view draws it over the plate. Without it, a mover's part, a card that faces the camera, and an object whose `parent` is dynamic are dynamic, and everything else is static, as pfx derives it. `true` marks what the app moves itself; `false` keeps a mover's part in the plate. A text takes it too, under "Text" below; a pocket doesn't |
+| `morph` | `{ <target> = <weight>, … }` on a `mesh` object only: the weights of the file's morph targets; see [Morph targets](#morph-targets) |
 | `proxy` | `"box"` (the default) or `"hull"`: the invisible stand-in of a static object in the scene's proxies file, under "The scene". Only with a plate folder (`[bake.plates] dir`), never on a dynamic object, a text, a pocket or a hidden object |
 
 A part whose material the live renderer draws as glass (`transmission` above 0, or the glass or liquid family) is a glass surface, and it is not also an opaque instance. `shadow = "cast"` sets `glass::Surface::casts_shadow`, so the surface draws its own tinted sun shadow: transmission × base, or transmission × Beer–Lambert over the thickness when both are set (`glass::cast_tint`). `shadow = "none"` draws the glass and casts nothing. `shadow = "only"` keeps the surface with `shadow_only: true` and `casts_shadow: true`: it casts its tinted shadow and is not drawn. A part of a mover carries the mover's `clip` and `clip2` planes on its surface, so glass is cut at them as the opaque parts are. Glass tints the sun's shadow and, with engine v0.19.0, the shadowed local lights.
@@ -138,7 +139,7 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
 - **`lathe`**: `profile = [[r, y], …]` revolved around Y, `segments = 128`, `weld = 1e-7`.
 - **`sweep`**: `path = [[x, y, z], …]`, `radius` or `radii = [r, …]`, `ring = 16`, `closed`, `caps`. Beads and tubes. Caps are n-gon fans, as Blender's.
   - `along = { outline = <outline>, offset, depth }` replaces `path`. The ring is swept along an outline in the plate frame, pushed out by `offset` along the outline's outward normal, at `depth`. It is closed and capless, with one `radius`. The ring starts on the outward normal and turns toward the camera: a lip round a pocket, a bezel round a slot. Its outline is one contour, with no hole.
-- **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either.
+- **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets).
 - **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers none. The window builds it through the same registry and lets you place it.
   - The generator gets the object, its `params`, the recipe's folder and a seed: the recipe's `seed` mixed with the object's index in the file (`manfred::build::seed`), so two objects never share one.
   - It returns one or more pieces, each a named mesh; each becomes a node with the piece's name. A piece may share its own object's name, never another object's or another piece's.
@@ -163,6 +164,18 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
   - **`"overlay"`** text is drawn over the finished image, in pixels. The anchor names both the screen's point and the paragraph's: `"bottom_right"` puts the paragraph's bottom-right corner at the screen's. `at`'s x and y move it in pixels, x right and y down, as plate pixels do; its z, `rotate` and `scale` are not used.
   - **`dynamic`** marks live text: what the app changes or moves is drawn over a plate, and static text is baked into it. Text on a dynamic object (by `parent` or `on`) is dynamic too; without the key, the rest is static.
   - **In the window,** C2 shows a selected text object's spans: each span's text, size and colour. A finished edit, Enter or the focus leaving a field, or the release of a dragged number, is one gesture; Esc in a span's text puts it back.
+
+### Morph targets
+
+A `mesh` object keeps the morph targets of the file's triangle primitives:
+
+- **What is kept:** each target's POSITION deltas, its name from the glTF mesh's `extras.targetNames` (a target without a name is called by its index, `"0"`, `"1"`, …), and the mesh's `weights` as the default weights. The file's NORMAL and TANGENT deltas are not read: Manfred computes the normals from `smooth` or `smooth_angle` on the neutral positions, and each target's NORMAL deltas are the normals the same smoothing gives on the fully morphed positions, minus those. The deltas follow every vertex Manfred splits for UVs and normals, and vertices that sit together but move apart under a target are never merged.
+- **Many nodes:** without `node`, the deltas take each node's transform without its translation, and targets of the same name are one target; a primitive without it moves by nothing. A name first seen takes its default weight from the first mesh that has it.
+- **`morph = { smile = 0.6, angry = 0.2 }`** sets a target's weight by name; a target not named keeps the file's weight, and a target without one 0. A weight is any finite number: glTF allows below 0 and above 1.
+- **Variants and `--set`** reach it by its dotted path, and both may add a target the object's `morph` doesn't name yet, or `morph` itself: `set = { "object.face.morph.smile" = 0.0 }`, `--set object.face.morph.angry=0.5`.
+- **Refused:** `morph` on any kind but `mesh` when the recipe is read; a weight that is not a finite number; and at build, a name the file has no target of, in one line naming the object, the file and its targets: `` object[face].morph.smile: head.glb has no morph target `smile`, expected one of: up, wide ``.
+- **The GLB** keeps the positions and normals neutral, gives every primitive of the mesh one target per name, in the same order, with its POSITION deltas (with `min` and `max`, as glTF asks) and NORMAL deltas, and carries the object's weights as the mesh's `weights` and the names as its `extras.targetNames`, so a runtime blends them live.
+- **`manfred shot`, `manfred render` and the window** draw the mesh posed at those weights, applied on the CPU when it is built; bakes, bounds and proxies read the posed mesh too. A recipe without morph targets builds the same bytes as before.
 
 ## Includes and uses
 
@@ -427,7 +440,7 @@ grade = { vignette = 0.2, saturation = 1.0, warmth = 0.1, bloom = 0.1, haze = 0.
 `manfred build --variant bare` applies the variant before building.
 - `drop` removes objects by glob.
 - `set` and `remove` take dotted paths, with entries of an array of tables addressed by name: `camera.main.fov_y_deg`, `light.lamp`.
-- `set` may add a missing last key but not a missing table.
+- `set` may add a missing last key but not a missing table; a mesh object's `morph` is added when a `set` names one of its targets.
 - `remove` of a key that isn't there is an error.
 - Sidecar keys are reachable like any other: `remove = ["sidecar.motion"]` drops the `[sidecar.motion]` table below, and `set = { "sidecar.motion.density" = 2.0 }` changes a number in it.
 
@@ -442,7 +455,7 @@ grade = { vignette = 0.2, saturation = 1.0, warmth = 0.1, bloom = 0.1, haze = 0.
 
 **Overrides on the command line.** `manfred build`, `manfred shot` and `manfred render` take `--set <key>=<value>`, as often as needed, so a caller renders another input without writing a recipe: `--set object.liquid.params.dump=/abs/tmp/lab/a.liquid --set sky.intensity=0.6`.
 - **The key** is a dotted path as a variant's `set` takes it, with an array of tables entry addressed by its `name`: `sky.intensity`, `camera.eye.fov_y_deg`, `object.liquid.params.width`.
-- **Strict:** it replaces a value the recipe already has. A key the recipe does not carry or a table instead of a value is refused in one line that names the key, and the command exits 1: ``manfred build: scene.toml: sky.intensty: --set: the recipe has no value at `sky.intensty` ``. A missing `=` is a line it cannot parse, and exits 2.
+- **Strict:** it replaces a value the recipe already has, except a mesh object's morph weight, `object.<name>.morph.<target>`, which it may add. A key the recipe does not carry or a table instead of a value is refused in one line that names the key, and the command exits 1: ``manfred build: scene.toml: sky.intensty: --set: the recipe has no value at `sky.intensty` ``. A missing `=` is a line it cannot parse, and exits 2.
 - **The value** takes the kind of the one it replaces. A string is the text as given, with no quotes, so a path needs none; a number, a boolean, an array or an inline table is read as TOML and must be of that same kind (an integer and a float are both numbers). A `"${params.…}"` string may be replaced by a number.
 - **Paths** in a value are relative to the recipe, as in the file; a caller in another folder passes absolute ones.
 - **Order:** the variant first, then each `--set` in the order given, then the usual checks. The recipe file is never written: the override lives only in that run (`manfred_recipe::apply_set`).

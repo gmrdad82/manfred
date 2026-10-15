@@ -302,6 +302,7 @@ pub fn glb_parts(bytes: &[u8]) -> Result<Vec<Part>, Error> {
                     mesh: built,
                     transform: world,
                     keep_transform: true,
+                    targets: None,
                 },
                 object,
                 shadow: Shadow::Cast,
@@ -367,6 +368,7 @@ mod tests {
                 mesh,
                 transform,
                 keep_transform: keep,
+                targets: None,
             },
             object,
             shadow: Shadow::Cast,
@@ -450,12 +452,14 @@ mod tests {
                 mesh: quad("lacquer_orange"),
                 transform: DMat4::from_translation([0.0, 0.0, 1.0].into()),
                 keep_transform: true,
+                targets: None,
             },
             Node {
                 name: "knob".into(),
                 mesh: quad("brass"),
                 transform: DMat4::IDENTITY,
                 keep_transform: false,
+                targets: None,
             },
         ];
         let bytes = write(&nodes, Order::File, "manfred test");

@@ -1,4 +1,5 @@
 mod build;
+mod morph;
 mod nets;
 mod normals;
 pub mod outline;
@@ -6,6 +7,7 @@ mod prim;
 mod slab;
 
 use glam::{DMat4, DVec3, Vec3};
+pub use morph::Morph;
 pub use nets::{Field, Lattice, surface_nets};
 pub use normals::{LARGER_RATIO, PLANAR_DEGREES, area, bounds, transform, weld};
 use outline::{Outline, Shape};
@@ -226,6 +228,10 @@ pub fn smooth(m: &mut Mesh) {
 
 pub fn flat(m: &mut Mesh) {
     normals::split(m, 0.01);
+}
+
+pub fn smooth_morphed(m: &mut Mesh, morph: &mut Morph, degrees: f64, flat_faces: bool) {
+    normals::split_morphed(m, degrees, flat_faces, morph);
 }
 
 fn digits_end(text: &[u8], from: usize) -> usize {

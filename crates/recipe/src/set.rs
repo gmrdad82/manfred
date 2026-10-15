@@ -1,7 +1,7 @@
 use toml_edit::{Item, Table, Value};
 
 use crate::include::Edit;
-use crate::patch::{edit_root, value_in};
+use crate::patch::{edit_root, morph_room, value_in};
 use crate::read::params_ref;
 use crate::variant::{keys, replay};
 use crate::{Error, Recipe};
@@ -30,11 +30,15 @@ pub(crate) fn set_in(table: &mut Table, sets: &[String]) -> Result<(), Error> {
             )));
         }
         let path = keys(dotted);
-        let old = value_in(table, &path).ok_or_else(|| {
-            fail(format!(
-                "the recipe has no value at `{dotted}`; --set only replaces a value the recipe already has"
-            ))
-        })?;
+        let old = match value_in(table, &path) {
+            Some(old) => old,
+            None if morph_room(table, &path) => Value::from(0.0),
+            None => {
+                return Err(fail(format!(
+                    "the recipe has no value at `{dotted}`; --set only replaces a value the recipe already has"
+                )));
+            }
+        };
         let new = value_like(&old, text).map_err(fail)?;
         edit_root(table, &path, Some(Item::Value(new))).map_err(fail)?;
     }
@@ -177,5 +181,54 @@ two_sided = false
         let recipe = parse(RECIPE).unwrap();
         let e = apply_set(&recipe, &sets(&["sky.kind=nowhere"])).unwrap_err();
         assert!(e.path.starts_with("sky"), "{e}");
+    }
+
+    const FACES: &str = r#"manfred = 1
+name = "m"
+
+[[object]]
+name = "face"
+kind = "mesh"
+path = "head.glb"
+morph = { up = 1.0 }
+
+[[object]]
+name = "plain"
+kind = "mesh"
+path = "head.glb"
+
+[variant.calm]
+set = { "object.face.morph.up" = 0.0, "object.plain.morph.wide" = -0.5 }
+"#;
+
+    fn morph(r: &crate::Recipe, at: usize) -> Vec<(String, f64)> {
+        match &r.objects[at].kind {
+            Kind::Mesh { morph, .. } => morph.clone().into_iter().collect(),
+            _ => panic!("a mesh stays a mesh"),
+        }
+    }
+
+    #[test]
+    fn a_set_and_a_variant_reach_a_mesh_s_morph_weights() {
+        let recipe = parse(FACES).unwrap();
+        let set = apply_set(
+            &recipe,
+            &sets(&["object.face.morph.wide=0.25", "object.plain.morph.up=2"]),
+        )
+        .unwrap();
+        assert_eq!(
+            morph(&set, 0),
+            [("up".to_string(), 1.0), ("wide".to_string(), 0.25)]
+        );
+        assert_eq!(morph(&set, 1), [("up".to_string(), 2.0)]);
+        let calm = crate::apply_variant(&recipe, "calm").unwrap();
+        assert_eq!(morph(&calm, 0), [("up".to_string(), 0.0)]);
+        assert_eq!(morph(&calm, 1), [("wide".to_string(), -0.5)]);
+        assert!(apply_set(&recipe, &sets(&["object.face.morph.up=x"])).is_err());
+        let e = parse(
+            "manfred = 1\nname = \"m\"\n[[object]]\nname = \"b\"\nkind = \"box\"\nsize = [1.0, 1.0, 1.0]\nmorph = { up = 1.0 }\n",
+        )
+        .unwrap_err();
+        assert!(e.text.contains("goes with kind = \"mesh\""), "{e}");
     }
 }

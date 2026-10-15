@@ -33,6 +33,7 @@ fn node(name: &str, x: f32) -> Node {
         mesh: quad(x),
         transform: DMat4::IDENTITY,
         keep_transform: false,
+        targets: None,
     }
 }
 
