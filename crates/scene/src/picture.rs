@@ -1,7 +1,9 @@
 use crate::Error;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 const AMPLIFY: u32 = 8;
+const IEND: [u8; 12] = [0, 0, 0, 0, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82];
 
 pub fn write_png(path: &Path, size: [u32; 2], rgba: &[u8]) -> Result<(), Error> {
     if rgba.len() != (size[0] as usize) * (size[1] as usize) * 4 {
@@ -22,6 +24,7 @@ pub fn write_png(path: &Path, size: [u32; 2], rgba: &[u8]) -> Result<(), Error> 
     encoder.set_color(png::ColorType::Rgba);
     encoder.set_depth(png::BitDepth::Eight);
     encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual);
+    encoder.set_compression(png::Compression::Fast);
     let mut writer = encoder
         .write_header()
         .map_err(|e| Error(format!("{}: {e}", path.display())))?;
@@ -52,6 +55,27 @@ pub fn read_png(path: &Path) -> Result<([u32; 2], Vec<u8>), Error> {
     reader.finish().map_err(|e| failed(&e))?;
     buffer.truncate(info.buffer_size());
     Ok(([info.width, info.height], buffer))
+}
+
+pub fn read_png_size(path: &Path) -> Result<[u32; 2], Error> {
+    let failed = |e: &dyn std::fmt::Display| Error(format!("{}: {e}", path.display()));
+    let mut file = std::fs::File::open(path).map_err(|e| failed(&e))?;
+    let mut end = [0u8; 12];
+    file.seek(SeekFrom::End(-12))
+        .and_then(|_| file.read_exact(&mut end))
+        .map_err(|e| failed(&e))?;
+    if end != IEND {
+        return Err(failed(&"cut short"));
+    }
+    file.rewind().map_err(|e| failed(&e))?;
+    let reader = png::Decoder::new(std::io::BufReader::new(file))
+        .read_info()
+        .map_err(|e| failed(&e))?;
+    let info = reader.info();
+    if (info.color_type, info.bit_depth) != (png::ColorType::Rgba, png::BitDepth::Eight) {
+        return Err(failed(&"not 8-bit RGBA"));
+    }
+    Ok([info.width, info.height])
 }
 
 pub fn psnr(a: &[u8], b: &[u8]) -> Result<f64, Error> {

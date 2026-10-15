@@ -23,7 +23,7 @@ pub use memory::Memory;
 pub use parts::{Palette, Piece, glb_parts, material, palette, pieces};
 use pfx_live::frame::Matrix;
 pub use pfx_live::frame::MeshStats;
-pub use picture::{difference, psnr, read_png, write_png};
+pub use picture::{difference, psnr, read_png, read_png_size, write_png};
 pub use stage::{Change, Pick, Prepared, Stage};
 pub use text::{Laid, fonts};
 

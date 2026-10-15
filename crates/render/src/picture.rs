@@ -1,6 +1,7 @@
 use crate::text::Overlay;
 use pfx_post::{BloomKind, Chain, Image, Pass, Vignette, VignetteKind, bayer, color};
 use pfx_trace::denoise;
+use std::borrow::Cow;
 use std::path::Path;
 
 const RLE_LEAST: usize = 8;
@@ -49,7 +50,13 @@ pub fn cut(pixels: &[[f32; 4]], width: u32, origin: [u32; 2], size: [u32; 2]) ->
 
 impl Film {
     pub fn cut(&self, origin: [u32; 2], size: [u32; 2]) -> Film {
-        let take = |pixels: &[[f32; 4]]| cut(pixels, self.size[0], origin, size);
+        let take = |pixels: &[[f32; 4]]| {
+            if pixels.is_empty() {
+                Vec::new()
+            } else {
+                cut(pixels, self.size[0], origin, size)
+            }
+        };
         Film {
             size,
             color: take(&self.color),
@@ -114,10 +121,10 @@ pub fn looked_with<'a>(
         .collect())
 }
 
-pub fn developed(film: &Film, denoised: bool) -> Result<Vec<[f32; 4]>, String> {
+pub fn developed(film: &Film, denoised: bool) -> Result<Cow<'_, [[f32; 4]]>, String> {
     let [width, height] = film.size;
     match (denoised, &film.denoised) {
-        (true, Some(pixels)) => Ok(pixels.clone()),
+        (true, Some(pixels)) => Ok(Cow::Borrowed(pixels)),
         (true, None) => denoise::filter(
             width,
             height,
@@ -125,8 +132,9 @@ pub fn developed(film: &Film, denoised: bool) -> Result<Vec<[f32; 4]>, String> {
             &film.albedo,
             &film.normal,
             film.samples.max(1),
-        ),
-        (false, _) => Ok(film.color.clone()),
+        )
+        .map(Cow::Owned),
+        (false, _) => Ok(Cow::Borrowed(&film.color)),
     }
 }
 
@@ -147,7 +155,7 @@ pub fn finished_at<'a>(
 ) -> Result<Vec<[f32; 4]>, String> {
     let look = finish.into();
     let [width, height] = film.size;
-    let image = Image::from_pixels(width, height, developed(film, denoised)?)
+    let image = Image::from_pixels(width, height, developed(film, denoised)?.into_owned())
         .map_err(|_| format!("the film is not {width}x{height}"))?;
     let whole = origin == [0, 0] && film.size == full;
     let finished = match look.overlay {

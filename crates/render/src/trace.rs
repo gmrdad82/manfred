@@ -12,6 +12,7 @@ use pfx_trace::sky::Environment;
 use pfx_trace::sobol::Sampler;
 use pfx_trace::stage::Staged;
 use pfx_trace::{Adaptive, Round, Trace, TraceError};
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt;
 use std::path::Path;
@@ -322,11 +323,11 @@ impl Rendered {
         ]
     }
 
-    pub fn crop(&self) -> Film {
+    pub fn crop(&self) -> Cow<'_, Film> {
         if self.region.rect() == self.rect {
-            return self.film.clone();
+            return Cow::Borrowed(&self.film);
         }
-        self.film.cut(self.within(), self.size())
+        Cow::Owned(self.film.cut(self.within(), self.size()))
     }
 
     pub fn finished(&self, denoised: bool) -> Result<Vec<[f32; 4]>, String> {
@@ -669,14 +670,23 @@ fn developed(
         })
         .transpose()
         .map_err(|e| Fault::Failed(format!("the denoiser: {e}")))?;
-    let output = trace
-        .readback(gpu)
-        .map_err(|e| Fault::Failed(format!("the tracer's readback: {e}")))?;
+    let failed = |e: String| Fault::Failed(format!("the tracer's readback: {e}"));
+    let (color, albedo, normal) = if denoised.is_some() {
+        let color = trace.readback_color(gpu).map_err(failed)?;
+        (floats(&color), Vec::new(), Vec::new())
+    } else {
+        let output = trace.readback(gpu).map_err(failed)?;
+        (
+            floats(&output.color),
+            floats(&output.albedo),
+            floats(&output.normal),
+        )
+    };
     Ok(Film {
         size,
-        color: floats(&output.color),
-        albedo: floats(&output.albedo),
-        normal: floats(&output.normal),
+        color,
+        albedo,
+        normal,
         denoised,
         samples,
     })

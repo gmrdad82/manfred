@@ -1033,7 +1033,7 @@ mod tests {
                 (part.finished(on).unwrap(), whole.finished(on).unwrap())
             } else {
                 (
-                    part.crop().denoised.unwrap(),
+                    part.crop().into_owned().denoised.unwrap(),
                     whole.film.denoised.clone().unwrap(),
                 )
             };

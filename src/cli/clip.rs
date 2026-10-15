@@ -143,7 +143,7 @@ fn claim(dir: &Path, wanted: &str) -> Result<(), String> {
 }
 
 fn finished(path: &Path, size: [u32; 2]) -> bool {
-    manfred_scene::read_png(path).is_ok_and(|(found, _)| found == size)
+    manfred_scene::read_png_size(path).is_ok_and(|found| found == size)
 }
 
 fn pending(dir: &Path, frames: u32, size: [u32; 2]) -> Vec<u32> {
@@ -167,16 +167,21 @@ fn concat(frames: u32, fps: u32) -> String {
     text
 }
 
-fn encode_line(list: &Path, video: &Path, fps: u32) -> Vec<String> {
-    vec![
-        list.display().to_string(),
-        video.display().to_string(),
+fn encode_line(list: &Path, video: &Path, fps: u32) -> Result<Vec<String>, String> {
+    let absolute = |path: &Path| {
+        std::path::absolute(path)
+            .map(|path| path.display().to_string())
+            .map_err(|e| format!("{}: {e}", path.display()))
+    };
+    Ok(vec![
+        absolute(list)?,
+        absolute(video)?,
         "--fps".into(),
         fps.to_string(),
         "--profile".into(),
         "best".into(),
         "--force".into(),
-    ]
+    ])
 }
 
 fn precheck(args: &Args) -> Result<(), String> {
@@ -313,7 +318,7 @@ fn encode(args: &Args, video: &Path, pconv: bool) -> Result<(), String> {
     if !pconv {
         return Err(unencoded(&args.out, &list, video));
     }
-    let line = encode_line(&list, video, args.fps);
+    let line = encode_line(&list, video, args.fps)?;
     eprintln!("manfred clip: pconv {}", line.join(" "));
     let status = Command::new("pconv")
         .args(&line)
@@ -529,9 +534,19 @@ mod tests {
             .map(|d| d.parse::<u64>().unwrap())
             .sum();
         assert_eq!(total, 1_000_000);
+        let line = encode_line(Path::new("-d/frames.ffconcat"), Path::new("-c.webm"), 24).unwrap();
+        let here = std::env::current_dir().unwrap();
         assert_eq!(
-            encode_line(Path::new("d/frames.ffconcat"), Path::new("c.webm"), 24).join(" "),
-            "d/frames.ffconcat c.webm --fps 24 --profile best --force"
+            line,
+            [
+                here.join("-d/frames.ffconcat").display().to_string(),
+                here.join("-c.webm").display().to_string(),
+                "--fps".into(),
+                "24".into(),
+                "--profile".into(),
+                "best".into(),
+                "--force".into(),
+            ]
         );
     }
 
