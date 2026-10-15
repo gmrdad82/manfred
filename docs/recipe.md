@@ -112,6 +112,8 @@ A part whose material the live renderer draws as glass (`transmission` above 0, 
 
 Kinds:
 
+Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segments`, `profile.segments`, `detail_uv.gutter`) is a whole number from 0 to 4096, the same cap as a generator's counts; a larger one is refused when the recipe is read.
+
 - **`box`**: `size = [x, y, z]`. With `bevel`, a rounded box.
 - **`cylinder`**: `radius`, `depth` (or `radius_px` and `depth_px` under a `[plate]`), `segments = 64`, `caps = "ngon" | "none"`, axis Y. Blender's topology, so a Blender cylinder's counts match.
 - **`sphere`**: `radius`, `segments = 96`, `rings = 48`.

@@ -347,7 +347,7 @@ impl Asm<'_> {
         let pad = file.pad;
         match self.mode {
             Mode::Read => {
-                let padded = format!("{}{}", "\n".repeat(pad), file.text);
+                let padded = format!("{}{}", " ".repeat(pad), file.text);
                 let src = Source::new(&file.text);
                 let doc = Document::parse(padded).map_err(|e| {
                     let line = e

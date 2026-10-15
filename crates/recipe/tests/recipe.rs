@@ -355,6 +355,15 @@ fn parse_errors_name_the_key_the_line_and_what_was_expected() {
 }
 
 #[test]
+fn an_absurd_mesh_count_is_refused_before_anything_is_built() {
+    let text = "manfred = 1\nname = \"t\"\n\n[[object]]\nname = \"a\"\nkind = \"outline\"\nfront = 0.1\nback = 0.0\noutline = { superellipse = { half = [1, 1], exponent = 2, segments = 4000000000 } }\n";
+    assert_eq!(
+        parse(text).unwrap_err().to_string(),
+        "line 9: object[a].outline.superellipse.segments: expected a whole number from 0 to 4096, found 4000000000"
+    );
+}
+
+#[test]
 fn parse_without_a_file_cannot_read_params() {
     let text = std::fs::read_to_string(fixture("driven.toml")).unwrap();
     let e = parse(&text).unwrap_err();

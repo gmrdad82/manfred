@@ -172,19 +172,26 @@ fn num_value(cx: &Cx, path: &str, value: &Value) -> Result<f64, Error> {
     }
 }
 
+const COUNT_MAX: u32 = 4096;
+
 fn int_value(cx: &Cx, path: &str, value: &Value) -> Result<u32, Error> {
+    int_upto(cx, path, value, u32::MAX)
+}
+
+fn int_upto(cx: &Cx, path: &str, value: &Value, max: u32) -> Result<u32, Error> {
     let line = cx.value_line(value);
     let whole = match value {
         Value::Integer(i) => *i.value() as f64,
         Value::String(s) if params_ref(s.value()).is_some() => num_value(cx, path, value)?,
         _ => return Err(bad_value(cx, path, value, "a whole number")),
     };
-    if whole.fract() != 0.0 || whole < 0.0 || whole > f64::from(u32::MAX) {
-        return Err(Error::new(
-            path,
-            Some(line),
-            "expected a whole number from 0 up",
-        ));
+    if whole.fract() != 0.0 || whole < 0.0 || whole > f64::from(max) {
+        let message = if max == u32::MAX {
+            "expected a whole number from 0 up".to_string()
+        } else {
+            format!("expected a whole number from 0 to {max}, found {whole}")
+        };
+        return Err(Error::new(path, Some(line), message));
     }
     Ok(whole as u32)
 }
@@ -199,6 +206,13 @@ fn as_num(cx: &mut Cx, path: &str, item: &Item) -> Result<f64, Error> {
 fn as_u32(cx: &mut Cx, path: &str, item: &Item) -> Result<u32, Error> {
     match item.as_value() {
         Some(value) => int_value(cx, path, value),
+        None => Err(bad_item(cx, path, item, "a whole number")),
+    }
+}
+
+fn as_count(cx: &mut Cx, path: &str, item: &Item) -> Result<u32, Error> {
+    match item.as_value() {
+        Some(value) => int_upto(cx, path, value, COUNT_MAX),
         None => Err(bad_item(cx, path, item, "a whole number")),
     }
 }
@@ -266,6 +280,14 @@ fn as_n<const N: usize>(cx: &mut Cx, path: &str, item: &Item) -> Result<[f64; N]
 }
 
 fn as_u2(cx: &mut Cx, path: &str, item: &Item) -> Result<[u32; 2], Error> {
+    pair_upto(cx, path, item, u32::MAX)
+}
+
+fn as_grid(cx: &mut Cx, path: &str, item: &Item) -> Result<[u32; 2], Error> {
+    pair_upto(cx, path, item, COUNT_MAX)
+}
+
+fn pair_upto(cx: &mut Cx, path: &str, item: &Item, max: u32) -> Result<[u32; 2], Error> {
     let what = "an array of 2 whole numbers";
     let Some(list) = item.as_array() else {
         return Err(bad_item(cx, path, item, what));
@@ -277,8 +299,8 @@ fn as_u2(cx: &mut Cx, path: &str, item: &Item) -> Result<[u32; 2], Error> {
             format!("expected {what}, found an array of {}", list.len()),
         ));
     }
-    let a = int_value(cx, &format!("{path}[0]"), list.get(0).expect("two"))?;
-    let b = int_value(cx, &format!("{path}[1]"), list.get(1).expect("two"))?;
+    let a = int_upto(cx, &format!("{path}[0]"), list.get(0).expect("two"), max)?;
+    let b = int_upto(cx, &format!("{path}[1]"), list.get(1).expect("two"), max)?;
     Ok([a, b])
 }
 
@@ -340,6 +362,8 @@ const V2: Rd<[f64; 2]> = Rd("an array of 2 numbers", as_n::<2>);
 const V3: Rd<[f64; 3]> = Rd("an array of 3 numbers", as_n::<3>);
 const V4: Rd<[f64; 4]> = Rd("an array of 4 numbers", as_n::<4>);
 const U2: Rd<[u32; 2]> = Rd("an array of 2 whole numbers", as_u2);
+const COUNT: Rd<u32> = Rd("a whole number", as_count);
+const GRID: Rd<[u32; 2]> = Rd("an array of 2 whole numbers", as_grid);
 const STRS: Rd<Vec<String>> = Rd("an array of strings", as_strings);
 const NUMS: Rd<Vec<f64>> = Rd("an array of numbers", as_nums);
 const AWAY: [f64; 2] = [-1.0, -1.0];
@@ -796,7 +820,7 @@ fn read_profile(
         tab.req(cx, "width", NUM)?
     };
     let default_segments = if kind == ProfileKind::Chamfer { 1 } else { 4 };
-    let segments = tab.or(cx, "segments", default_segments, UINT)?;
+    let segments = tab.or(cx, "segments", default_segments, COUNT)?;
     tab.finish(cx)?;
     Ok(Some(Profile {
         kind,
@@ -810,7 +834,7 @@ fn read_bevel(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Bevel>, Error> {
         return Ok(None);
     };
     let width = sub.req(cx, "width", NUM)?;
-    let segments = sub.or(cx, "segments", 1, UINT)?;
+    let segments = sub.or(cx, "segments", 1, COUNT)?;
     let angle = sub.or(cx, "angle", 30.0, NUM)?;
     let clamp = sub.or(cx, "clamp", true, BOOL)?;
     sub.finish(cx)?;
@@ -827,7 +851,7 @@ fn read_detail_uv(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<DetailUv>, Er
         return Ok(None);
     };
     let texels_per_m = sub.req(cx, "texels_per_m", NUM)?;
-    let gutter = sub.or(cx, "gutter", 16, UINT)?;
+    let gutter = sub.or(cx, "gutter", 16, COUNT)?;
     sub.finish(cx)?;
     Ok(Some(DetailUv {
         texels_per_m,
@@ -962,7 +986,7 @@ fn outline_table(
             let rect = rect_of(&mut tab, cx)?;
             let radius = length_or_px(&mut tab, cx, "radius", "radius_px")?.unwrap_or(0.0);
             let turned = tab.or(cx, "turned", 0.0, NUM)?;
-            let segments = tab.or(cx, "segments", 8, UINT)?;
+            let segments = tab.or(cx, "segments", 8, COUNT)?;
             Outline::Rect {
                 rect,
                 radius,
@@ -972,7 +996,7 @@ fn outline_table(
         }
         "circle" | "circle_px" => {
             let (centre, radius) = circle_of(&mut tab, cx)?;
-            let segments = tab.or(cx, "segments", 64, UINT)?;
+            let segments = tab.or(cx, "segments", 64, COUNT)?;
             Outline::Circle {
                 centre,
                 radius,
@@ -981,7 +1005,7 @@ fn outline_table(
         }
         "points" | "points_px" => {
             let points = points_of(&mut tab, cx)?;
-            let segments = tab.or(cx, "segments", 8, UINT)?;
+            let segments = tab.or(cx, "segments", 8, COUNT)?;
             Outline::Points { points, segments }
         }
         "superellipse" => superellipse_of(&mut tab, cx)?,
@@ -1039,7 +1063,7 @@ fn superellipse_of(tab: &mut Tab<'_>, cx: &mut Cx) -> Result<Outline, Error> {
     let mut sub = tab.sub(cx, "superellipse")?.expect("present");
     let half = sub.req(cx, "half", V2)?;
     let exponent = sub.req(cx, "exponent", NUM)?;
-    let segments = sub.or(cx, "segments", 64, UINT)?;
+    let segments = sub.or(cx, "segments", 64, COUNT)?;
     let centre = sub.or(cx, "centre", [0.0, 0.0], V2)?;
     let line = |sub: &Tab<'_>, cx: &Cx, key: &str| {
         cx.lines.get(&sub.kipath(key)).copied().or(Some(sub.line))
@@ -1262,7 +1286,7 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
         "cylinder" => Kind::Cylinder {
             radius: length_req(tab, cx, "radius", "radius_px")?,
             depth: length_req(tab, cx, "depth", "depth_px")?,
-            segments: tab.or(cx, "segments", 64, UINT)?,
+            segments: tab.or(cx, "segments", 64, COUNT)?,
             caps: pick(
                 tab,
                 cx,
@@ -1273,12 +1297,12 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
         },
         "sphere" => Kind::Sphere {
             radius: tab.req(cx, "radius", NUM)?,
-            segments: tab.or(cx, "segments", 96, UINT)?,
-            rings: tab.or(cx, "rings", 48, UINT)?,
+            segments: tab.or(cx, "segments", 96, COUNT)?,
+            rings: tab.or(cx, "rings", 48, COUNT)?,
         },
         "plane" => {
             let size = size2_or_px(tab, cx)?;
-            let grid = tab.opt(cx, "grid", U2)?;
+            let grid = tab.opt(cx, "grid", GRID)?;
             let bend = read_bend(cx, tab)?;
             let curl = read_curl(cx, tab)?;
             let cup = read_cup(cx, tab)?;
@@ -1298,13 +1322,13 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
         }
         "disc" => Kind::Disc {
             radius: tab.req(cx, "radius", NUM)?,
-            segments: tab.or(cx, "segments", 64, UINT)?,
+            segments: tab.or(cx, "segments", 64, COUNT)?,
         },
         "torus" => Kind::Torus {
             major: tab.req(cx, "major", NUM)?,
             minor: tab.req(cx, "minor", NUM)?,
-            segments: tab.or(cx, "segments", 96, UINT)?,
-            rings: tab.or(cx, "rings", 24, UINT)?,
+            segments: tab.or(cx, "segments", 96, COUNT)?,
+            rings: tab.or(cx, "rings", 24, COUNT)?,
         },
         "capsule" => Kind::Capsule {
             radius: tab.req(cx, "radius", NUM)?,
@@ -1352,7 +1376,7 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
             };
             Kind::Lathe {
                 profile,
-                segments: tab.or(cx, "segments", 128, UINT)?,
+                segments: tab.or(cx, "segments", 128, COUNT)?,
                 weld: tab.or(cx, "weld", 1e-7, NUM)?,
             }
         }
@@ -1389,7 +1413,7 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
                     ));
                 }
             };
-            let ring = tab.or(cx, "ring", 16, UINT)?;
+            let ring = tab.or(cx, "ring", 16, COUNT)?;
             let (closed, caps) = if along.is_some() {
                 for key in ["closed", "caps"] {
                     if let Some(item) = tab.peek(cx, key) {
