@@ -12,7 +12,7 @@ Manfred is a lighter Blender, part of [PITO MD](https://pitomd.com): 3D scenes w
 - **31× smaller than Blender:** 39.8 MB, one file, against Blender 5.2.2's 1,236.5 MB in 5,593 files.
 - **Recipe to GLB in 29 ms:** the 19-object workshop scene, 13 MB of memory at most, the same bytes on every run.
 - **Window to first frame in 0.88 s,** the workshop scene loaded, built and drawn.
-- **A 4K path-traced final in 7.5 s,** adaptive to 64 samples and denoised; a 4K draft in 2.9 s.
+- **A 4K path-traced final in 7.9 s,** adaptive to 64 samples and denoised; a 4K draft in 3.8 s.
 
 Every number is measured on a Ryzen 9 9950X with a Radeon RX 9060 XT on Linux.
 

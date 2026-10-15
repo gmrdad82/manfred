@@ -9,7 +9,7 @@ Manfred is a lighter Blender, part of [PITO MD](https://pitomd.com): 3D scenes w
 - **31× smaller than Blender:** 39.8 MB, one file, against Blender 5.2.2's 1,236.5 MB in 5,593 files.
 - **Recipe to GLB in 29 ms:** `showcase/workshop.toml`, 19 objects, 13 MB of memory at most, the same bytes on every run.
 - **Window to first frame in 0.88 s,** the workshop scene loaded, built and drawn.
-- **A 4K path-traced final in 7.5 s,** adaptive to 64 samples and denoised; a 4K draft in 2.9 s.
+- **A 4K path-traced final in 7.9 s,** adaptive to 64 samples and denoised; a 4K draft in 3.8 s.
 
 Every number is measured on a Ryzen 9 9950X with a Radeon RX 9060 XT on Linux; [Speed and size](#speed-and-size) says how.
 
@@ -39,7 +39,7 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 
 <p align="center"><img src="docs/images/render.gif" width="800" alt="Manfred's window on showcase/hero.toml: the Render button in the render panel path-traces the hero camera, and the finished render, a still life of a blue case, a porcelain vase, a wine glass and a chrome ball under a low sun, fills the viewport."></p>
 
-`manfred render` path-traces a still on the GPU with the engine's tracer (hardware ray queries, adaptive sampling, a port of Intel Open Image Denoise), headless or from the window's Render button. On the RX 9060 XT a 4K final of the workshop's hero camera takes 7.5 s, adaptive to 64 samples a pixel and denoised, and a 4K draft takes 2.9 s. It writes PNG, EXR or HDR, renders a crop of a bigger frame, and takes equirectangular and orthographic cameras.
+`manfred render` path-traces a still on the GPU with the engine's tracer (hardware ray queries, adaptive sampling, a port of Intel Open Image Denoise), headless or from the window's Render button. On the RX 9060 XT a 4K final of the workshop's hero camera takes 7.9 s, adaptive to 64 samples a pixel and denoised, and a 4K draft takes 3.8 s. It writes PNG, EXR or HDR, renders a crop of a bigger frame, and takes equirectangular and orthographic cameras.
 
 ### Camera clips
 
@@ -71,7 +71,7 @@ A recipe then asks for it with `kind = "generator"`, `generator = "app/cube"` an
 
 ## Speed and size
 
-<p align="center"><img src="docs/images/speed.png" width="640" alt="Single bars, milliseconds, lower is better, Manfred 0.19.8 on a Ryzen 9 9950X with a Radeon RX 9060 XT: recipe to GLB 29 ms for workshop.toml and 82 ms for hero.toml; window to first frame 875 ms and a 1080p live still 1047 ms; path-traced 4K draft at 12 samples 2900 ms and final at 64 samples 7500 ms."></p>
+<p align="center"><img src="docs/images/speed.png" width="640" alt="Single bars, milliseconds, lower is better, Manfred on a Ryzen 9 9950X with a Radeon RX 9060 XT: recipe to GLB 29 ms for workshop.toml and 82 ms for hero.toml; window to first frame 875 ms and a 1080p live still 1047 ms; path-traced 4K draft at 12 samples 3800 ms and final at 64 samples 7900 ms (1.1.0)."></p>
 
 <p align="center"><img src="docs/images/size.png" width="640" alt="Paired bars, installed size on Linux in megabytes, lower is better: Manfred 0.19.8 39.8 MB against Blender 5.2.2 1236.5 MB, 31 times smaller; Blender is 5,593 files from a 383.3 MB tar.xz."></p>
 
@@ -83,8 +83,8 @@ A recipe then asks for it with `kind = "generator"`, `generator = "app/cube"` an
 | Peak memory of a build | 13 MB (workshop), 22 MB (hero) | the same runs' maximum resident set |
 | Window to first frame | 875 ms | `manfred gui showcase/workshop.toml --shot`, offscreen at 1586x992, whole command, best of 3 |
 | A live 1080p still | 1,047 ms | `manfred shot showcase/workshop.toml --camera hero --size 1920x1080`, whole command, best of 3 |
-| 4K path-traced final | 7.5 s wall, 6.1 s on the GPU | the workshop's hero camera at 3840x2160, adaptive to 64 samples (59.9 a pixel on average), denoised, best of 3 |
-| 4K path-traced draft | 2.9 s wall, 1.5 s on the GPU | the same with `--draft`, adaptive to 12 samples (11.5 on average) |
+| 4K path-traced final | 7.9 s wall, 6.3 s on the GPU | the workshop's hero camera at 3840x2160, adaptive to 64 samples (59.9 a pixel on average), denoised; 1.1.0's release build, median of 5 runs alternated with 1.0.1's on a busy machine (load 6 to 22 on 32 threads) |
+| 4K path-traced draft | 3.8 s wall, 1.5 s on the GPU | the same with `--draft`, adaptive to 12 samples (11.5 on average) |
 | Code | 68,842 lines of Rust in 158 files, tests included | non-blank lines in the repository |
 | Dependencies | pfx, its engine, and 16 maintained crates | direct dependencies of the workspace (clap, serde, serde_json, toml, toml_edit, egui, egui-wgpu, glam, gltf, gltf-json, png, exr, half, zune-jpeg, ttf-parser, i_overlay); 308 crates in the whole build |
 

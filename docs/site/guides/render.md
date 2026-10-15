@@ -16,7 +16,7 @@ manfred render showcase/hero.toml --camera hero --out hero.png
 manfred render showcase/hero.toml --camera hero --draft --out hero-draft.png
 ```
 
-A final traces each pixel until its noise is under 0.01, at least 16 samples and at most 64, then denoises. `--draft` is a quick look at the same size: at most 12 samples, threshold 0.05, 6 first. On a Radeon RX 9060 XT a 4K final of the workshop's hero camera takes 7.5 s and a 4K draft 2.9 s.
+A final traces each pixel until its noise is under 0.01, at least 16 samples and at most 64, then denoises. `--draft` is a quick look at the same size: at most 12 samples, threshold 0.05, 6 first. On a Radeon RX 9060 XT a 4K final of the workshop's hero camera takes 7.9 s and a 4K draft 3.8 s.
 
 stdout gets the file written; stderr gets a summary:
 

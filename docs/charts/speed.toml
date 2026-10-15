@@ -1,11 +1,11 @@
-title = "MANFRED 0.19.8, MILLISECONDS"
+title = "MANFRED, MILLISECONDS"
 unit = "WALL CLOCK OF THE WHOLE COMMAND"
 better = "lower"
 subtitle = "RYZEN 9 9950X, RADEON RX 9060 XT, LINUX"
-date = "2026-10-14"
+date = "2026-10-15"
 suffix = " MS"
 decimals = 0
-notes = ["HEADLESS: MEDIAN OF 5. GPU: BEST OF 3, EACH ITS OWN PGPU BENCH JOB.", "4K: SHOWCASE/WORKSHOP.TOML'S HERO CAMERA, DENOISED, FROM THE 0.19.8 RELEASE BENCH (2026-10-12)."]
+notes = ["HEADLESS AND LIVE: 0.19.8, MEDIAN OF 5 AND BEST OF 3, EACH GPU RUN ITS OWN PGPU BENCH JOB.", "4K: 1.1.0, SHOWCASE/WORKSHOP.TOML'S HERO CAMERA, DENOISED, MEDIAN OF 5 ALTERNATED WITH 1.0.1 (2026-10-15)."]
 
 [[parties]]
 name = "MANFRED"
@@ -27,6 +27,6 @@ rows = [
 [[groups]]
 name = "PATH-TRACED 4K"
 rows = [
-  { label = "DRAFT, 12 SAMPLES", values = [2900] },
-  { label = "FINAL, 64 SAMPLES", values = [7500] },
+  { label = "DRAFT, 12 SAMPLES", values = [3800] },
+  { label = "FINAL, 64 SAMPLES", values = [7900] },
 ]
