@@ -2,6 +2,18 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v1.3.0 — 2026-10-16
+
+### Added
+
+- A `mesh` object keeps its glTF morph targets and writes them into the built GLB with their names and weights, so a game can blend them live.
+- `morph = { smile = 0.6 }` on a `mesh` object sets its morph weights, also per variant and with `--set object.<name>.morph.<target>=<weight>`; `shot`, `render` and the window draw the mesh posed, and an unknown target name is refused.
+
+### Changed
+
+- Manfred uses pfx-scene 1.0.1, the stable release of the same format.
+- Breaking for an app's build binary: `manfred_glb::Node` gained a `targets` field, so a struct literal needs `targets: None`.
+
 ## v1.2.0 — 2026-10-16
 
 ### Changed
