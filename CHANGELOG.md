@@ -2,6 +2,14 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v1.2.0 — 2026-10-16
+
+### Changed
+
+- Manfred runs on pfx 2.0.0, the release of pfx's security and performance audit; renders and the window's frames take the same time as in 1.1.0.
+- Changing the hour of a scene whose sky doesn't change with the time of day (a room sky in the window, or an app's runtime with its fixed sky) no longer copies and uploads the sky again.
+- The README and docs give 1.1.0's 4K render times from an A/B run against 1.0.1: final 7.9 s, draft 3.8 s.
+
 ## v1.1.0 — 2026-10-15
 
 ### Added
