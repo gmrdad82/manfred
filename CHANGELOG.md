@@ -2,6 +2,32 @@
 
 Every release of Manfred, newest first. Earlier versions were developed privately; 0.19.0 is the first public one.
 
+## v1.1.0 — 2026-10-15
+
+### Added
+
+- The README's Licence section shows Manfred's lockup, the dog mark and the wordmark.
+
+### Changed
+
+- A GPU-denoised render reads back only its colour and writes its file without whole-frame copies.
+- Clip frames, window shots and reels encode their PNGs at the fast level, so long clips write several times faster.
+- Resuming a clip checks each finished frame from its PNG header instead of decoding it.
+- The window draws its floor grid from a memo instead of testing every grid line against every part on each frame.
+- Edits no longer re-read the sky HDR or card images that have not changed on disk, and changed meshes hash faster.
+- Hull proxies build faster.
+
+### Fixed
+
+- A recipe's mesh counts (segments, rings, ring, grid, bevel and profile segments, the detail UV gutter) above 4096 are refused when it is read, instead of exhausting memory.
+- Many large included files no longer slow reading a recipe down to a crawl.
+- An imported glTF with out-of-range indices, short UVs or a node cycle no longer crashes or hangs `manfred build` or `manfred summary`.
+- The scene runtime no longer crashes, hangs or runs out of memory on a GLB with bad indices or a node cycle, a sky room wider than the engine allows, or a huge motes box.
+- A GLB past 4 GiB is refused instead of written corrupt.
+- A card image too large for the atlas is refused from its header before it is decoded.
+- A window tape stops planning frames as soon as it passes the frame cap.
+- `manfred clip` hands pconv absolute paths, so an output name starting with `-` is never read as a flag.
+
 ## v1.0.1 — 2026-10-14
 
 ### Added
