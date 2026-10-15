@@ -249,13 +249,22 @@ fn tree() -> (Vec<Node>, Vec<Option<usize>>) {
 }
 
 #[test]
+fn summary_ends_a_node_cycle() {
+    let text = r#"{"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],"nodes":[{"name":"a","children":[1]},{"name":"b","children":[0]}]}"#;
+    assert!(summary(text.as_bytes()).unwrap().nodes.is_empty());
+}
+
+#[test]
 fn a_flat_tree_writes_the_same_bytes_as_a_flat_list() {
     let flat = two();
     for order in [Order::File, Order::Natural] {
         let plain = write(&flat, order, GENERATOR);
-        assert_eq!(write_tree(&flat, &[], &[], order, GENERATOR), plain);
         assert_eq!(
-            write_tree(&flat, &[None, None], &[], order, GENERATOR),
+            write_tree(&flat, &[], &[], order, GENERATOR).unwrap(),
+            plain
+        );
+        assert_eq!(
+            write_tree(&flat, &[None, None], &[], order, GENERATOR).unwrap(),
             plain
         );
     }
@@ -264,7 +273,7 @@ fn a_flat_tree_writes_the_same_bytes_as_a_flat_list() {
 #[test]
 fn nested_nodes_keep_local_matrices_and_read_back_in_world_space() {
     let (nodes, parents) = tree();
-    let bytes = write_tree(&nodes, &parents, &[], Order::File, GENERATOR);
+    let bytes = write_tree(&nodes, &parents, &[], Order::File, GENERATOR).unwrap();
     let parsed = gltf::Gltf::from_slice(&bytes).unwrap();
     let document = &parsed.document;
     let roots: Vec<usize> = document
@@ -311,7 +320,7 @@ fn natural_order_moves_the_children_with_their_nodes() {
     let (nodes, parents) = tree();
     let extras = [None, Some(json!({ "manfred": { "group": "box" } })), None];
     let bytes = write_with_extras(&nodes, &extras, Order::Natural, GENERATOR);
-    let nested = write_tree(&nodes, &parents, &extras, Order::Natural, GENERATOR);
+    let nested = write_tree(&nodes, &parents, &extras, Order::Natural, GENERATOR).unwrap();
     assert_eq!(names(&bytes), ["box", "knob", "lid"]);
     let parsed = gltf::Gltf::from_slice(&nested).unwrap();
     let names_of = |list: Vec<gltf::Node>| -> Vec<String> {
@@ -342,7 +351,7 @@ fn a_loop_or_a_missing_parent_leaves_the_nodes_at_the_root() {
         vec![Some(0), None, None],
         vec![Some(7), None, Some(9)],
     ] {
-        let nested = write_tree(&nodes, &parents, &[], Order::File, GENERATOR);
+        let nested = write_tree(&nodes, &parents, &[], Order::File, GENERATOR).unwrap();
         let roots = gltf::Gltf::from_slice(&nested)
             .unwrap()
             .document

@@ -45,8 +45,15 @@ fn visit(
     node: &gltf::Node,
     parent: DMat4,
     buffers: &[gltf::buffer::Data],
+    seen: &mut [bool],
     out: &mut Vec<NodeSummary>,
 ) {
+    if seen
+        .get_mut(node.index())
+        .is_none_or(|done| std::mem::replace(done, true))
+    {
+        return;
+    }
     let matrix = world(parent, node);
     if let Some(mesh) = node.mesh() {
         let mut summary = NodeSummary {
@@ -117,7 +124,7 @@ fn visit(
         out.push(summary);
     }
     for child in node.children() {
-        visit(&child, matrix, buffers, out);
+        visit(&child, matrix, buffers, seen, out);
     }
 }
 
@@ -127,13 +134,14 @@ pub fn summary(bytes: &[u8]) -> Result<Summary, Error> {
         .map_err(|e| Error(format!("buffers: {e}")))?;
     let document = &parsed.document;
     let mut nodes = Vec::new();
+    let mut seen = vec![false; document.nodes().len()];
     match document
         .default_scene()
         .or_else(|| document.scenes().next())
     {
         Some(scene) => {
             for root in scene.nodes() {
-                visit(&root, DMat4::IDENTITY, &buffers, &mut nodes);
+                visit(&root, DMat4::IDENTITY, &buffers, &mut seen, &mut nodes);
             }
         }
         None => {
@@ -144,7 +152,7 @@ pub fn summary(bytes: &[u8]) -> Result<Summary, Error> {
                 }
             }
             for node in document.nodes().filter(|n| !children[n.index()]) {
-                visit(&node, DMat4::IDENTITY, &buffers, &mut nodes);
+                visit(&node, DMat4::IDENTITY, &buffers, &mut seen, &mut nodes);
             }
         }
     }

@@ -7,7 +7,7 @@ use manfred_recipe::{
     SCENE_SUFFIX, Shadow, SkyAmbient, SkyKind, TextSpace, Trace, View,
 };
 use pfx_core::daylight::{Authored, Daylight};
-use pfx_load::{Image, RoomLamp, RoomSky, Sky};
+use pfx_load::{RoomLamp, RoomSky, Sky};
 use pfx_materials::{Blend, ContentLayer, Library, Material};
 use pfx_scene::types::{FORMAT, MaterialsFile, SceneFile};
 use pfx_scene::{Id, Project};
@@ -318,7 +318,7 @@ fn card(
     let file = base.join(image);
     let bytes = std::fs::read(&file)
         .map_err(|e| Error::new(format!("{at}.image"), format!("{}: {e}", file.display())))?;
-    Image::png(&bytes).map_err(|e| {
+    png_header(&bytes).map_err(|e| {
         Error::new(
             format!("{at}.image"),
             format!("{}: the scene's content is a PNG: {e}", file.display()),
@@ -1569,4 +1569,18 @@ fn relative(folder: &Path, file: &Path, key: &str) -> Result<String, Error> {
         return Err(Error::new(key, "expected a file, found the scene's folder"));
     }
     Ok(parts.join("/"))
+}
+
+fn png_header(bytes: &[u8]) -> Result<(), String> {
+    let mut decoder = png::Decoder::new(std::io::Cursor::new(bytes));
+    decoder.set_transformations(png::Transformations::EXPAND);
+    let reader = decoder.read_info().map_err(|e| format!("png: {e}"))?;
+    let (width, height) = reader.info().size();
+    if width == 0 || height == 0 {
+        return Err("png: the image is empty".into());
+    }
+    reader
+        .output_buffer_size()
+        .map(|_| ())
+        .ok_or_else(|| "png: the image is too large".into())
 }

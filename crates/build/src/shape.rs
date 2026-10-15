@@ -219,7 +219,14 @@ fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Res
         .rev()
         .map(|n| (n, DMat4::IDENTITY, false))
         .collect();
+    let mut visited = vec![false; document.nodes().len()];
     while let Some((n, parent, inside)) = stack.pop() {
+        if visited
+            .get_mut(n.index())
+            .is_none_or(|done| std::mem::replace(done, true))
+        {
+            continue;
+        }
         let local = DMat4::from_cols_array_2d(&n.transform().matrix().map(|c| c.map(f64::from)));
         let chosen = inside || node.is_none_or(|want| n.name() == Some(want));
         let matrix = if node.is_some() && !inside && chosen {
@@ -238,13 +245,22 @@ fn imported(object: &Object, base: &Path, path: &str, node: Option<&str>) -> Res
                     continue;
                 };
                 let positions: Vec<[f32; 3]> = positions.collect();
+                let count = positions.len();
                 let indices: Vec<u32> = match reader.read_indices() {
-                    Some(i) => i.into_u32().collect(),
-                    None => (0..positions.len() as u32).collect(),
+                    Some(i) => i
+                        .into_u32()
+                        .collect::<Vec<u32>>()
+                        .chunks_exact(3)
+                        .filter(|t| t.iter().all(|&v| (v as usize) < count))
+                        .flatten()
+                        .copied()
+                        .collect(),
+                    None => (0..count as u32).collect(),
                 };
                 let uvs = reader
                     .read_tex_coords(0)
-                    .map(|t| t.into_f32().collect::<Vec<[f32; 2]>>());
+                    .map(|t| t.into_f32().collect::<Vec<[f32; 2]>>())
+                    .filter(|uvs| uvs.len() == count);
                 let mut part = Mesh {
                     normals: vec![[0.0; 3]; positions.len()],
                     positions,

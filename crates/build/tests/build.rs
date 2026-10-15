@@ -827,6 +827,24 @@ material = "oak"
 }
 
 #[test]
+fn a_mesh_object_drops_bad_indices_and_short_uvs_and_ends_a_node_cycle() {
+    let dir = common::scratch("import-bad");
+    std::fs::write(dir.join("bad.gltf"), BAD_GLTF).unwrap();
+    let r = recipe("[[object]]\nname = \"bad\"\nkind = \"mesh\"\npath = \"bad.gltf\"\n");
+    let b = build(&r, &dir).unwrap();
+    assert_eq!(node(&b, "bad").mesh.triangle_count(), 1);
+}
+
+const BAD_GLTF: &str = r#"{"asset":{"version":"2.0"},"scene":0,"scenes":[{"nodes":[0]}],
+"nodes":[{"mesh":0,"children":[1]},{"children":[0]}],
+"meshes":[{"primitives":[{"attributes":{"POSITION":0,"TEXCOORD_0":1},"indices":2}]}],
+"buffers":[{"byteLength":64,"uri":"data:application/octet-stream;base64,AAAAAAAAAAAAAAAAAACAPwAAAAAAAAAAAAAAAAAAgD8AAAAAAAAAAAAAAAAAAIA/AAAAAAAAAQACAAAAAQAJAA=="}],
+"bufferViews":[{"buffer":0,"byteOffset":0,"byteLength":36},{"buffer":0,"byteOffset":36,"byteLength":16},{"buffer":0,"byteOffset":52,"byteLength":12}],
+"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]},
+{"bufferView":1,"componentType":5126,"count":2,"type":"VEC2"},
+{"bufferView":2,"componentType":5123,"count":6,"type":"SCALAR"}]}"#;
+
+#[test]
 fn daylight_goes_to_the_sidecar_as_it_is() {
     let b = built(
         r#"

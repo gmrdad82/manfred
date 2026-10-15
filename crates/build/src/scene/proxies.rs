@@ -127,23 +127,20 @@ pub(crate) fn hull(all: &[DVec3]) -> Option<Shape> {
             }
         })
         .collect();
+    let mut edges = BTreeSet::new();
     for (k, &p) in points.iter().enumerate() {
-        if start.contains(&k) {
+        if start.contains(&k) || !faces.iter().any(|face| face.above(p) > eps) {
             continue;
         }
-        let (lit, kept): (Vec<Face>, Vec<Face>) =
-            faces.into_iter().partition(|face| face.above(p) > eps);
-        faces = kept;
-        if lit.is_empty() {
-            continue;
-        }
-        let edges: BTreeSet<(usize, usize)> = lit
-            .iter()
-            .flat_map(|face| {
+        edges.clear();
+        faces.retain(|face| {
+            let lit = face.above(p) > eps;
+            if lit {
                 let [a, b, c] = face.corners;
-                [(a, b), (b, c), (c, a)]
-            })
-            .collect();
+                edges.extend([(a, b), (b, c), (c, a)]);
+            }
+            !lit
+        });
         for &(a, b) in &edges {
             if !edges.contains(&(b, a)) {
                 faces.push(Face::new(&points, [a, b, k]));

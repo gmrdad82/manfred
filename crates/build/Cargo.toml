@@ -21,9 +21,9 @@ toml = "1.1"
 serde_json.workspace = true
 glam.workspace = true
 gltf.workspace = true
+png.workspace = true
 
 [dev-dependencies]
-png.workspace = true
 pfx-post.workspace = true
 pfx.workspace = true
 pfx-gpu.workspace = true

@@ -1,4 +1,4 @@
-use crate::{Node, Order};
+use crate::{Error, Node, Order};
 use gltf_json as json;
 use json::accessor::{ComponentType, GenericComponentType, Type};
 use json::buffer::Target;
@@ -266,7 +266,7 @@ pub fn write_with_extras(
     order: Order,
     generator: &str,
 ) -> Vec<u8> {
-    write_tree(nodes, &[], extras, order, generator)
+    write_tree(nodes, &[], extras, order, generator).unwrap_or_default()
 }
 
 fn resolved(parents: &[Option<usize>], count: usize) -> Vec<Option<usize>> {
@@ -291,7 +291,7 @@ pub fn write_tree(
     extras: &[Option<Value>],
     order: Order,
     generator: &str,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, Error> {
     let parents = resolved(parents, nodes.len());
     let mut sequence: Vec<(usize, &Node, Option<&Value>)> = nodes
         .iter()
@@ -360,6 +360,17 @@ pub fn write_tree(
         });
     }
     let text = json::serialize::to_vec(&builder.root).unwrap_or_default();
+    let bin = match builder.bin.len() {
+        0 => 0,
+        len => 8 + len.next_multiple_of(4),
+    };
+    let total = 20 + text.len().next_multiple_of(4) + bin;
+    if u32::try_from(total).is_err() {
+        return Err(Error(format!(
+            "the GLB comes to {total} bytes, expected at most {} as its lengths are 32-bit",
+            u32::MAX
+        )));
+    }
     let mut body = Vec::new();
     chunk(&mut body, b"JSON", &text, b' ');
     if !builder.bin.is_empty() {
@@ -370,5 +381,5 @@ pub fn write_tree(
     out.extend_from_slice(&2u32.to_le_bytes());
     out.extend_from_slice(&((12 + body.len()) as u32).to_le_bytes());
     out.extend_from_slice(&body);
-    out
+    Ok(out)
 }

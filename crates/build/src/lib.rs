@@ -212,6 +212,10 @@ impl Built {
     }
 
     pub fn glb(&self) -> Vec<u8> {
+        self.try_glb().unwrap_or_default()
+    }
+
+    pub fn try_glb(&self) -> Result<Vec<u8>, Error> {
         let visible: Vec<usize> = (0..self.parts.len())
             .filter(|&at| !self.parts[at].hidden)
             .collect();
@@ -239,6 +243,7 @@ impl Built {
             parents.push(parent);
         }
         manfred_glb::write_tree(&nodes, &parents, &extras, self.order, GENERATOR)
+            .map_err(|e| Error::new("", e.0))
     }
 
     pub fn sidecar(&self) -> Option<String> {
@@ -940,7 +945,7 @@ pub fn write(
         Some(path) => Some((scene::text(built, recipe, &path, &glb, base)?, path)),
         None => None,
     };
-    put(&glb, &built.glb())?;
+    put(&glb, &built.try_glb()?)?;
     written.push(glb);
     if let Some(text) = built.sidecar() {
         let path = target(
