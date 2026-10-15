@@ -1,6 +1,7 @@
+use crate::Error;
 use crate::raster::IDENTITY;
 use crate::scene::{Piece, Tri};
-use pfx_load::Mesh;
+use pfx_load::{Mesh, Node};
 
 type Matrix = [[f32; 4]; 4];
 
@@ -14,12 +15,28 @@ pub(crate) struct Geometry {
     pub groups: Vec<Option<String>>,
 }
 
-pub(crate) fn build(mesh: &Mesh) -> Geometry {
+pub(crate) fn build(mesh: &Mesh) -> Result<Geometry, Error> {
     let mut geometry = Geometry::default();
-    for root in mesh.all_roots() {
-        visit(mesh, root, IDENTITY, &mut geometry);
+    let mut stack: Vec<(u32, Matrix)> = mesh
+        .all_roots()
+        .into_iter()
+        .rev()
+        .map(|root| (root, IDENTITY))
+        .collect();
+    let mut visits = 0usize;
+    while let Some((index, parent)) = stack.pop() {
+        visits += 1;
+        if visits > mesh.nodes.len() * 4 + 16 {
+            return Err(Error::Glb("the node tree has a cycle".into()));
+        }
+        let Some(node) = mesh.nodes.get(index as usize) else {
+            return Err(Error::Glb(format!("node {index} does not exist")));
+        };
+        let world = mul(parent, node.transform);
+        visit(mesh, node, world, &mut geometry);
+        stack.extend(node.children.iter().rev().map(|&child| (child, world)));
     }
-    geometry
+    Ok(geometry)
 }
 
 fn mul(a: Matrix, b: Matrix) -> Matrix {
@@ -82,10 +99,8 @@ fn intern(list: &mut Vec<String>, name: &str) -> u32 {
     }
 }
 
-fn visit(mesh: &Mesh, node: u32, parent: Matrix, out: &mut Geometry) {
-    let node = &mesh.nodes[node as usize];
-    let world = mul(parent, node.transform);
-    if let Some(group) = node.group.map(|index| &mesh.groups[index as usize]) {
+fn visit(mesh: &Mesh, node: &Node, world: Matrix, out: &mut Geometry) {
+    if let Some(group) = node.group.and_then(|index| mesh.groups.get(index as usize)) {
         let name = if !node.name.is_empty() {
             &node.name
         } else if !group.name.is_empty() {
@@ -111,22 +126,27 @@ fn visit(mesh: &Mesh, node: u32, parent: Matrix, out: &mut Geometry) {
                 .iter()
                 .map(|&position| point(&world, position))
                 .collect();
-            let normals = (!prim.normals.is_empty()).then(|| {
+            let count = positions.len();
+            let normals = (!prim.normals.is_empty() && prim.normals.len() == count).then(|| {
                 prim.normals
                     .iter()
                     .map(|&normal| apply3(&nm, normal))
                     .collect::<Vec<_>>()
             });
-            let uvs = (!prim.uvs.is_empty()).then_some(&prim.uvs);
+            let uvs = (!prim.uvs.is_empty() && prim.uvs.len() == count).then_some(&prim.uvs);
             let material_name = prim
                 .material
-                .map(|index| mesh.materials[index as usize].name.as_str())
+                .and_then(|index| mesh.materials.get(index as usize))
+                .map(|material| material.name.as_str())
                 .filter(|name| !name.is_empty())
                 .unwrap_or("default");
             let material = intern(&mut out.materials, material_name);
             let mut kept = Vec::new();
             let mut unwelded = (Vec::new(), Vec::new(), Vec::new());
             for t in prim.indices.chunks_exact(3) {
+                if t.iter().any(|&i| i as usize >= count) {
+                    continue;
+                }
                 let p = [
                     positions[t[0] as usize],
                     positions[t[1] as usize],
@@ -169,7 +189,7 @@ fn visit(mesh: &Mesh, node: u32, parent: Matrix, out: &mut Geometry) {
             }
             let piece = match normals {
                 Some(normals) if !kept.is_empty() => {
-                    Some((positions, normals, prim.uvs.clone(), kept))
+                    Some((positions, normals, uvs.cloned().unwrap_or_default(), kept))
                 }
                 None if !unwelded.0.is_empty() => {
                     let count = unwelded.0.len() as u32;
@@ -189,8 +209,5 @@ fn visit(mesh: &Mesh, node: u32, parent: Matrix, out: &mut Geometry) {
                 });
             }
         }
-    }
-    for &child in &node.children {
-        visit(mesh, child, world, out);
     }
 }

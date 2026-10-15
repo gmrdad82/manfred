@@ -157,6 +157,9 @@ pub fn quality(
     }
 }
 
+const MOTE_CELLS: i64 = 1 << 20;
+const MOTE_REACH: i64 = 1 << 30;
+
 const PLUME: Plume = Plume {
     source: [0.0; 3],
     radius: 0.0,
@@ -243,8 +246,17 @@ impl Motes {
         if m.dust <= 0.0 || m.mote <= 0.0 {
             return None;
         }
-        let first = m.lo.map(|v| (v / look.cell).floor() as i32 - 2);
-        let last = m.hi.map(|v| (v / look.cell).floor() as i32 + 2);
+        let first = m.lo.map(|v| (v / look.cell).floor() as i64 - 2);
+        let last = m.hi.map(|v| (v / look.cell).floor() as i64 + 2);
+        let total = (0..3).try_fold(1i64, |total, k| {
+            total.checked_mul((last[k] - first[k] + 1).max(0))
+        })?;
+        let bound = |v: &i64| v.abs() < MOTE_REACH;
+        if total > MOTE_CELLS || !first.iter().chain(&last).all(bound) {
+            return None;
+        }
+        let first = first.map(|v| v as i32);
+        let last = last.map(|v| v as i32);
         let mut cells = Vec::new();
         for z in first[2]..=last[2] {
             for y in first[1]..=last[1] {

@@ -91,7 +91,7 @@ pub fn load_read_with(
     let mesh = Mesh::parse(glb).map_err(Error::Glb)?;
     let read = reader.read(&meta, options)?;
     let movers = sidecar::with_extras(read.movers, &mesh)?;
-    let geometry = geometry::build(&mesh);
+    let geometry = geometry::build(&mesh)?;
     Ok(Scene {
         tris: geometry.tris,
         pieces: geometry.pieces,

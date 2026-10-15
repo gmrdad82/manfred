@@ -75,7 +75,7 @@ pub fn facts(meta: &Value, options: &Options) -> Result<Sidecar, Error> {
         camera: camera(&meta["cameras"][0], plate, options),
         sun: sun(meta),
         sky: sky(meta, options),
-        room: room(&meta["sky"]["room"]),
+        room: room(&meta["sky"]["room"])?,
         exposure: num(&meta["look"]["exposure"], 1.0),
         grade: Grade {
             vignette: num(&meta["look"]["grade"]["vignette"], 0.0),
@@ -216,12 +216,12 @@ fn sky(meta: &Value, options: &Options) -> Sky {
     }
 }
 
-fn room(spec: &Value) -> Room {
+fn room(spec: &Value) -> Result<Room, Error> {
     let rgb = |v: &Value, d: [f32; 3]| match v.as_array() {
         Some(a) if a.len() == 3 => [num(&a[0], d[0]), num(&a[1], d[1]), num(&a[2], d[2])],
         _ => d,
     };
-    Room {
+    let built = Room {
         width: num(&spec["width"], 1024.0) as u32,
         floor: rgb(&spec["floor"], [0.16, 0.10, 0.06]),
         wall: rgb(&spec["wall"], [0.30, 0.24, 0.18]),
@@ -245,7 +245,11 @@ fn room(spec: &Value) -> Room {
                     .collect()
             })
             .unwrap_or_default(),
-    }
+    };
+    built
+        .check()
+        .map_err(|e| Error::Sidecar(format!("sky.room: {e}")))?;
+    Ok(built)
 }
 
 fn frame_aspect(plate: Option<(f32, f32)>, options: &Options) -> f64 {
