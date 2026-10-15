@@ -504,17 +504,37 @@ impl Stage {
 
     pub fn set_hour(&mut self, hour: Option<f64>) -> Result<(), Error> {
         check_hour(hour)?;
+        if self.fixed_hour(hour)? {
+            return Ok(());
+        }
         self.hour = hour;
         self.light()
     }
 
     pub fn request_hour(&mut self, hour: Option<f64>) -> Result<(), Error> {
         check_hour(hour)?;
-        if hour != self.hour {
+        if hour != self.hour && !self.fixed_hour(hour)? {
             self.hour = hour;
             self.hours.ask(hour);
         }
         Ok(())
+    }
+
+    fn fixed_hour(&mut self, hour: Option<f64>) -> Result<bool, Error> {
+        if !self.lighting.fixed_sky()
+            || self.hours.busy()
+            || !self.waiting.is_empty()
+            || self.renderer.sky_settling()
+        {
+            return Ok(false);
+        }
+        self.renderer
+            .set_hour(self.lighting.shine(hour).hour as f32)
+            .map_err(|e| Error(format!("the sky: {e}")))?;
+        self.hour = hour;
+        self.shown = hour;
+        self.shade(hour);
+        Ok(true)
     }
 
     pub fn settling(&self) -> bool {

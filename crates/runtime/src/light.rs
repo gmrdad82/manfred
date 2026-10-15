@@ -626,7 +626,10 @@ impl Light {
             return Err("the hour must be finite".into());
         }
         self.hour = hour;
-        self.request(renderer)
+        if renderer.sky_settling() {
+            return self.request(renderer);
+        }
+        renderer.set_hour(hour)
     }
 
     fn request(&self, renderer: &mut Renderer) -> Result<(), String> {

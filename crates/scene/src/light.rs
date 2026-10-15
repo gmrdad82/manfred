@@ -121,6 +121,17 @@ impl Lighting {
         })
     }
 
+    pub fn fixed_sky(&self) -> bool {
+        self.shade.is_empty()
+            && matches!(
+                &*self.backdrop,
+                Backdrop::Texels {
+                    hourly: Hourly::Fixed,
+                    ..
+                }
+            )
+    }
+
     pub fn shine(&self, hour: Option<f64>) -> Shine {
         let (sun, ambient, hour, radius_deg) = match self.source {
             Source::Authored {
