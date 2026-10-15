@@ -38,7 +38,7 @@ pfx-denoise = { git = "https://github.com/gmrdad82/pfx", tag = "v2.0.0" }
 pfx-bake = { git = "https://github.com/gmrdad82/pfx", tag = "v2.0.0" }
 pfx-editor-style = { git = "https://github.com/gmrdad82/pfx", tag = "v2.0.0" }
 pfx-editor-shell = { git = "https://github.com/gmrdad82/pfx", tag = "v2.0.0" }
-pfx-scene = { git = "https://github.com/gmrdad82/pfx-scene", tag = "v0.1.0" }
+pfx-scene = { git = "https://github.com/gmrdad82/pfx-scene", tag = "v1.0.1" }
 manfred-recipe = { path = "crates/recipe" }
 manfred-mesh = { path = "crates/mesh" }
 manfred-glb = { path = "crates/glb" }
