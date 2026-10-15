@@ -1,4 +1,4 @@
-use crate::memory::{Memory, digest};
+use crate::memory::{Memory, digest, stamp};
 use crate::parts::Piece;
 use crate::vector::{add, cross, dot, scale, sub};
 use crate::{Error, Eye};
@@ -273,20 +273,26 @@ fn found(recipe: &Recipe, pieces: &[Piece], memory: &Memory) -> Result<Found, Er
             None => {
                 let (hash, picture) = match &source {
                     Some(file) => {
-                        let bytes = std::fs::read(file).map_err(|e| {
-                            Error(format!(
-                                "object[{}].image: cannot read {}: {e}",
-                                object.name,
-                                file.display()
-                            ))
-                        })?;
-                        memory.picture(file, &bytes, decode).map_err(|e| {
-                            Error(format!(
-                                "object[{}].image: {}: {e}",
-                                object.name,
-                                file.display()
-                            ))
-                        })?
+                        let stamp = stamp(file);
+                        match memory.kept_picture(file, stamp) {
+                            Some(kept) => kept,
+                            None => {
+                                let bytes = std::fs::read(file).map_err(|e| {
+                                    Error(format!(
+                                        "object[{}].image: cannot read {}: {e}",
+                                        object.name,
+                                        file.display()
+                                    ))
+                                })?;
+                                memory.picture(file, stamp, &bytes, decode).map_err(|e| {
+                                    Error(format!(
+                                        "object[{}].image: {}: {e}",
+                                        object.name,
+                                        file.display()
+                                    ))
+                                })?
+                            }
+                        }
                     }
                     None => {
                         let picture = placeholder();
@@ -319,6 +325,12 @@ pub fn layered(material: Material) -> Material {
 
 pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
     if bytes.starts_with(&[0x89, b'P', b'N', b'G']) {
+        if let Some(header) = bytes.get(12..24)
+            && header.starts_with(b"IHDR")
+        {
+            let side = |at: usize| u32::from_be_bytes([0, 1, 2, 3].map(|k| header[at + k]));
+            fits(side(4), side(8))?;
+        }
         let image = Image::png(bytes)?;
         let texels = match (image.pixels, image.space) {
             (Pixels::Eight(texels), ColorSpace::Srgb) => texels,
@@ -355,8 +367,10 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
             zune_jpeg::zune_core::bytestream::ZCursor::new(bytes),
             options,
         );
-        let texels = decoder.decode().map_err(|e| format!("jpeg: {e}"))?;
+        decoder.decode_headers().map_err(|e| format!("jpeg: {e}"))?;
         let info = decoder.info().ok_or("jpeg: no header")?;
+        fits(u32::from(info.width), u32::from(info.height))?;
+        let texels = decoder.decode().map_err(|e| format!("jpeg: {e}"))?;
         let (width, height) = (u32::from(info.width), u32::from(info.height));
         if width == 0 || height == 0 || texels.len() != width as usize * height as usize * 4 {
             return Err(format!(
@@ -371,6 +385,18 @@ pub fn decode(bytes: &[u8]) -> Result<Picture, String> {
         });
     }
     Err("not a PNG or JPEG file".into())
+}
+
+fn fits(width: u32, height: u32) -> Result<(), String> {
+    if cell_size([width, height], DEFAULT_BLEED_LEVEL)
+        .iter()
+        .any(|&side| side > LARGEST)
+    {
+        return Err(format!(
+            "a {width}x{height} image does not fit the {LARGEST}x{LARGEST} card atlas with its gutters"
+        ));
+    }
+    Ok(())
 }
 
 pub fn placeholder() -> Picture {

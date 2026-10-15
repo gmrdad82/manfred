@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use egui::{
-    Align2, Color32, ColorImage, CornerRadius, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2,
+    Align2, Color32, ColorImage, CornerRadius, Id, Painter, Pos2, Rect, Stroke, StrokeKind, Vec2,
 };
 use glam::{DMat4, DVec3};
 use manfred_build::Built;
@@ -455,9 +457,34 @@ pub fn grid_lines(eye: &Eye, image: Rect, solids: &[Solid]) -> Vec<Line> {
     lines
 }
 
+#[derive(Clone, Default)]
+struct GridMemo {
+    key: Option<(Eye, Rect, Vec<Solid>)>,
+    lines: Arc<Vec<Line>>,
+}
+
 pub fn grid(painter: &Painter, eye: &Eye, image: Rect, solids: &[Solid]) {
+    let id = Id::new("manfred grid lines");
+    let kept = painter.ctx().memory_mut(|memory| {
+        let memo = memory.data.get_temp_mut_or_default::<GridMemo>(id);
+        memo.key
+            .as_ref()
+            .is_some_and(|(seen, rect, held)| seen == eye && *rect == image && held == solids)
+            .then(|| Arc::clone(&memo.lines))
+    });
+    let lines = kept.unwrap_or_else(|| {
+        let lines = Arc::new(grid_lines(eye, image, solids));
+        let memo = GridMemo {
+            key: Some((*eye, image, solids.to_vec())),
+            lines: Arc::clone(&lines),
+        };
+        painter
+            .ctx()
+            .memory_mut(|memory| memory.data.insert_temp(id, memo));
+        lines
+    });
     let clipped = painter.with_clip_rect(image);
-    for line in grid_lines(eye, image, solids) {
+    for line in lines.iter() {
         clipped.line_segment([line.from, line.to], Stroke::new(1.0_f32, line.colour()));
     }
 }

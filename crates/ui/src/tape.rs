@@ -139,7 +139,14 @@ struct Plan {
 }
 
 impl Plan {
+    fn full(&self) -> bool {
+        self.frames.len() > MAX_FRAMES
+    }
+
     fn push(&mut self, events: Vec<Event>, modifiers: Modifiers) {
+        if self.full() {
+            return;
+        }
         self.frames.push(Frame {
             events,
             modifiers,
@@ -211,6 +218,9 @@ impl Plan {
             Step::Text(text) => {
                 let every = self.count(1.0 / TYPING).max(1);
                 for typed in text.chars() {
+                    if self.full() {
+                        return;
+                    }
                     self.frame(vec![Event::Text(typed.to_string())]);
                     for _ in 1..every {
                         self.frame(Vec::new());
@@ -280,12 +290,12 @@ fn plan(tape: &Tape, fps: u32, size: [u32; 2]) -> Result<Vec<Frame>, Error> {
         match beat {
             Beat::Step(step) => plan.step(step),
             Beat::Wait(seconds) => {
-                for _ in 0..plan.count(*seconds) {
+                for _ in 0..plan.count(*seconds).min(MAX_FRAMES + 1) {
                     plan.frame(Vec::new());
                 }
             }
         }
-        if plan.frames.len() > MAX_FRAMES {
+        if plan.full() {
             return Err(Error(format!(
                 "the tape runs past {MAX_FRAMES} frames at {fps} a second"
             )));

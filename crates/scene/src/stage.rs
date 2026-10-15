@@ -987,28 +987,27 @@ fn marks(pieces: &[Piece]) -> Vec<Mark> {
         .collect()
 }
 
+fn floats(hasher: &mut DefaultHasher, values: &[f32]) {
+    let mut run = [0u8; 4096];
+    for chunk in values.chunks(run.len() / 4) {
+        for (bytes, value) in run.chunks_exact_mut(4).zip(chunk) {
+            bytes.copy_from_slice(&value.to_le_bytes());
+        }
+        hasher.write(&run[..chunk.len() * 4]);
+    }
+}
+
 fn hash(piece: &Piece) -> u64 {
     let geometry = &piece.geometry;
     let mut hasher = DefaultHasher::new();
-    let floats = |hasher: &mut DefaultHasher, values: &mut dyn Iterator<Item = f32>| {
-        for value in values {
-            hasher.write_u32(value.to_bits());
-        }
-    };
     hasher.write_usize(geometry.positions.len());
-    floats(
-        &mut hasher,
-        &mut geometry.positions.iter().flatten().copied(),
-    );
+    floats(&mut hasher, geometry.positions.as_flattened());
     hasher.write_usize(geometry.normals.len());
-    floats(&mut hasher, &mut geometry.normals.iter().flatten().copied());
+    floats(&mut hasher, geometry.normals.as_flattened());
     hasher.write_usize(geometry.tangents.len());
-    floats(
-        &mut hasher,
-        &mut geometry.tangents.iter().flatten().copied(),
-    );
+    floats(&mut hasher, geometry.tangents.as_flattened());
     hasher.write_usize(geometry.uvs.len());
-    floats(&mut hasher, &mut geometry.uvs.iter().flatten().copied());
+    floats(&mut hasher, geometry.uvs.as_flattened());
     geometry.indices.hash(&mut hasher);
     hasher.finish()
 }
