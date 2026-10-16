@@ -88,6 +88,7 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     lights(&mut out);
     movers(&mut out);
     routes(&mut out);
+    references(&mut out);
     follows(&mut out);
     stages(&mut out);
     output(&mut out);
@@ -1085,6 +1086,31 @@ fn stages(out: &mut Out<'_>) {
                 camera,
                 "the name of a `[[camera]]`",
             );
+        }
+    }
+}
+
+fn references(out: &mut Out<'_>) {
+    let r = out.r;
+    let names: Vec<&str> = r.references.iter().map(|x| x.name.as_str()).collect();
+    duplicates(out, "reference", "name", &names);
+    for (i, x) in r.references.iter().enumerate() {
+        let at = At::new(format!("reference[{}]", x.name), format!("reference#{i}"));
+        if x.image.is_empty() {
+            out.at(&at, "image", "expected the path of a PNG image");
+        }
+        if !(x.metres.is_finite() && x.metres > 0.0) {
+            out.at(
+                &at,
+                "scale",
+                "expected metres above 0 between the two pixels",
+            );
+        }
+        if x.metres_per_pixel() <= 0.0 {
+            out.at(&at, "scale", "expected two different pixels in from");
+        }
+        if !(0.0..=1.0).contains(&x.opacity) {
+            out.at(&at, "opacity", "expected an opacity from 0 to 1");
         }
     }
 }

@@ -11,11 +11,11 @@ use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
     Casters, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind, Lines, Loaded,
     Lod, LodTarget, Look, Mover, NO_SIDECAR, NORMAL_SIZE, OLD_HEADER, Object, Orbit, Order, Origin,
-    Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind,
-    Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE, RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus,
-    RigShake, RigTracks, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span,
-    Spring, Stage, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use, Uv, Variant,
-    VariantOutput, View, Volume,
+    Ortho, Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile,
+    ProfileKind, Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE, RIG_LOOK, RIG_OFFSET, Recipe,
+    Reference, Rig, RigFocus, RigShake, RigTracks, Room, RouteSpec, SCHEMA, Shadow, Sky,
+    SkyAmbient, SkyKind, SkyLight, Span, Spring, Stage, Sun, TEXTURE_KEYS, TextSpace, Textures,
+    Timeline, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -2464,6 +2464,61 @@ fn read_stage(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Resu
     Ok(stage)
 }
 
+const ORTHO: [(&str, Ortho); 4] = [
+    ("top", Ortho::Top),
+    ("front", Ortho::Front),
+    ("side", Ortho::Side),
+    ("rear", Ortho::Rear),
+];
+
+fn read_reference(
+    cx: &mut Cx,
+    t: &dyn TableLike,
+    index: usize,
+    line: usize,
+) -> Result<Reference, Error> {
+    let path = format!("reference[{}]", label(t, "name", index));
+    let mut tab = Tab::new(cx, t, path, format!("reference#{index}"), line);
+    let name = tab.req(cx, "name", STR)?;
+    let image = tab.req(cx, "image", STR)?;
+    let view = pick_req(&mut tab, cx, "view", &ORTHO)?;
+    let Some(mut scale) = tab.sub(cx, "scale")? else {
+        return Err(tab.missing(
+            "scale",
+            "a table, { from = [[px, py], [px, py]], metres = <m> }",
+        ));
+    };
+    let from = scale.req(cx, "from", PIXEL_PAIR)?;
+    let metres = scale.req(cx, "metres", NUM)?;
+    scale.finish(cx)?;
+    let offset = tab.or(cx, "offset", [0.0, 0.0], V2)?;
+    let opacity = tab.or(cx, "opacity", 0.5, NUM)?;
+    tab.finish(cx)?;
+    Ok(Reference {
+        name,
+        image,
+        view,
+        from,
+        metres,
+        offset,
+        opacity,
+    })
+}
+
+const PIXEL_PAIR: Rd<[[f64; 2]; 2]> = Rd("two [px, py] pixels", as_pixel_pair);
+
+fn as_pixel_pair(cx: &mut Cx, path: &str, item: &Item) -> Result<[[f64; 2]; 2], Error> {
+    let points = as_points::<2>(cx, path, item)?;
+    match points.as_slice() {
+        [a, b] => Ok([*a, *b]),
+        _ => Err(Error::new(
+            path,
+            Some(cx.item_line(item)),
+            "expected two [px, py] pixels on the image",
+        )),
+    }
+}
+
 fn missing_pair(tab: &Tab<'_>, key: &str, twin: &str, what: &str) -> Error {
     tab.missing(key, &format!("{what}, or `{twin}` in plate pixels"))
 }
@@ -3173,6 +3228,10 @@ fn read_root(
     let lights = tables(cx, &mut root, "light", effects::read_light)?;
     let movers = tables(cx, &mut root, "mover", read_mover)?;
     let routes = tables(cx, &mut root, "route", read_route)?;
+    let mut references = tables(cx, &mut root, "reference", read_reference)?;
+    for (i, reference) in references.iter_mut().enumerate() {
+        relocated(cx, &format!("reference#{i}.image"), &mut reference.image);
+    }
     let follows = tables(cx, &mut root, "follow", read_follow)?;
     let stages = tables(cx, &mut root, "stage", read_stage)?;
     let variants = read_variants(cx, &mut root)?;
@@ -3239,6 +3298,7 @@ fn read_root(
         lights,
         movers,
         routes,
+        references,
         follows,
         stages,
         keep: Vec::new(),

@@ -1,5 +1,6 @@
-use toml_edit::{Array, Item, Value};
+use toml_edit::{Item, Value};
 
+use crate::curve::{Op, edit_points};
 use crate::patch::value_at;
 use crate::{Error, Key, Loaded, Patch, Recipe, RouteSpec};
 
@@ -8,39 +9,6 @@ pub enum PointEdit {
     Set(usize, [f64; 3]),
     Add(Option<usize>, [f64; 3]),
     Remove(usize),
-}
-
-fn point(p: [f64; 3]) -> Value {
-    let mut array = Array::new();
-    for c in p {
-        array.push(c);
-    }
-    Value::Array(array)
-}
-
-fn plain(decor: Option<&str>, first: bool) -> String {
-    match decor.and_then(|d| d.rfind('\n').map(|at| &d[at..])) {
-        Some(indent) => indent.to_string(),
-        None if first => String::new(),
-        None => " ".to_string(),
-    }
-}
-
-fn joined(gone: &str, own: &str, first: bool) -> String {
-    let indent = own.rfind('\n').map_or(own, |b| &own[b + 1..]);
-    match gone.rfind('\n') {
-        Some(a) => format!("{}{indent}", &gone[..=a]),
-        None if first => String::new(),
-        None => indent.to_string(),
-    }
-}
-
-fn prefix(array: &Array, at: usize) -> Option<String> {
-    array
-        .get(at)
-        .and_then(|v| v.decor().prefix())
-        .and_then(|p| p.as_str())
-        .map(str::to_string)
 }
 
 impl Recipe {
@@ -74,75 +42,27 @@ pub fn route_patch(l: &Loaded, name: &str, edit: PointEdit) -> Result<Patch, Err
         return Err(fail("expected an array of [x, y, z] points".to_string()));
     };
     let mut points = route.points.clone();
-    let len = points.len();
-    let missing = |i: usize| fail(format!("no point {i}, the route has {len}"));
-    match edit {
+    let op = match &edit {
         PointEdit::Set(i, p) => {
-            if i >= len {
-                return Err(missing(i));
+            if let Some(slot) = points.get_mut(*i) {
+                *slot = *p;
             }
-            points[i] = p;
-            let mut v = point(p);
-            *v.decor_mut() = array
-                .get(i)
-                .map(|old| old.decor().clone())
-                .unwrap_or_default();
-            array.replace(i, v);
+            Op::Set(*i, p)
         }
         PointEdit::Add(i, p) => {
-            let i = i.unwrap_or(len);
-            if i > len {
-                return Err(fail(format!(
-                    "no room at {i}, the route has {len} points; give 0 to {len}"
-                )));
+            if i.unwrap_or(points.len()) <= points.len() {
+                points.insert(i.unwrap_or(points.len()), *p);
             }
-            points.insert(i, p);
-            let mut v = point(p);
-            if i < len {
-                let was = prefix(&array, i);
-                v.decor_mut().set_prefix(was.clone().unwrap_or_default());
-                array.insert_formatted(i, v);
-                if let Some(next) = array.get_mut(i + 1) {
-                    next.decor_mut().set_prefix(plain(was.as_deref(), false));
-                }
-            } else {
-                let like = len.checked_sub(1).and_then(|last| prefix(&array, last));
-                v.decor_mut().set_prefix(plain(like.as_deref(), len == 0));
-                array.insert_formatted(i, v);
-            }
+            Op::Add(*i, p)
         }
         PointEdit::Remove(i) => {
-            if i >= len {
-                return Err(missing(i));
+            if *i < points.len() {
+                points.remove(*i);
             }
-            points.remove(i);
-            let removed = array.remove(i);
-            let gone = removed
-                .decor()
-                .prefix()
-                .and_then(|p| p.as_str())
-                .unwrap_or_default()
-                .to_string();
-            match array.get_mut(i) {
-                Some(next) => {
-                    let own = next
-                        .decor()
-                        .prefix()
-                        .and_then(|p| p.as_str())
-                        .unwrap_or_default()
-                        .to_string();
-                    next.decor_mut().set_prefix(joined(&gone, &own, i == 0));
-                }
-                None => {
-                    let trailing = array.trailing().as_str().unwrap_or_default().to_string();
-                    if let Some(a) = gone.rfind('\n') {
-                        let tail = trailing.rfind('\n').map_or("", |b| &trailing[b..]);
-                        array.set_trailing(format!("{}{tail}", &gone[..a]));
-                    }
-                }
-            }
+            Op::Remove(*i)
         }
-    }
+    };
+    edit_points(&mut array, op, "route").map_err(fail)?;
     manfred_motion::Route::new(&points, route.closed).map_err(fail)?;
     Ok(Patch {
         path,

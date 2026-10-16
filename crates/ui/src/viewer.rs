@@ -167,6 +167,7 @@ fn outline(
     gpu: &Gpu,
     wire: &mut crate::wire::Wire,
     clay: &mut crate::clay::Clay,
+    backdrop: &mut crate::backdrop::Backdrop,
     drawing: &Drawing,
     target: &Target,
     scene: Option<(&Watched, &(u64, pfx_load::scene::Draws))>,
@@ -175,7 +176,28 @@ fn outline(
     scale: f32,
 ) -> Result<(), String> {
     let look = shell.wireframe();
+    let shown = shell.backdrops();
+    let seen = match drawing {
+        Drawing::Stage(stage) if !shown.is_empty() => {
+            stage.looked().map(|camera| (camera, stage.depth()))
+        }
+        _ => None,
+    };
+    let drawn = seen.and_then(|(camera, depth)| {
+        let under = crate::backdrop::Target {
+            output: &target.draw,
+            format: target.format,
+            depth,
+            size: target.size,
+            camera,
+        };
+        let drawn = backdrop.prepare(gpu, &under, shell.reference_epoch(), &shown, look.on())?;
+        Some((under, drawn))
+    });
     if !look.on() && look.clay <= 0.0 {
+        if let Some((under, drawn)) = &drawn {
+            crate::backdrop::Backdrop::draw(gpu, under, drawn);
+        }
         return Ok(());
     }
     let selection = shell.selection();
@@ -259,6 +281,7 @@ fn outline(
             camera,
             scale,
             region: shell.region_shown(),
+            under: drawn.as_ref().map(|(_, drawn)| drawn),
         },
         look,
     )
@@ -310,6 +333,7 @@ pub struct Viewer {
     steady: bool,
     wire: crate::wire::Wire,
     clay: crate::clay::Clay,
+    backdrop: crate::backdrop::Backdrop,
     drawn_scene: Option<(u64, pfx_load::scene::Draws)>,
 }
 
@@ -350,6 +374,7 @@ impl Viewer {
             steady: false,
             wire: crate::wire::Wire::default(),
             clay: crate::clay::Clay::default(),
+            backdrop: crate::backdrop::Backdrop::default(),
             drawn_scene: None,
         }
     }
@@ -925,6 +950,7 @@ impl Viewer {
             follow,
             wire,
             clay,
+            backdrop,
             drawn_scene,
             ..
         } = self;
@@ -942,6 +968,7 @@ impl Viewer {
                 gpu,
                 wire,
                 clay,
+                backdrop,
                 drawing,
                 target,
                 scene.as_ref().zip(drawn_scene.as_ref()),

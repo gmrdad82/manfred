@@ -1,5 +1,6 @@
 mod animated;
 mod app;
+mod backdrop;
 mod cameras;
 mod clay;
 mod curves;
@@ -8,6 +9,7 @@ mod edit;
 mod fixture;
 mod follow;
 mod gizmo;
+mod handles;
 mod open;
 mod orbit;
 mod overlay;
@@ -25,6 +27,7 @@ mod timeline;
 mod undo;
 mod viewer;
 mod viewport;
+mod views;
 mod watched;
 mod wire;
 

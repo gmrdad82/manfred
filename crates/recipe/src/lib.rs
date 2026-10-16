@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
+mod curve;
 mod include;
 mod patch;
 mod path;
@@ -13,6 +14,7 @@ mod text;
 mod validate;
 mod variant;
 
+pub use curve::{CurveEdit, CurveParam, curve_keys, curve_patch, curve_points, curves_of};
 pub use include::Files;
 pub use patch::{
     apply, apply_all, edit, flag, number, numbers, params_in, path_text, reread, save, save_to,
@@ -59,6 +61,7 @@ pub struct Recipe {
     pub lights: Vec<Light>,
     pub movers: Vec<Mover>,
     pub routes: Vec<RouteSpec>,
+    pub references: Vec<Reference>,
     pub follows: Vec<Follow>,
     pub stages: Vec<Stage>,
     pub keep: Vec<Vec<String>>,
@@ -621,6 +624,126 @@ pub struct RouteSpec {
     pub name: String,
     pub points: Vec<[f64; 3]>,
     pub closed: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Ortho {
+    Top,
+    Front,
+    Side,
+    Rear,
+}
+
+impl Ortho {
+    pub const ALL: [Ortho; 4] = [Ortho::Top, Ortho::Front, Ortho::Side, Ortho::Rear];
+
+    pub fn word(self) -> &'static str {
+        match self {
+            Ortho::Top => "top",
+            Ortho::Front => "front",
+            Ortho::Side => "side",
+            Ortho::Rear => "rear",
+        }
+    }
+
+    pub fn named(word: &str) -> Option<Ortho> {
+        Ortho::ALL.into_iter().find(|view| view.word() == word)
+    }
+
+    pub fn axes(self) -> [[f64; 3]; 2] {
+        match self {
+            Ortho::Top => [[0.0, 0.0, 1.0], [1.0, 0.0, 0.0]],
+            Ortho::Side => [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0]],
+            Ortho::Front | Ortho::Rear => [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+        }
+    }
+
+    pub fn forward(self) -> [f64; 3] {
+        match self {
+            Ortho::Top => [0.0, -1.0, 0.0],
+            Ortho::Front => [0.0, 0.0, -1.0],
+            Ortho::Side => [1.0, 0.0, 0.0],
+            Ortho::Rear => [0.0, 0.0, 1.0],
+        }
+    }
+
+    pub fn up(self) -> [f64; 3] {
+        match self {
+            Ortho::Top => [1.0, 0.0, 0.0],
+            Ortho::Front | Ortho::Side | Ortho::Rear => [0.0, 1.0, 0.0],
+        }
+    }
+
+    pub fn depth(self) -> [f64; 3] {
+        match self {
+            Ortho::Top => [0.0, 1.0, 0.0],
+            Ortho::Side => [1.0, 0.0, 0.0],
+            Ortho::Front | Ortho::Rear => [0.0, 0.0, 1.0],
+        }
+    }
+
+    pub fn place(self, [a, b]: [f64; 2], depth: f64) -> [f64; 3] {
+        let [u, v] = self.axes();
+        let d = self.depth();
+        std::array::from_fn(|k| u[k] * a + v[k] * b + d[k] * depth)
+    }
+
+    pub fn flatten(self, point: [f64; 3]) -> [f64; 2] {
+        let [u, v] = self.axes();
+        let dot = |axis: [f64; 3]| axis.iter().zip(point).map(|(a, p)| a * p).sum::<f64>();
+        [dot(u), dot(v)]
+    }
+
+    pub fn shares_plane(self, other: Ortho) -> bool {
+        self.axes() == other.axes()
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Reference {
+    pub name: String,
+    pub image: String,
+    pub view: Ortho,
+    pub from: [[f64; 2]; 2],
+    pub metres: f64,
+    pub offset: [f64; 2],
+    pub opacity: f64,
+}
+
+impl Reference {
+    pub fn metres_per_pixel(&self) -> f64 {
+        let [a, b] = self.from;
+        let pixels = (b[0] - a[0]).hypot(b[1] - a[1]);
+        if pixels > 0.0 {
+            self.metres / pixels
+        } else {
+            0.0
+        }
+    }
+
+    pub fn corners(&self, size: [u32; 2]) -> [[f64; 3]; 4] {
+        let k = self.metres_per_pixel();
+        let origin = self.view.place(self.offset, 0.0);
+        let right = right_of(self.view);
+        let up = self.view.up();
+        let [p0x, p0y] = self.from[0];
+        let [w, h] = size.map(f64::from);
+        [[0.0, 0.0], [w, 0.0], [0.0, h], [w, h]].map(|[px, py]| {
+            let u = (px - p0x) * k;
+            let v = -(py - p0y) * k;
+            std::array::from_fn(|i| origin[i] + right[i] * u + up[i] * v)
+        })
+    }
+}
+
+fn right_of(view: Ortho) -> [f64; 3] {
+    let f = view.forward();
+    let u = view.up();
+    [
+        f[1] * u[2] - f[2] * u[1],
+        f[2] * u[0] - f[0] * u[2],
+        f[0] * u[1] - f[1] * u[0],
+    ]
 }
 
 #[derive(Clone, Debug, PartialEq)]

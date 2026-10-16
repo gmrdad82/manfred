@@ -229,6 +229,7 @@ pub struct Target<'a> {
     pub camera: (Matrix, Matrix),
     pub scale: f32,
     pub region: Option<[f32; 4]>,
+    pub under: Option<&'a crate::backdrop::Drawn>,
 }
 
 struct Pipes {
@@ -409,6 +410,10 @@ impl Wire {
         pass.set_bind_group(0, &group, &[]);
         pass.set_pipeline(&pipes.ground);
         pass.draw(0..3, 0..1);
+        if let Some(under) = target.under {
+            under.record(&mut pass);
+            pass.set_bind_group(0, &group, &[]);
+        }
         if self.count > 0 {
             pass.set_pipeline(&pipes.lines);
             pass.draw(0..self.count * 6, 0..1);
@@ -869,6 +874,7 @@ mod tests {
             camera: (eye.view(), eye.projection(size, 0.05, 1000.0)),
             scale: 1.0,
             region: None,
+            under: None,
         };
         assert!(
             gpu.device

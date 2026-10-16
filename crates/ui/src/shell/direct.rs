@@ -6,7 +6,6 @@ use crate::tape::{Act, View};
 
 const FIT_MARGIN: f64 = 1.15;
 const FALLBACK_FOV: f64 = 40.0;
-const ORBIT_LOOK: [f64; 3] = [0.7, 0.5, 1.0];
 const PATH_WIDTH: f32 = 1.6;
 const GUIDE_WIDTH: f32 = 1.2;
 
@@ -23,16 +22,6 @@ pub fn glob(pattern: &str, text: &str) -> bool {
         }
     }
     from(pattern.as_bytes(), text.as_bytes())
-}
-
-pub fn direction(view: View) -> (DVec3, DVec3) {
-    match view {
-        View::Top => (DVec3::Y, DVec3::NEG_Z),
-        View::Front => (DVec3::Z, DVec3::Y),
-        View::Side => (DVec3::X, DVec3::Y),
-        View::Back => (DVec3::NEG_Z, DVec3::Y),
-        View::Orbit => (DVec3::from_array(ORBIT_LOOK).normalize(), DVec3::Y),
-    }
 }
 
 pub fn fitted(eye: &Eye, toward: DVec3, up: DVec3, centre: DVec3, radius: f64, aspect: f64) -> Eye {
@@ -204,21 +193,13 @@ impl Shell {
     }
 
     pub(super) fn snap(&mut self, view: View) {
-        let eye = self.loose();
-        let chosen = self.selection();
-        let (centre, radius) = self
-            .bounds(&chosen, &self.pieces)
-            .or_else(|| self.bounds(&[], &[]))
-            .unwrap_or((DVec3::from_array(eye.target), 1.0));
-        let (toward, up) = direction(view);
-        self.eye = Some(fitted(
-            &eye,
-            toward,
-            up,
-            centre,
-            radius,
-            self.aspect_shown(),
-        ));
+        match view {
+            View::Top => self.snap_ortho(manfred_recipe::Ortho::Top),
+            View::Front => self.snap_ortho(manfred_recipe::Ortho::Front),
+            View::Side => self.snap_ortho(manfred_recipe::Ortho::Side),
+            View::Back => self.snap_ortho(manfred_recipe::Ortho::Rear),
+            View::Orbit => self.unsnap(),
+        }
     }
 
     pub(super) fn fit_selection(&mut self) {

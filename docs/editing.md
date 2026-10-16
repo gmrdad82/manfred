@@ -37,6 +37,18 @@ If any step refuses, the whole gesture is rolled back, the file is untouched, an
 
 So an agent or another editor writing the file and a person in the window never clobber each other: the last write on disk is always what both see.
 
+## Tracing curves
+
+The viewport has four orthographic views: `7` top, `1` front, `3` side and `9` rear (the number row or the numpad), framing the selection, or the whole scene with nothing selected. `5` goes back to perspective about the same point, and `0` back to the chosen camera; an orbit drag leaves the standard view. In a view that a `[[reference]]` names, its image is drawn behind the scene at its scale, offset and opacity: shaded, it shows only where no surface covers it; in wireframe (`z`) it lies over the whole dark ground, under the edges, which is the view to trace in. `i` hides and shows every reference.
+
+With a generator object selected, the view shows its curve params as point handles joined by a line, in the info colour: every param of the object whose value is an array of at least two `[a, b]` points, anywhere in its params (`stations.0.curve`, `silhouettes.side`, `regions.1.curve`). A curve shows in the view it belongs to: the view a sibling `view = "..."` key names (as a region or a groove has), else the view its own key names (`silhouettes.top`), else the plane across the object's `axis` param when it has one (`x` or `[1, 0, 0]` is the side view, `y` the top view, `z` the front and rear views, as a `manfred/loft` station's cross-section across its axis), else the front and rear views, in `[x, y]`. A sibling `at` places the curve along the view's depth axis (a station's position along the axis). Points are in the object's own frame: the object's location, rotation and scale place them.
+
+- **Drag** a handle to move the point within the view's plane, rounded to the millimetre; the drag is one undo step and Esc puts the point back.
+- **Ctrl+click** on the line adds a point there, between the two it lies between.
+- **Click** a handle to select it, and **Delete** (or Backspace) removes it; a curve keeps at least 2 points.
+
+Each is one gesture, written through the same patches as `manfred curve`, keeping the file's comments; the object rebuilds as for any edit. Curve handles come before route handles and the gizmo under the pointer.
+
 ## Includes and uses
 
 A recipe that includes rig files or places copies of part files (`docs/recipe.md`, "Includes and uses") opens and edits as one recipe.

@@ -21,7 +21,7 @@ Ctrl+O opens the picker over the viewport at any time; Esc closes it. The window
 
 ## Move around
 
-Drag in the viewport to orbit, Shift+drag or middle-drag to pan, and the wheel to dolly. `0` looks through the chosen camera again.
+Drag in the viewport to orbit, Shift+drag or middle-drag to pan, and the wheel to dolly. `0` looks through the chosen camera again. `7`, `1`, `3` and `9` snap to the orthographic top, front, side and rear views and `5` goes back to perspective; a `[[reference]]` image shows behind the scene in its view, and `i` hides it. A selected generator's curve params show there as point handles to drag, Ctrl+click to add and Delete to remove (see Tracing curves in the editing guide).
 
 ## Clay and wireframe
 

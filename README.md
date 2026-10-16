@@ -240,6 +240,8 @@ manfred route <recipe> list|set|add|remove [--route <name>] [--at <i>] [--point 
                                                           list the routes' points and lengths, or move, add or remove a point in the file
 manfred set <recipe> <key>=<value>... [--json]               writes values into the recipe file by dotted key, as --set takes them, keeping its comments; refused and left untouched when the result does not check
 manfred get <recipe> <key>... [--json]                       prints the recipe's values by dotted key, as TOML or JSON
+manfred curve <recipe> <object> <param> list|set|add|remove [--at <i>] [--point a,b] [--json]
+                                                          list one curve param of a generator object, or move, add or remove a point in the file
 ```
 
 `manfred --help` and `manfred help <command>` print the whole help. A line Manfred cannot parse gets clap's short error on stderr and exits 2; a recipe, camera or file it refuses after that is one line on stderr, `manfred <command>: …`, and exits 1.

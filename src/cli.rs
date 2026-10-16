@@ -1,6 +1,7 @@
 mod build;
 mod check;
 mod clip;
+mod curve;
 mod diff;
 mod gui;
 mod new;
@@ -86,6 +87,10 @@ enum Verb {
     Set(set::SetArgs),
     #[command(about = "Print a recipe's values by dotted key")]
     Get(set::GetArgs),
+    #[command(
+        about = "List a generator object's curve param, or move, add or remove its points in the file"
+    )]
+    Curve(curve::Args),
     #[command(
         about = "Write a starter recipe",
         subcommand_required = true,
@@ -296,6 +301,7 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::Route(parsed) => route::run(&parsed, registry),
         Verb::Set(parsed) => set::run_set(&parsed, registry),
         Verb::Get(parsed) => set::run_get(&parsed, registry),
+        Verb::Curve(parsed) => curve::run(&parsed),
         Verb::New(parsed) => new::run(&parsed),
         Verb::Timeline(parsed) => timeline::run(&parsed, registry),
         Verb::Shoot(parsed) => shoot::run(&parsed, registry),
@@ -371,7 +377,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, new, timeline, shoot, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, curve, set, get, new, timeline, shoot, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),

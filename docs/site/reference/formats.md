@@ -117,6 +117,14 @@ One JSON object on stdout. `set` prints `recipe` (the path as given), `set[]` wi
 {"recipe":"chase.toml","values":[{"key":"sky.intensity","value":1.8}]}
 ```
 
+## `manfred curve --json`
+
+One JSON object on stdout, after the edit when there is one: `recipe` (the path as given), `object`, `param` (the path as given), `view` (`"top"`, `"side"`, `"front"` or `"rear"` from a sibling `view` key or the param's own name, null when neither names one) and `points` (`[a, b]` in metres, as the file holds them).
+
+```json
+{"object":"hull","param":"silhouettes.side","points":[[0.0,0.5],[2.0,1.3],[4.4,0.6]],"recipe":"hull.toml","view":"side"}
+```
+
 ## A clip's folder
 
 `manfred clip --out <dir>` writes:

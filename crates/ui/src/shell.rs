@@ -7,6 +7,7 @@ use egui::{
     StrokeKind, TextEdit, TextureHandle, TextureId, TextureOptions, Ui, UiBuilder, Vec2,
 };
 use manfred_build::Registry;
+use manfred_recipe::Ortho;
 use manfred_scene::Eye;
 
 use crate::cameras;
@@ -186,6 +187,10 @@ pub struct Shell {
     gizmo: Gizmo,
     routes: crate::routes::Routes,
     curves: crate::curves::Strip,
+    handles: crate::handles::Curves,
+    references: Vec<crate::backdrop::Shown>,
+    references_on: bool,
+    reference_epoch: u64,
     pick: Option<[f32; 2]>,
     spans: crate::spans::Spans,
     clock: Clock,
@@ -467,6 +472,10 @@ impl Shell {
             gizmo: Gizmo::default(),
             routes: crate::routes::Routes::default(),
             curves: crate::curves::Strip::default(),
+            handles: crate::handles::Curves::default(),
+            references: Vec::new(),
+            references_on: true,
+            reference_epoch: 0,
             pick: None,
             spans: crate::spans::Spans::default(),
             clock: Clock::default(),
@@ -798,6 +807,19 @@ impl Shell {
         let recipe = self.editor.as_ref().and_then(Editor::loaded);
         self.routes.set(recipe.map(|loaded| &loaded.recipe));
         self.curves.fit(recipe.map(|loaded| &loaded.recipe));
+        self.references = recipe.map_or_else(Vec::new, |loaded| {
+            let base = loaded.recipe.base.clone().unwrap_or_default();
+            loaded
+                .recipe
+                .references
+                .iter()
+                .map(|reference| crate::backdrop::Shown {
+                    path: base.join(&reference.image),
+                    reference: reference.clone(),
+                })
+                .collect()
+        });
+        self.reference_epoch += 1;
         let follow_rename = |name: String| {
             renamed.iter().fold(
                 name,
@@ -1365,11 +1387,14 @@ impl Shell {
                 ctx.memory_mut(|memory| memory.request_focus(search_id()));
             }
             (_, Key::Num0) if self.live() => self.jump(self.camera),
-            (_, Key::Num7) if self.live() => self.snap(crate::tape::View::Top),
-            (_, Key::Num1) if self.live() => self.snap(crate::tape::View::Front),
-            (_, Key::Num3) if self.live() => self.snap(crate::tape::View::Side),
-            (_, Key::Num9) if self.live() => self.snap(crate::tape::View::Back),
-            (_, Key::Num5) if self.live() => self.snap(crate::tape::View::Orbit),
+            (_, Key::Num7) if self.live() => self.snap_ortho(Ortho::Top),
+            (_, Key::Num1) if self.live() => self.snap_ortho(Ortho::Front),
+            (_, Key::Num3) if self.live() => self.snap_ortho(Ortho::Side),
+            (_, Key::Num9) if self.live() => self.snap_ortho(Ortho::Rear),
+            (_, Key::Num5) if self.live() => self.unsnap(),
+            (_, Key::I) if self.live() && !self.scene => {
+                self.references_on = !self.references_on;
+            }
             (_, Key::Home) if self.live() => self.fit_selection(),
             (_, Key::Z) if self.live() => self.cycle_shading(),
             (_, Key::K) if self.live() && self.has_curves() => self.toggle_curves(),
@@ -1457,6 +1482,9 @@ impl Shell {
             {
                 self.remove_curve_key();
             }
+            (Panel::C1, Key::Escape) if self.live() && self.handles.dragging().is_some() => {
+                self.cancel_handle();
+            }
             (Panel::C1, Key::Escape) if self.live() && self.routes.dragging().is_some() => {
                 self.cancel_route();
             }
@@ -1469,6 +1497,151 @@ impl Shell {
             (Panel::C1, Key::Delete | Key::Backspace) if self.live() => self.remove_point(),
             _ => {}
         }
+    }
+
+    pub fn backdrops(&self) -> Vec<crate::backdrop::Shown> {
+        if !self.references_on || self.scene || self.view_error.is_some() {
+            return Vec::new();
+        }
+        let Some(view) = self.view_eye().as_ref().and_then(crate::views::ortho_of) else {
+            return Vec::new();
+        };
+        self.references
+            .iter()
+            .filter(|shown| shown.reference.view == view)
+            .cloned()
+            .collect()
+    }
+
+    pub fn reference_epoch(&self) -> u64 {
+        self.reference_epoch
+    }
+
+    fn snap_ortho(&mut self, view: Ortho) {
+        let solids = self.solids_shown();
+        let chosen: Vec<&viewport::Solid> = match self.object {
+            Some(object) if solids.iter().any(|s| s.objects.contains(&object)) => solids
+                .iter()
+                .filter(|s| s.objects.contains(&object))
+                .collect(),
+            _ => solids.iter().collect(),
+        };
+        let fov = self.eye.map_or(45.0, |eye| eye.fov_y_deg);
+        let eye = crate::views::standard(view, &chosen, f64::from(self.document.aspect), fov);
+        self.eye = Some(eye);
+        self.through = false;
+        self.clock.chase = false;
+        self.settle = None;
+        self.grab = None;
+    }
+
+    fn unsnap(&mut self) {
+        if let Some(eye) = self.eye.filter(|eye| eye.ortho_height.is_some()) {
+            self.eye = Some(crate::views::perspective(&eye));
+            self.through = false;
+            self.settle = None;
+        }
+    }
+
+    fn curve_lines(&self) -> Vec<crate::handles::Line> {
+        if self.scene || self.view_error.is_some() {
+            return Vec::new();
+        }
+        let (Some(object), Some(eye)) = (self.object, self.view_eye()) else {
+            return Vec::new();
+        };
+        let Some(view) = crate::views::ortho_of(&eye) else {
+            return Vec::new();
+        };
+        let (Some(item), Some(loaded)) = (
+            self.document.objects.get(object),
+            self.editor.as_ref().and_then(Editor::loaded),
+        ) else {
+            return Vec::new();
+        };
+        let matrix = self
+            .gizmo
+            .poses()
+            .get(object)
+            .map_or(glam::DMat4::IDENTITY, crate::gizmo::Pose::world);
+        crate::handles::lines(&loaded.recipe, &item.name, matrix, view)
+    }
+
+    fn curve_click(&mut self, lens: &Lens, at: Pos2, add: bool) -> bool {
+        let lines = self.curve_lines();
+        if lines.is_empty() {
+            return false;
+        }
+        if add {
+            let Some(insert) = crate::handles::Curves::line_at(&lines, lens, at) else {
+                return false;
+            };
+            let Some(loaded) = self.editor.as_ref().and_then(Editor::loaded) else {
+                return true;
+            };
+            match crate::handles::inserted(loaded, &insert) {
+                Ok(patch) => {
+                    self.edits.push(insert.label(), vec![patch]);
+                    self.handles.point = Some((insert.object, insert.path, insert.index));
+                }
+                Err(why) => self.refuse_route(&insert.label(), why),
+            }
+            return true;
+        }
+        match crate::handles::Curves::handle_at(&lines, lens, at) {
+            Some((line, index)) => {
+                let line = &lines[line];
+                self.handles.point = Some((line.object.clone(), line.path.clone(), index));
+                true
+            }
+            None => {
+                self.handles.point = None;
+                false
+            }
+        }
+    }
+
+    fn move_curve_point(&mut self, drag: &crate::handles::Drag) {
+        let Some(loaded) = self.editor.as_ref().and_then(Editor::loaded) else {
+            return;
+        };
+        match crate::handles::moved(loaded, drag) {
+            Ok(patch) => self
+                .edits
+                .join(drag.label(), vec![patch], Join::Into(drag.join)),
+            Err(why) => self.refuse_route(&drag.label(), why),
+        }
+    }
+
+    fn cancel_handle(&mut self) {
+        if let Some(drag) = self.handles.finish() {
+            self.edits
+                .join(drag.label(), Vec::new(), Join::Cancel(drag.join));
+        }
+        self.grab = None;
+    }
+
+    fn remove_curve_point(&mut self) -> bool {
+        let lines = self.curve_lines();
+        self.handles.keep(&lines);
+        let Some((object, path, index)) = self.handles.point.clone() else {
+            return false;
+        };
+        if self.handles.dragging().is_some() {
+            return true;
+        }
+        let Some(loaded) = self.editor.as_ref().and_then(Editor::loaded) else {
+            return true;
+        };
+        let label = crate::handles::removal_label(&object, &path, index);
+        match crate::handles::removed(loaded, &object, &path, index) {
+            Ok(patch) => {
+                self.edits.push(label, vec![patch]);
+                self.handles.point = None;
+            }
+            Err(why) => self.refuse_route(&label, why),
+        }
+        true
     }
 
     fn object_route(&self) -> Option<String> {
@@ -1539,6 +1712,9 @@ impl Shell {
     }
 
     fn remove_point(&mut self) {
+        if self.remove_curve_point() {
+            return;
+        }
         let Some((name, index)) = self.routes.point.clone() else {
             return;
         };
@@ -1748,6 +1924,7 @@ impl Shell {
                     ("esc", "cancel"),
                     ("z", "shade"),
                     ("7 1 3 9 5", "views"),
+                    ("i", "references"),
                     ("home", "frame"),
                     ("0", "to camera"),
                 ];
@@ -2231,7 +2408,16 @@ impl Shell {
         let object_route = self.object_route();
         if response.drag_started() {
             self.settle = None;
-            let handle = origin.filter(|_| !middle).and_then(|origin| {
+            let lines = self.curve_lines();
+            let curve = origin
+                .filter(|_| !middle)
+                .and_then(|origin| {
+                    crate::handles::Curves::handle_at(&lines, &lens, origin).map(|h| (h, origin))
+                })
+                .is_some_and(|((line, index), origin)| {
+                    self.handles.begin(lens, &lines[line], index, origin)
+                });
+            let handle = origin.filter(|_| !middle && !curve).and_then(|origin| {
                 self.routes
                     .handle_at(&lens, object_route.as_deref(), origin)
             });
@@ -2239,7 +2425,8 @@ impl Shell {
                 (Some(handle), Some(origin)) => self.routes.begin(lens, handle, origin),
                 _ => false,
             };
-            let handled = route
+            let handled = curve
+                || route
                 || !middle
                     && !shift
                     && match (origin, self.object) {
@@ -2262,6 +2449,12 @@ impl Shell {
         }
         if response.dragged()
             && let Some(at) = pointer
+            && let Some(drag) = self.handles.to(at).cloned()
+        {
+            self.move_curve_point(&drag);
+        }
+        if response.dragged()
+            && let Some(at) = pointer
             && let Some(drag) = self.routes.to(at, shift).cloned()
         {
             self.move_point(&drag);
@@ -2270,6 +2463,7 @@ impl Shell {
             && !self.gizmo.swallowing()
             && self.gizmo.dragging().is_none()
             && self.routes.dragging().is_none()
+            && self.handles.dragging().is_none()
             && let Some(grab) = self.grab
             && let Some(at) = pointer
         {
@@ -2290,10 +2484,12 @@ impl Shell {
                 self.edits.push(label, patches);
             }
             self.routes.finish();
+            self.handles.finish();
             self.grab = None;
         }
         if response.clicked()
             && let Some(at) = pointer
+            && !self.curve_click(&lens, at, snap)
             && !self.route_click(&lens, object_route.as_deref(), at, snap)
         {
             let handle = self
@@ -2356,6 +2552,8 @@ impl Shell {
                 let object_route = self.object_route();
                 self.routes
                     .draw(&clipped, &Lens::new(&eye, image), object_route.as_deref());
+                let lines = self.curve_lines();
+                self.handles.draw(&clipped, &Lens::new(&eye, image), &lines);
             }
             if let Some(object) = self.object.filter(|_| self.view_error.is_none()) {
                 let clipped = painter.with_clip_rect(image);

@@ -835,6 +835,31 @@ closed = false
 - **The frame** at a distance is its position, its tangent (the way of travel), its right (the tangent crossed with world up) and its up. A route that runs straight up or down takes world +Z as its reference instead of world up. Curvature is signed, positive where the route turns right.
 - **Editing:** `--set route.main.points=[[0, 0, 0], [0, 0, 50]]` and a variant's `set` replace the points; `closed` the same way. `manfred route <recipe> list|set|add|remove --route <name> [--at <i>] [--point x,y,z] [--json]` lists the routes with their points and lengths, moves point `--at` to `--point`, inserts `--point` before point `--at` (or at the end without `--at`), or removes point `--at`, and writes the recipe file through the same edits the window makes, keeping its comments; a route never goes below its 2 points (3 when closed). Routes in an included file are edited in that file.
 
+## References
+
+A reference is an image you trace any shape over (a plan, an elevation, a product drawing), shown behind the scene in the window's matching orthographic view at its real size in metres. It never reaches the GLB, the sidecar or the scene file.
+
+```toml
+[[reference]]
+name = "side"
+image = "refs/side-elevation.png"
+view = "side"
+scale = { from = [[112, 610], [1530, 610]], metres = 2.70 }
+offset = [1.35, 0.33]
+opacity = 0.5
+```
+
+- `name` is required and no other reference uses it. `image` is required: a PNG (8-bit RGB or RGBA), relative to the file that names it, as every other path in a recipe.
+- `view` is required: `top`, `front`, `side` or `rear`. Each view has two coordinates in metres, the same ones its curves use: the views follow the world axes: `side` is `[z, y]` (from -X looking along +X, +Z to the right), `top` is `[z, x]` (from +Y looking down, +Z to the right, +X up), `front` is `[x, y]` (from +Z looking along -Z, +X to the right) and `rear` is `[x, y]` (from -Z looking along +Z, +X to the left).
+- `scale` is required: `from` is two pixels of the image, `[px, py]` from its top left, and `metres` the distance between them in the scene, above 0 (two marks on the drawing and a dimension between them). The image keeps its aspect: one scale for both axes.
+- `offset` (`[0, 0]` by default) is where the first `from` pixel lands, in the view's two coordinates.
+- `opacity` (0.5 by default) is from 0 to 1.
+- **Editing:** `--set reference.side.opacity=0.3`, `--set reference.side.offset=[1.4, 0.33]` and a variant's `set` change any key, as for other tables. A reference in an included file is that file's.
+
+### Curves from the CLI
+
+`manfred curve <recipe> <object> <param path> list|set|add|remove [--at <i>] [--point a,b] [--json]` lists one curve param of a generator object, or moves point `--at` to `--point`, inserts `--point` before point `--at` (or appends it without `--at`), or removes point `--at`, and writes the recipe through the window's own edits, keeping its comments. The path is the param's under `params`, with numbers for array positions: `stations.0.curve` (or `stations[0].curve`), `silhouettes.side`, `regions.2.curve`. The point is in the curve's own two coordinates, in metres; a curve keeps at least 2 points. `--json` prints one object: `recipe`, `object`, `param`, `view` (the view the window shows it in, or null for the front and rear views; see Tracing curves in docs/editing.md) and `points`.
+
 ## Shot effects
 
 The keys pfx-scene 1.1.0 added for a rendered shot. The recipe spells them as the scene file does (pfx-scene's `docs/format.md`), the writer passes them through, and Manfred validates them by type and range, naming the key. They need `[output] scene_format = 1`: a format 0 scene refuses them at the key. Manfred's own views (`manfred shot`, `render`, `clip` and the window) ignore them, and leave a light with a `parent` out, since it rides an object; pfx draws them when it renders the scene. `--set` and variants reach every key, as `particles.spray.rate`, `light.headlight.cone`, `flare.amount` or `materials.asphalt.wet.puddles`. A colour is `"#rrggbb"` or `[r, g, b]`, each at least 0; the key is `color`, never `colour`.

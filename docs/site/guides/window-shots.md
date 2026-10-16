@@ -58,7 +58,7 @@ A tape also directs the view. These steps work in `--tape` (not in `--input`). E
 | Step | Does |
 | --- | --- |
 | `stage <N\|name>` | rebuilds the recipe as its `[[stage]]` N (stages 1 to N) or the stage of that name, and waits for the build |
-| `view top\|front\|side\|back\|orbit` | snaps the orbit view to a standard view (`top` looks down, `front` from +Z, `side` from +X, `back` from -Z, `orbit` three-quarter) that fits the selection, or the whole scene when nothing is selected; keys `7`, `1`, `3`, `9` and `5` |
+| `view top\|front\|side\|back\|orbit` | snaps to the window's orthographic view, as keys 7, 1, 3 and 9 do (`top` looks down, `front` from +Z, `side` from +X, `back` from -Z), framing the selection or the whole scene; `orbit` returns to perspective, as key 5 does |
 | `camera <name>` | looks through a recipe camera; a camera with a `[camera.rig]` looks through its baked track at the clock's time (the chase cam) |
 | `select <name>[,<name>]` | selects objects, pieces (`road.crosswalks`, `hero.wheel_rl`) or a light by name, `*` and `?` globs allowed; the wireframe draws them in the accent colour, and a piece alone outlines only that piece |
 | `orbit <degrees> <seconds>` | turns the view about its target, positive as a drag to the right turns it |
