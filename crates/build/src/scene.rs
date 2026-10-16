@@ -1,10 +1,12 @@
 use crate::bake::{Section, absolute, list, number, shade_at, string};
 use crate::{Built, Error, GeneratedLight, Look, Part, local_matrix, world};
 use glam::{DMat4, DVec3};
+use manfred_glb::LIGHT_PREFIX;
 use manfred_recipe::toml_edit::{DocumentMut, Item, Value};
 use manfred_recipe::{
     CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, Casters, Kind, LightKind, MONO, Object, Projection,
-    Recipe, RigFocus, Room, SCENE_SUFFIX, Shadow, SkyAmbient, SkyKind, TextSpace, Trace, View,
+    Recipe, RigFocus, Room, SCENE_SUFFIX, Shadow, SkyAmbient, SkyKind, Table, TextSpace, Trace,
+    View,
 };
 use pfx_core::daylight::{Authored, Daylight};
 use pfx_load::{RoomLamp, RoomSky, Sky};
@@ -17,6 +19,7 @@ use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 mod effects;
+mod keys;
 mod proxies;
 
 pub(crate) const REFERENCE_HOUR: f64 = 16.0;
@@ -123,6 +126,23 @@ pub(crate) fn left_out(recipe: &Recipe) -> Option<String> {
     if !slots.is_empty() {
         kept.push(format!("live content slots ({})", slots.join(", ")));
     }
+    let placed: Vec<&str> = recipe
+        .lights
+        .iter()
+        .filter(|l| {
+            recipe
+                .keyed
+                .get(&format!("light.{}", l.name))
+                .is_some_and(|k| k.contains_key("position") || k.contains_key("at"))
+        })
+        .map(|l| l.name.as_str())
+        .collect();
+    if !placed.is_empty() {
+        kept.push(format!(
+            "keyed light positions ({}), which Manfred's own views play; in the scene a light moves with a `parent` node",
+            placed.join(", ")
+        ));
+    }
     (!kept.is_empty()).then(|| {
         format!(
             "output.scene: the scene has no key for {}; they stay in the recipe",
@@ -146,7 +166,13 @@ pub(crate) fn text(
         ));
     }
     if format == 0
-        && let Some(key) = effects::format_1_key(recipe)
+        && let Some(key) = effects::format_1_key(recipe).or_else(|| {
+            built
+                .wet
+                .values()
+                .next()
+                .map(|(owner, _)| format!("object[{owner}].params"))
+        })
     {
         return Err(Error::new(
             key,
@@ -475,6 +501,7 @@ fn sun(out: &mut String, recipe: &Recipe, light: &Light) -> Result<(), Error> {
             s.num("heading", daylight.heading)?;
             s.num("reference_hour", REFERENCE_HOUR)?;
             s.num("radius", DAYLIGHT_RADIUS_DEG)?;
+            keys::put(&mut s, &keys::tracks(recipe, "sun", Table::Sun))?;
         }
         (None, Source::Authored) => {}
     }
@@ -506,6 +533,12 @@ fn sky(
         }
         SkyKind::Analytic => {
             s.put("kind", &string("analytic"));
+            if let Some(turbidity) = sky.turbidity {
+                s.num("turbidity", turbidity)?;
+            }
+            if let Some(albedo) = &sky.ground_albedo {
+                s.list("ground_albedo", albedo)?;
+            }
             return analytic_ambient(&mut s, light, sky.intensity);
         }
         SkyKind::Hdr => {
@@ -758,6 +791,30 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
         return Ok(());
     };
     let at = format!("camera[{}]", camera.name);
+    let aspect = match &recipe.plate {
+        Some(plate) => plate.width / plate.height,
+        None => STILL[0] / STILL[1],
+    };
+    let keyed: keys::Sent = keys::tracks(recipe, &format!("camera.{}", camera.name), Table::Camera)
+        .into_iter()
+        .map(|(name, property, keys)| match property {
+            "focal_mm" => {
+                let lens = |focal: f64| {
+                    let mut lens = camera.clone();
+                    lens.fov_y_deg = None;
+                    lens.focal_mm = Some(focal);
+                    lens.fov_y_deg(aspect)
+                };
+                let keys = keys
+                    .into_iter()
+                    .map(|(t, v)| (t, vec![lens(v.first().copied().unwrap_or_default())]))
+                    .collect();
+                (name, property, keys)
+            }
+            _ => (name, property, keys),
+        })
+        .collect();
+    let fov_keyed = keyed.iter().any(|(name, _, _)| *name == "fov");
     let mut s = Section::new(out, "[camera]", at);
     match camera.kind {
         Projection::Perspective => {
@@ -772,10 +829,6 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
     s.list("up", &camera.up)?;
     match camera.kind {
         Projection::Perspective => {
-            let aspect = match &recipe.plate {
-                Some(plate) => plate.width / plate.height,
-                None => STILL[0] / STILL[1],
-            };
             let fov = camera.fov_y_deg(aspect);
             if camera.fstop.is_finite() && camera.fstop > 0.0 {
                 let tan_y = (fov.to_radians() * 0.5).tan();
@@ -785,10 +838,14 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
                     .unwrap_or_else(|| {
                         camera.sensor_mm.unwrap_or(SENSOR_MM) / (2.0 * tan_y * aspect.max(1.0))
                     });
-                s.num("focal", focal)?;
-                s.num("sensor", 2.0 * focal * tan_y)?;
+                if fov_keyed {
+                    s.num("fov", fov)?;
+                } else {
+                    s.num("focal", focal)?;
+                    s.num("sensor", 2.0 * focal * tan_y)?;
+                }
                 s.num("fstop", camera.fstop)?;
-                let fixed = match camera.rig.as_ref().and_then(|rig| rig.focus) {
+                let fixed = match recipe.rig_of(camera).and_then(|rig| rig.focus) {
                     Some(RigFocus::Distance(metres)) => Some(metres),
                     _ => camera.focus_m,
                 };
@@ -818,7 +875,7 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
     if camera.shift != [0.0, 0.0] {
         s.list("shift", &camera.shift)?;
     }
-    Ok(())
+    keys::put(&mut s, &keyed)
 }
 
 fn focus_keys(recipe: &Recipe, built: &Built, camera: &Camera) -> Option<Result<String, Error>> {
@@ -853,10 +910,10 @@ fn haze(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
             "look.grade.haze already sets the haze's amount, expected one of the two",
         ));
     }
-    if room.is_none() && open.is_some() && !has("height") && !has("falloff") {
+    if room.is_none() && open.is_some() && !has("height") && !has("falloff") && !has("lo") {
         return Err(Error::new(
             "haze",
-            "an outdoor haze needs `height` or `falloff`; a room haze comes from look.grade.haze",
+            "an outdoor haze needs `height` or `falloff`; a room haze needs `lo` and `hi`, or comes from look.grade.haze",
         ));
     }
     if room.is_none() && open.is_none() {
@@ -865,17 +922,23 @@ fn haze(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
     let mut s = Section::new(out, "[haze]", "haze");
     if let Some(amount) = room {
         s.at = "look.grade.haze".to_string();
-        s.list("lo", &HAZE_LO)?;
-        s.list("hi", &HAZE_HI)?;
+        if !has("lo") {
+            s.list("lo", &HAZE_LO)?;
+            s.list("hi", &HAZE_HI)?;
+        }
         s.num("amount", amount.min(1.0))?;
-        s.num("phase", HAZE_PHASE)?;
-        s.num("back", HAZE_BACK)?;
+        if !has("phase") {
+            s.num("phase", HAZE_PHASE)?;
+        }
+        if !has("back") {
+            s.num("back", HAZE_BACK)?;
+        }
         s.at = "haze".to_string();
     }
-    match open {
-        Some(settings) => effects::put(&mut s, settings),
-        None => Ok(()),
+    if let Some(settings) = open {
+        effects::put(&mut s, settings)?;
     }
+    keys::put(&mut s, &keys::tracks(recipe, "haze", Table::Haze))
 }
 
 pub(crate) fn bounds(built: &Built) -> Option<[[f64; 3]; 2]> {
@@ -965,12 +1028,21 @@ fn standard_or_graded(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
         Some(look) => (look.exposure, Some(look)),
     };
     let mut s = Section::new(out, "[finish]", "look");
+    let mut keyed = keys::tracks(recipe, "look", Table::Finish);
+    if let Some(camera) = recipe.scene_camera() {
+        for track in keys::tracks(recipe, &format!("camera.{}", camera.name), Table::Finish) {
+            if !keyed.iter().any(|(name, _, _)| *name == track.0) {
+                keyed.push(track);
+            }
+        }
+    }
     if let Some(look) = grade
         && look.view == View::Standard
     {
         s.num("exposure", exposure)?;
-        return Ok(());
+        return keys::put(&mut s, &keyed);
     }
+    keys::put(&mut s, &keyed)?;
     let (bloom, vignette, saturation, warmth) = match grade {
         Some(look) => {
             let g = &look.grade;
@@ -1068,14 +1140,32 @@ fn lights(
     let room = MAX_LIGHTS.saturating_sub(recipe.lights.len());
     let generated: Vec<manfred_recipe::Light> =
         ordered(&built.lights).take(room).map(generated).collect();
-    for light in recipe.lights.iter().chain(&generated) {
+    for (index, light) in recipe.lights.iter().chain(&generated).enumerate() {
         let at = format!("light[{}]", light.name);
-        let parent = match &light.parent {
-            Some((name, place)) => Some((
+        let keyed = if index < recipe.lights.len() {
+            keys::tracks(recipe, &format!("light.{}", light.name), Table::Light)
+        } else {
+            Vec::new()
+        };
+        let node = format!("{LIGHT_PREFIX}{}", light.name);
+        let riding = whole.filter(|_| {
+            light.parent.is_none()
+                && built
+                    .tracks
+                    .iter()
+                    .any(|t| t.node == node && t.light_name().is_some())
+        });
+        let parent = match (&light.parent, riding) {
+            (_, Some(whole)) => Some((effects::riding(whole, node), &[0.0; 3])),
+            (Some((name, place)), None) => Some((
                 effects::parent(built, recipe, whole, name, &format!("{at}.parent"))?,
                 place,
             )),
-            None => None,
+            (None, None) => None,
+        };
+        let direction = match (riding, light.kind) {
+            (Some(_), LightKind::Spot) => Some(light.direction.unwrap_or([0.0, 0.0, -1.0])),
+            _ => light.direction,
         };
         let mut s = Section::new(out, "[[light]]", at);
         s.put("name", &string(&light.name));
@@ -1089,7 +1179,7 @@ fn lights(
             }
             None => s.list("position", &light.position)?,
         }
-        if let Some(direction) = &light.direction {
+        if let Some(direction) = &direction {
             s.list("direction", direction)?;
         }
         if let Some(cone) = &light.cone {
@@ -1105,6 +1195,7 @@ fn lights(
         };
         s.num("range", range)?;
         s.put("shadow", &light.shadow.to_string());
+        keys::put(&mut s, &keyed)?;
     }
     Ok(())
 }
@@ -1749,6 +1840,8 @@ fn one(
                 material.id = next(&mut ids, None, "materials", name);
                 if let Some(wet) = recipe.effects.wet.get(name) {
                     material.wet = Some(effects::wet(wet));
+                } else if let Some((_, wet)) = built.wet.get(name) {
+                    material.wet = Some(*wet);
                 }
             }
             library.format = Some(FORMAT);

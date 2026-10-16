@@ -107,6 +107,10 @@ impl<'a> Manfred<'a> {
         self.shell.set_clay(amount);
     }
 
+    pub fn seek_to(&mut self, to: &str) -> Result<f64, String> {
+        self.shell.seek_to(to)
+    }
+
     pub fn building(&self) -> bool {
         self.viewer
             .get()

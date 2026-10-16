@@ -352,8 +352,12 @@ impl Renderer {
                 let (recipe, built) = (&base.0, &base.1);
                 let fps = recipe.timeline.map_or(1, |t| t.fps);
                 reel.set_poses(manfred_scene::poses(built, fps, time));
+                let lit = recipe.keyed.keys().any(|entry| entry.starts_with("light."));
                 let recipe =
                     manfred_build::pose_cameras(recipe, built, time).map_err(|e| e.to_string())?;
+                if lit {
+                    reel.set_lights(&recipe.lights).map_err(|e| e.0)?;
+                }
                 manfred_scene::camera(&recipe, name)
                     .cloned()
                     .map_err(|e| e.0)

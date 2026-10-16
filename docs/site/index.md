@@ -37,6 +37,7 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 | `manfred set` | writes values into a recipe's file by dotted key, keeping its comments, and checks it |
 | `manfred get` | prints a recipe's values by dotted key |
 | `manfred curve` | lists a generator object's curve param, or moves, adds and removes its points in the file |
+| `manfred key`, `manfred unkey` | set, insert or remove a key of an object's, camera's, light's, particles', look's, sun's or haze's property over the timeline, in the file |
 | `manfred new street` | writes a starter chase-shot recipe from a seed, with its lilac grade in lilac.cube beside it |
 | `manfred timeline` | a recipe's timeline: frames, keyed nodes, the camera node, what travels how far and how fast |
 | `manfred library` | lists, indexes and checks the object library: standard glTF models with a sidecar, which a recipe places by name |

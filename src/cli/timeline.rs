@@ -168,6 +168,17 @@ fn report(args: &Args, registry: &Registry, out: &mut dyn Write) -> Result<(), S
         })
         .collect();
     let camera = facts.cameras.first().cloned();
+    let markers: Vec<Value> = recipe
+        .markers
+        .iter()
+        .map(|m| {
+            json!({
+                "name": m.name,
+                "t": m.t,
+                "frame": (m.t * f64::from(timeline.fps) + 1e-6).floor() as u64,
+            })
+        })
+        .collect();
     if args.json {
         let nodes: Vec<Value> = facts
             .nodes
@@ -185,6 +196,7 @@ fn report(args: &Args, registry: &Registry, out: &mut dyn Write) -> Result<(), S
             "cameras": facts.cameras,
             "keyed": nodes,
             "follow": follows,
+            "markers": markers,
         });
         let _ = writeln!(out, "{line}");
         return Ok(());
@@ -222,6 +234,15 @@ fn report(args: &Args, registry: &Registry, out: &mut dyn Write) -> Result<(), S
                 let _ = writeln!(out, "follow {object}: no keyed node");
             }
         }
+    }
+    for marker in &markers {
+        let _ = writeln!(
+            out,
+            "marker {}: {} s, frame {}",
+            marker["name"].as_str().unwrap_or_default(),
+            marker["t"],
+            marker["frame"]
+        );
     }
     Ok(())
 }

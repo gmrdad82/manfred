@@ -37,7 +37,7 @@ scene_camera = "main"
 scene_format = 1
 ```
 
-- `include`: other files whose cameras, lights, sky, look, materials, routes, particles, flare, motion blur, haze and objects merge into this recipe, under "Includes and uses" below.
+- `include`: other files whose cameras, lights, sky, look, materials, routes, markers, particles, flare, motion blur, haze and objects merge into this recipe, under "Includes and uses" below.
 - `sound`: an optional `*.sound.toml` file, relative to the recipe, which the scene names as its top-level `sound` (format 1 only; see "Shot effects").
 - `library`: the object library's folder, relative to the recipe, for `kind = "library"` objects; see "Library" below.
 - `params`: an optional JSON or TOML file whose values can be substituted into numeric fields as `"${params.camera.focal_mm}"`. An app's own solver writes the file; the recipe consumes it.
@@ -73,7 +73,7 @@ Where the recipe and the engine's `scene.toml` (pfx's `docs/scenes.md`) name the
 - **Daylight defaults.** The scene file defaults `latitude` to 45 and `heading` to 180, and a recipe that left them out would read differently in the two. The recipe requires both, so it never does. `reference_hour` is Manfred's 16, where the scene file's default is 12: the recipe accepts only 16.0 or the key left out, and the writer writes `reference_hour = 16.0` into the scene.
 - **An authored sun's `hour`** is refused: Manfred's authored light follows the hour of the shot or the window, which no scene key says. `sky_fill` is Manfred's alone; `radius_deg` is the scene's `radius`.
 - **`[[light]]`'s `shadow` and `range`.** The recipe's defaults are `false` and 0 (reach derived from the intensity, as `light.rs` does); the scene file's are `true` and 10. The writer writes the resolved values.
-- **The sky.** `kind = "mix"`, `source`, `fill`, `[sky.shade]` and `ambient = "authored"` (the room scaled by the sun's hour) are Manfred's. The scene's `ambient` is a number on the analytic sky, `turbidity` and `ground_albedo` are not recipe keys, and a `mix` is written as two layers whose weights carry `fill`.
+- **The sky.** `kind = "mix"`, `source`, `fill`, `[sky.shade]` and `ambient = "authored"` (the room scaled by the sun's hour) are Manfred's. The scene's `ambient` is a number on the analytic sky, and a `mix` is written as two layers whose weights carry `fill`.
 - **Cameras.** The recipe's `[[camera]]` list with `position`, `target` and `fov_y_deg` is not the scene's single `[camera]` with `at`, `look_at` and `fov`; the writer picks one and converts.
 - **Movers, variants, `[sidecar]` and `[bake]`** have no scene spelling and stay on the authoring side: the scene's `[[mover]]` is a preview motion with a kind, a period and a curve, and a recipe mover has none.
 - **`[trace]`** is the scene's own table, with `transmissive_shadows`, `clamp_indirect` and `filter_glossy`; `spp`, `threshold` and `min_samples` are `manfred render`'s alone and stay out of the scene.
@@ -253,7 +253,8 @@ params = { route = "street", lanes = 2, every = 80, offset = 30 }
 
 - **`params`:** `route` (a route's name, required); `lanes` (each way, 1 to 8, default 2); `lane_width` (3.2 m); `sidewalk` (3.0 m from the curb's face to its outer edge); `curb` (its height, 0.15 m); `curb_width` (its top, 0.3 m); `line` (a marking's width, 0.15 m); `dash` and `dash_gap` (3 m and 6 m); `centre` (`"double"`, the default, `"dashed"` or `"solid"`); `edge` (the edge line's centre from the curb, 0.3 m, 0 for none); `crosswalks = [distances along the route, m]`, or `every` (m) with `offset` (default half of `every`); `crosswalk_depth` (4 m along the route); `stripe` and `stripe_gap` (a zebra stripe's width and the gap between, 0.5 m and 0.6 m); `step` (the longest step along the route, 1 m: curves step finer, 0.05 rad a step, down to 0.1 m); `seed` (default the object's); `reveal` (0 to 1, default 1: the asphalt, curbs, sidewalks, lines and zebra stripes are built from the route's start up to that share of its length, and 0 builds nothing). Any other key is refused. A listed crosswalk off an open route is refused; `every` keeps the ones that fit.
 - **Pieces:** `<object>.asphalt` (one ribbon, UVs in metres: u across from the left curb, v along the route), `<object>.curbs` (each curb's face and top), `<object>.sidewalks` (their tops and outer faces), `<object>.markings` (lane lines dashed, the centre line and the solid edge lines, 2 mm above the asphalt and broken at crosswalks), `<object>.crosswalks` (zebra stripes, 2 mm up; absent without crosswalks).
-- **Materials:** `road_asphalt` (dark, roughness 0.6), `road_paint` (white, slightly worn through `ageing`) and `road_concrete` (curbs and sidewalks). A recipe `[materials.road_asphalt]` replaces it, for a wet look among others. The seed moves the dashes' phase and wears each zebra stripe's ends by up to 12 cm; the same seed builds the same bytes.
+- **Materials:** `road_asphalt` (dark, roughness 0.6), `road_paint` (white, slightly worn through `ageing`) and `road_concrete` (curbs and sidewalks). A recipe `[materials.road_asphalt]` replaces it, for a wet look among others.
+- **Looks:** `asphalt`, `paint` and `concrete` params restyle the three, each optional, as `{ base = [r, g, b], roughness, wet = { amount, puddles, puddle_scale, seed } }`: `base` is linear, each 0 to 1 (defaults `[0.045, 0.045, 0.05]`, `[0.82, 0.82, 0.8]` and `[0.5, 0.49, 0.46]`), `roughness` 0 to 1 (0.6, 0.55 and 0.85), and `wet` is the scene's `[materials.<name>.wet]` (`amount` and `puddles` 0 to 1, `puddle_scale` above 0, `seed` a whole number), written to the scene's material library (scene format 1; format 0 refuses it at `object[<name>].params`). A key left out keeps the default; any other key is refused. A material a look changes is named after its content, `road_asphalt_<8 hex digits>`, so two roads of different looks build side by side; a recipe `[materials.road_asphalt.wet]` applies only to the default `road_asphalt`. `--set object.main.params.asphalt.wet.amount=0.8` tunes one the recipe carries. The seed moves the dashes' phase and wears each zebra stripe's ends by up to 12 cm; the same seed builds the same bytes.
 - **Facts:** `road = { route, length, width, lanes, lane_width, lane_centres, curb, sidewalk = [inner, outer], outer, crosswalks, crosswalk_depth }`. `width` is curb to curb; `lanes` is each way; `lane_centres` are the lanes' lateral offsets from left to right, the positive ones driving along the route; `sidewalk` gives its inner and outer offsets and `outer` where buildings may start; `crosswalks` are the distances built.
 
 ### manfred/buildings
@@ -346,6 +347,8 @@ params = { style = "sports", paint = "#c8102e" }
   - `wheelbase`: axle to axle, from 0.4 to 0.8 × `length`; about 0.6 × `length` by default.
   - `track`: wheel centre to wheel centre across, from 0.5 × `width` to `width` less the tyre; by default the width less the tyre and the arches' flare.
   - `paint`: `"#rrggbb"` (sRGB), `[r, g, b]` (linear, 0 to 1) or the name of a material the recipe or the app defines.
+  - `head_emission` and `tail_emission`: the head and tail lamps' emission, linear RGB strengths, each 0 or more; defaults `[5.0, 4.6, 3.8]` and `[3.2, 0.03, 0.01]`. A lamp of another emission is the material `car_head_<8 hex digits>` (or `car_tail_…`), named after its content, so cars of different lamps build together. With `lights = false` they are not used.
+  - `head_light` and `tail_light`: the spot lights, `{ intensity, cone = [inner, outer], range, color }`, each key optional and defaulting to the values below (`intensity` and `range` 0 or more, `cone` degrees with 0 <= inner <= outer <= 180, `color` linear RGB each 0 or more); any other key is refused.
   - `lights`: `true` (the default) makes the head and tail lights emissive and returns four spot lights riding `<object>.body`: `<object>.headlight_l` and `_r` at the headlamps, pointing forward and a little down, cone [20, 40], warm white, range 40 m, and `<object>.taillight_l` and `_r` at the tail lamps, pointing back, cone [15, 35], red, range 6 m and intensity 6, enough to light the spray but not the street; `false` leaves them unlit lenses with no lights. The scene writes a car's lights first, with `parent` and `node = "<object>.body"` and `at` in the car's frame on a timeline scene (or the body's own scene object without one), so they move with the car.
 - **Pieces,** named after the object: `<object>.body` (paint, with trim on the underside, wells, grille and valances, and rim metal on the exhausts), `<object>.glass`, `<object>.wheel_fl`, `<object>.wheel_fr`, `<object>.wheel_rl`, `<object>.wheel_rr` (each the tyre, the rim and a dark backing in one piece, three material slots), `<object>.headlights` and `<object>.taillights`. Left is +X, the car's left as it faces +Z. A sports car is about 15,500 triangles, a traffic car about 7,000, and three build in about 20 ms.
 - **Materials** it returns, in the engine's form: `car_paint_<rrggbb>` for a `"#rrggbb"` paint and `car_paint_linear_<rrggbb>` for an `[r, g, b]` one (lacquer with a clear coat), `car_glass` (tinted, transmissive), `car_tyre`, `car_rim` (metal), `car_trim` (dark plastic), and `car_head` and `car_tail` (emissive warm white and red), or `car_head_off` and `car_tail_off` with `lights = false`. A recipe's own `[materials.<name>]` of the same name replaces one.
@@ -721,6 +724,12 @@ focus = "follow"
 - `shake` is pfx's `fx::Shake` at full trauma: `translation` (0, metres, across the frame's right and up), `roll` (0, degrees, below 90), `frequency` (2, hertz, above 0) and `seed` (the timeline's seed). The same seed gives the same shake.
 - `focus` sets depth of field and needs the camera's `fstop` above 0: `"follow"` keeps the focus on the followed object, the distance from the camera to its origin (a car's centre on the ground under it) at every frame, written into the scene's `[camera]` as `focus_keys = [[t, metres], ...]` one key a frame; a number is a fixed focus distance in metres, written as `focus`.
 - `[camera.rig.tracks]` directs the rig over time: each track is optional, an array of `[t, value]` keys in seconds with rising times from 0, passing through every key on a Hermite curve (Catmull-Rom tangents, flat at the first and last key) and held past the ends. A track overrides its static key: `distance` (metres behind the object along its −Z, above 0; overrides `-offset[2]`), `lateral` (metres to the right of travel; overrides `-offset[0]`, and moves the aim sideways with the camera so the object crosses the frame), `height` (metres; overrides `offset[1]`), `bank` (the bank gain), `lag` (seconds), `shake` (a scale of the `shake` table, 0 and up; 1 is the table as written) and `look_ahead` (seconds). `lag`, `shake` and `look_ahead` take values of 0 or more. A rig without tracks bakes as before, byte for byte.
+- **Replay moves**, more `[camera.rig.tracks]`, each optional and keyed the same way: `orbit` (degrees of azimuth around the target: 0 behind, 90 its right side, 180 in front, 270 its left, so a rising key swings the camera behind, side, front and back), `pitch` (degrees of elevation around the target, -90 to 90: 0 level with its origin, 90 straight above it, for crane moves), `roll` (degrees, added to the bank), `focal` (the lens in millimetres) or `fov` (the vertical field of view in degrees, above 0 and below 180), not both, and `look_offset` (`[[t, [x, y, z]], ...]`, the aim point in the target's frame, keyed; it overrides `look`, so the camera aims above or ahead of the target).
+  - **Precedence:** with `orbit` or `pitch`, the camera sits on a sphere around the target, at `distance` metres (the track, else the length of `offset`), `orbit` degrees around and `pitch` degrees up (each the track, else the angle of `offset`, so the sphere starts where the offset is); that spherical offset replaces `offset` and the `lateral` and `height` tracks, which are then ignored. Without both, the cartesian offset, `distance`, `lateral` and `height` place it as above.
+  - **The lens:** `focal` or `fov` keys the camera's lens over the timeline: the GLB's camera node carries the lens at frame 0 (glTF's `yfov` is not animated), and Manfred's own shots and clips at `--time` zoom with the keys. The scene file's keyed `[camera] keys = { fov = ... }` waits for pfx-scene's next minor (pfx 1813), as the pinned v1.1.0 refuses the key. `focal` and `fov` are a camera's, refused on a rig of an object or a light.
+  - **`smooth = { <track> = seconds }`** under `[camera.rig]` eases a track through a critically damped spring (Game Programming Gems 4's smooth damp, exact) on top of its Hermite curve, so a keyed move settles like an operator's, without overshoot; seconds above 0, any track name above, `look_offset` included. A track without an entry follows its curve exactly.
+  - **`frame`**: `"target"` (the default) turns the offsets, the aim and an orbit with the target's heading (smoothed by `yaw_lag`); `"world"` keeps them in world axes, a free orbit not tied to the car's heading (`yaw_lag` is then unused).
+  - A camera straight above its aim (pitch 90) keeps the target's forward as the top of the frame.
 - `bank_spring = { frequency = 1.5, damping = 0.5 }` makes the bank roll a second-order spring toward the wanted roll (hertz above 0, a damping ratio above 0): below 1 it overshoots the turn and settles, in place of the half-second ease.
 - `release = <seconds>`: from that time the camera eases to a stop over `release_ease` (1.5, seconds above 0), its velocity falling smoothly to 0, and holds there, still looking at the object as it drives away, so the focus distance grows and the bank fades to level.
 - The camera's `position` and `target` are optional with a rig (they default to `offset` and `look`) and serve only where there is no timeline. A rig is for a perspective camera, and a camera takes `path` or `rig`, not both.
@@ -780,7 +789,7 @@ open = 0.62
   - **`hdr`** draws the file at `path`. A `[sky.prepare]` of `cap = 60.0` and `mean = 0.3` prepares it as the engine's daylight preparation does: luminance capped at 60, balanced toward `balance` at constant luminance when `balance` is set, and the mean scaled to 0.3. A `[sky.prepare]` of `balance` alone balances the file. `cap` and `mean` go together and are those numbers, which is the one preparation Manfred has; any other value is refused naming `sky.prepare`. The table needs one of its three keys.
   - **`room`** draws a lamp room from `[sky.room]` through the engine's room sky. It needs `[sky.room]` and refuses `path` and `[sky.prepare]`. By default the room is the same at every hour. `ambient = "authored"` scales it by the authored sun's hourly ambient, from the recipe's authored `[sun]` (Manfred's default authored sun when there is none), as `pfx bake` scales each anchor: live, the room exposed by that ambient. Only `kind = "room"` takes `ambient`, and `"authored"` is its only value. No sidecar key carries it.
   - **`mix`**: the prepared HDR plus the room's lamps alone, at `fill` (0.25) of the HDR's mean luminance. It needs `path` and `[sky.room]`. Only a mix takes `fill`. A mix is never baked.
-  - **`analytic`** is the engine's clear sky with the sun; `intensity` scales its ambient.
+  - **`analytic`** is the engine's clear sky with the sun; `intensity` scales its ambient. `turbidity` (1 to 10, default 3: higher is hazier and warmer near the horizon) and `ground_albedo` (`[r, g, b]`, each 0 or more, default `[0.2, 0.2, 0.2]`: the ground the sky's lower half reflects) are the engine's `AnalyticSky` keys. `manfred shot`, the window and `manfred render` draw them, and the scene's `[sky]` carries them when set. Only `kind = "analytic"` takes them.
 - Then, for every kind, the sky turns by the negative of `rotation_deg` (default 0) and is scaled by `intensity` (default 1). Live, a room sky is the engine's room turned by `-rotation` and exposed by `intensity`, as `pfx bake` bakes it.
 - `[sky.shade]` tints the sky by hour, interpolated between the hours given.
 - `[sky.room]` is the lamp room, in the engine's room keys and defaults. An unknown key is refused.
@@ -912,7 +921,7 @@ amount = 0.8
 - **`[look]`** `lut`: a `.cube` file, relative to the recipe; `lut_amount`: 0 to 1, only with `lut` (pfx's default when left out). The scene's finish gets one last `[[finish.pass]]` with both, after the tone.
 - **`[flare]`:** `amount` (0 to 1), `ghosts` (whole number), `ghost_spacing`, `halo`, `halo_radius`, `starburst` and `threshold` (each >= 0). Every key optional.
 - **`[motion_blur]`:** `shutter` (0 to 1, the share of a frame the shutter is open), `max_px` (>= 0) and `samples` (whole number >= 1). Every key optional.
-- **`[haze]`:** the outdoor haze: `amount` (0 to 1), `height` (a number), `falloff` (>= 0), `reach` (>= 0, metres the march goes), `shafts` (0 to 1), `steps` (whole number >= 1), `color`, `phase` (-0.9 to 0.9, how forward the light scatters) and `fog` (>= 0, the fog density over what `amount` gives). It needs `height` or `falloff`, unless `look.grade.haze` gives the room's haze, whose `[haze]` it then joins; `amount` and `look.grade.haze` together are refused at `haze.amount`.
+- **`[haze]`:** pfx-scene's `[haze]` keys, each passed to the scene as it stands: `amount` (0 to 1), `height` (a number), `falloff` (>= 0), `reach` (>= 0, metres the march goes), `shafts` (0 to 1), `steps` (whole number >= 1), `color`; the densities `fog`, `smoke`, `mist` and `floor` (>= 0; by default `amount / 6`, `amount · 20`, `amount · 0.2` and `amount · 2`); `phase` (-0.9 to 0.9, default 0.3: forward scattering above 0), `back` (>= 0, default 0.5), `gold` and `ambient` (`[r, g, b]`, each >= 0, defaults `[1, 1, 1]` and `[0.03, 0.03, 0.03]`), `unmapped` (>= 0, default 0) and `seed` (a whole number from 0 to 4294967295); and `lo` and `hi` (`[x, y, z]`, together, `lo` below `hi` on every axis), the box of a room haze. It needs `height` or `falloff` (outdoors) or `lo` and `hi` (a room), unless `look.grade.haze` gives the room's haze, whose `[haze]` it then joins, its `lo`, `hi`, `phase` and `back` replacing Manfred's room's; `amount` and `look.grade.haze` together are refused at `haze.amount`. Manfred's own views draw only `look.grade.haze`; the other keys reach pfx through the scene.
 - **`[materials.<name>.wet]`:** `amount` and `puddles` (0 to 1), `puddle_scale` (> 0, metres) and `seed` (whole number). Manfred's own materials ignore it; the scene's library writes it on that material. A `[materials.<name>]` holding only `wet` (or only texture maps) names a material without replacing it, so `[materials.road_asphalt.wet]` wets the road generator's own asphalt.
 - **`sound`:** a path ending in `.sound.toml`, relative to the recipe, written as the scene's `sound`.
 - **Paths:** `look.lut` and `sound` must be files when the scene is written. The LUT is copied beside the scene under its own file name, so `manfred build --out <folder>` carries it, and the scene names the copy; `sound` is written relative to the project root, as the scene's other paths are.
@@ -940,6 +949,25 @@ Every key takes `--set` and a variant's `set`, as `--set timeline.fps=30`. A rec
 - **The GLB:** the keys are one glTF animation named `timeline`, with one LINEAR sampler a channel: the input is the frame times `n / fps` with their `min` and `max`, the output the translation, rotation (a unit quaternion, x, y, z, w) or scale. A channel whose keys never change is left out. Every animated node is at the top level of the GLB, named after its object or piece (`hero.body`), and starts at its key at 0. A camera the timeline moves is a top-level node `camera.<name>` holding a glTF perspective camera: `yfov` from the camera's `fov_y_deg`, or its `focal_mm` and `sensor_mm` at the timeline's aspect, `aspectRatio` the timeline's width over its height, `znear` 0.05 and no `zfar`. It looks down its own -Z, as glTF's cameras do.
 - **The scene:** a format 1 scene of a recipe whose timeline animates something is one scene object for the whole GLB, named after the GLB's file name (`chase.glb` gives `chase`, or `timeline` when the name has other characters): its `[mesh.<name>]` reads every root of the GLB (no `node`), a `[mesh.<name>.nodes."<node>"]` gives a node its material, `shadow` or `two_sided`, and `[object.animation] clip = "timeline"` poses every node from the clip at `t = n / fps`. The camera stays the GLB's node `camera.<name>` inside it, so `pfx shot --camera chase` finds it, and a rig's focus stays on the scene's `[camera]` as `focus_keys`. Per-object scene keys an object has outside a timeline (`clip` planes, `content`, a card's `face_camera` and `alpha_cutoff`, `dynamic`, per-object `pick` ids) are not written in this form. A recipe without `[timeline]`, or whose timeline animates nothing, writes one scene object a node as before.
 - **Posing:** `manfred shot` and `manfred render` take `--time <seconds>` and draw the scene at that time: each key is interpolated as glTF's LINEAR is, the rotation by slerp, and a camera the timeline moves looks from its pose there. `--time` without a `[timeline]`, or outside 0 to its length, is refused before anything is drawn. `manfred clip <recipe> --timeline` films the timeline: frames 0 to the last at its `fps`, through `--camera`, posed by the timeline when it moves that camera, in place of `--frames`, `--fps` and a camera path.
+
+## Markers
+
+```toml
+[[marker]]
+name = "launch"
+t = 1.25
+
+[[marker]]
+name = "drift"
+t = 3.0
+```
+
+A marker names a time on the `[timeline]`, for jumping to and for tapes.
+
+- `name` (required) is unique among the markers; `t` (required) is seconds within the timeline, from 0 to its length. A marker without a `[timeline]` is a problem at `marker[<name>].t`.
+- `--set marker.<name>.t=2.0` and a variant's `set` move one.
+- **The GLB:** the markers ride in the `extras` of the GLB's `timeline` animation, as `{ "markers": [{ "name": "launch", "t": 1.25 }, ...] }`, in recipe order; a timeline that animates nothing writes no animation and so no markers. pfx-scene's format has no markers, so the scene file carries none: they stay Manfred's.
+- `manfred timeline` lists them with their frames. The window's transport bar draws each as a named tick on the scrubber, and `[` and `]` jump to the one before and after the current time. A tape's `seek <marker|seconds>` sets the clock to a marker or a time.
 
 ## Follow
 
@@ -990,7 +1018,7 @@ A `[[stage]]` is one step of building the scene up, for a breakdown: `manfred bu
 - **`name`** (needed, unique) and **`objects`** (needed, may be empty): object names or globs (`*` and `?`), or `<object>.<piece>` globs (`road.crosswalks`), which keep that object but only its matching pieces (nodes) in the build. A glob that matches no object is refused, naming the stage.
 - **`camera`** (optional) names a `[[camera]]` that frames the stage, for the window and the tools that look through it.
 - **`--stage`** takes a number from 1 or a stage's name: `--stage 3` and `--stage city` build the same. Anything else is refused with the stages listed.
-- **What is dropped** goes as a variant's `drop` takes it, and with it what can't stand without it: an object whose `parent`, `on` or `into` is dropped, the `[[follow]]` of a dropped object (and so its tracks), a camera whose `rig` follows one, an `output.scene_camera` that names such a camera, and the `[[light]]` and `[[particles]]` parented to a dropped object or one of its pieces. The built recipe carries no `[[stage]]` or `[variant]` tables.
+- **What is dropped** goes as a variant's `drop` takes it, and with it what can't stand without it: an object whose `parent`, `on` or `into` is dropped, the `[[follow]]` of a dropped object (and so its tracks), a camera whose `rig` (or `rig` constraint) follows one, an `output.scene_camera` that names such a camera, the `[[light]]` and `[[particles]]` parented to a dropped object or one of its pieces, and any constraint whose `target` or `follow` names one of them (the entry it sits under stays). The built recipe carries no `[[stage]]` or `[variant]` tables.
 - **`--only <glob>[,<glob>]`** builds only these objects or pieces, with the same rules, on `build`, `shot` and `render`; after `--stage` when both are given.
 - **Order:** the variant, then each `--set` (so `--set stage.<name>.objects=[...]` and a variant's `set` reach a stage), then `--stage`, then `--only`. In Rust: `manfred_recipe::apply_stage(&recipe, "3")`, `apply_only(&recipe, &globs)` and `Pick { stage, only }.apply(&recipe)`; `manfred_build::staged` and `manfred_build::only` are the same functions.
 
@@ -1039,6 +1067,107 @@ wheels = { fl = { centre = [0.79, 0.34, 1.39], radius = 0.34, axle = [1.0, 0.0, 
 - **The model:** glTF 2.0, metallic-roughness PBR, metres, +Y up, a named node hierarchy with real pivots: a car's root node `<name>` holds the body, with child nodes `glass`, `wheel_fl`, `wheel_fr`, `wheel_rl`, `wheel_rr` (each translated to its axle centre, its mesh centred on it), `headlights` and `taillights`. Only standard data: KHR extensions where used, `extras.targetNames` on a mesh with morph targets, animations only as glTF animations; none of Manfred's own extras (facts, ids, plates).
 - **`index.json`** is written by `manfred library index`: an array sorted by kind and name, each `{ kind, name, tags, size_m: [x, y, z], triangles, files: { model, sidecar, thumb }, sha256: { model, sidecar, thumb } }`, paths relative to the library, `thumb` only when there is one, the same bytes for the same folders.
 - **Exporting:** `manfred_build::library::export(recipe, built, object, "<kind>/<name>")` writes a built object (a generator's output included) as that model and sidecar: in the object's own frame (its `at`, `rotate`, `scale` and parent undone), a library object with its own hierarchy, transforms and animations, anything else as a root and one child a piece, each child's pivot its wheel's centre from the facts or its bounds' centre. The facts gain `size`, and `lights` for the lights the object returned.
+
+## Keyframes
+
+```toml
+[[object]]
+name = "hero"
+kind = "box"
+size = [1.0, 1.0, 1.0]
+keys = { at = [[0.0, [0.0, 0.0, 0.0]], [2.0, [0.0, 0.0, 12.0]]], rotate = [[0.0, [0.0, 0.0, 0.0]], [2.0, [0.0, 90.0, 0.0]]] }
+interp = { at = "smooth" }
+
+[[light]]
+name = "lamp"
+position = [0.0, 3.0, 0.0]
+intensity = 2.0
+keys = { intensity = [[0.0, 2.0], [1.5, 8.0]], color = [[0.0, [1.0, 0.2, 0.1]], [1.5, [1.0, 0.9, 0.8]]] }
+```
+
+A `keys` table keys the properties of its table over the recipe's `[timeline]`: each name is one of the table's own keys, and holds `[t, value]` keys, `t` in seconds of the timeline, at least 0 and strictly rising, at least one key. The value has the property's shape: a number, or `[x, y, z]` (`[r, g, b]` for a colour, `[inner, outer]` for a cone, `[low, high]` for a span). Between keys the value is linear in each component; before the first key it holds the first value, after the last the last, and a keyed property overrides its static value. `interp = { <property> = "linear" | "smooth" | "step" }` blends one property otherwise: `smooth` is a Catmull-Rom Hermite curve through the keys (flat at the first and last), `step` holds each key's value until the next. A recipe with `keys` needs a `[timeline]`.
+
+| table | keyable | where it goes |
+|---|---|---|
+| `[[object]]` | `at`, `rotate`, `scale` | the GLB's `timeline` animation, one key a frame |
+| `[[camera]]` | `position`, `target` | the GLB's `camera.<name>` node, one key a frame |
+| `[[camera]]` | `fov_y_deg` or `focal_mm`, `fstop`, `focus_m` | the scene's `[camera]` `keys` as `fov` (a keyed `focal_mm` turned into `fov` at the scene's aspect), `fstop` and `focus` |
+| `[[camera]]` | `exposure` | the scene's `[finish]` `keys.exposure`; the scene camera's alone, and not with `[look]`'s |
+| `[[light]]` | `intensity`, `color`, `range`, `cone` (a spot light) | the scene's `[[light]]` `keys` |
+| `[[light]]` | `position` (no `parent`) or `at` (with a `parent`) | Manfred's own views; the scene has no keyed light position, so a light that moves rides a `parent` node |
+| `[[particles]]` | `rate`, `speed`, `size`, `color`, `alpha` | the scene's `[[particles]]` `keys` (`alpha` from 0 to 1 scales the `alpha` curve); a keyed `rate` is not with `rate_keys` |
+| `[look]` | `exposure`, `lut_amount` | the scene's `[finish]` `keys` |
+| `[sun]` | `hour` (`model = "daylight"`) | the scene's `[sun]` `keys` |
+| `[haze]` | `amount`, `color` | the scene's `[haze]` `keys` |
+
+- **Ranges:** colours, intensities, ranges, rates, speeds, sizes and exposures are at least 0; `fstop`, `focus_m` and `focal_mm` above 0; `fov_y_deg` above 0 and below 180; `cone` from 0 to 180 with inner no more than outer; `alpha`, `lut_amount` and the haze's `amount` from 0 to 1; `hour` from 0 to 24. The scene's names and shapes are pfx-scene's (`KEYED` of its `Light`, `Camera`, `Particles`, `Finish`, `Sun` and `Haze`), and the scene checker reads them back.
+- **The scene's keys** are pfx-scene's `keys` inline table (format 1, pfx-scene 1.3.0). A linear property is written key for key; a smooth one is sampled once a frame, a stepped one as each key plus the value before it a millisecond earlier, so pfx's linear keys play the same curve.
+- **Objects:** a keyed object, and every object whose `parent` chain reaches one, is animated: its mesh stays in its own frame and its node is keyed with its world transform at each frame, the keyed `at`, `rotate` and `scale` composed as the static ones are. A `[[follow]]` or any constraint drives its object's transform, so a followed or constrained object takes no keys.
+- **Cameras:** a keyed `position` or `target` keys the camera node as a rig does, looking from the position to the target with the camera's `up`; a camera with `[camera.rig]` or constraints takes neither, and a keyed `focus_m` is not with `rig.focus = "follow"`. A keyed `focus_m` needs an `fstop` above 0, static or keyed. An orthographic camera keys `position`, `target` and `exposure` only.
+- **Order:** keys are the base. Manfred's keys baker runs first, and the constraints baker after it (follows and rigs included) reads its tracks as targets.
+- **Manfred's own views:** `manfred shot` and `manfred render --time`, `manfred clip --timeline` and the window's timeline pose the keyed objects and cameras and light the keyed lights at `t`; `shot` and `render` also take the keyed lens, exposure, LUT amount and sun hour.
+- **Editing:** `manfred key <recipe> <path> <t> <value> [--interp linear|smooth|step]` sets the key at `t` or inserts one, and `manfred unkey <recipe> <path> [<t>]` removes one key, or every key of the property; `<path>` is `object.hero.at`, `camera.chase.fov_y_deg`, `light.lamp.intensity`, `particles.spray.rate`, `look.exposure`, `sun.hour` or `haze.amount`. They edit the file in place, keeping its comments and layout, re-read and re-check it, and leave it untouched when the edit is refused. `--set object.hero.keys.at=[[0, [0, 0, 0]], [3, [0, 0, 20]]]` and a variant's `set` replace a whole keyed property.
+
+## Constraints
+
+Any object, camera or light can take an ordered list of constraints, Blender's way: `[[object.constraint]]` under its `[[object]]`, `[[camera.constraint]]` under its `[[camera]]`, `[[light.constraint]]` under its `[[light]]`. Each one is a table with a `type` and that type's keys; the list is evaluated in order at the timeline's fixed step, each constraint working on the pose the ones before it left, and the result is baked into the owner's tracks in the GLB's `timeline` animation, once a frame.
+
+```toml
+[[object]]
+name = "hero"
+generator = "manfred/car"
+
+[[object.constraint]]
+type = "follow_path"
+route = "main"
+lane = 1.5
+speed = [[0.0, 12.0], [3.0, 28.0]]
+
+[[object]]
+name = "drone"
+kind = "box"
+size = [0.4, 0.1, 0.4]
+
+[[object.constraint]]
+name = "ride"
+type = "copy"
+target = "hero"
+offset = [0.0, 2.5, -1.0]
+
+[[object.constraint]]
+type = "look_at"
+target = "hero.body"
+
+[[camera]]
+name = "chase"
+fov_y_deg = 38.0
+fstop = 2.8
+
+[[camera.constraint]]
+type = "rig"
+follow = "hero"
+lag = 0.25
+focus = "follow"
+
+[[light]]
+name = "search"
+kind = "spot"
+position = [0.0, 6.0, 0.0]
+
+[[light.constraint]]
+type = "look_at"
+target = "hero"
+```
+
+- **`type`** (required) is one of the four below. **`name`** (optional) names the constraint, for `--set` and for problems.
+- **`follow_path`** takes the keys of a `[[follow]]` (under Follow) without `object`: `route`, `lane`, `start`, `speed`, `drift` and `ride`. It sets the whole pose, so the constraints before it are overwritten. On an object, its `<object>.wheel_*` pieces spin and steer as a follow's do.
+- **`look_at`** turns the owner, where it stands, so one of its axes points at a target: `target` (required), `offset` (`[0, 0, 0]`, a point in the target's frame, so `[0, 1, 0]` aims a metre above its origin), `up` (`[0, 1, 0]`, the world direction the owner's +Y leans toward) and `axis` (`"x"`, `"-x"`, `"y"`, `"-y"`, `"z"` or `"-z"`, the owner's axis that points; `"z"`, the forward of an object, by default on an object, and `"-z"`, the way glTF's cameras and spot lights look, on a camera or a light). An owner on its aim point, or looking straight along `up`, is refused at build.
+- **`copy`** puts the owner in the target's frame: `target` (required), `offset` (`[0, 0, 0]`, metres in the target's frame), `rotate` (`[0, 0, 0]`, degrees in the target's frame, the order an object's `rotate` turns) and `channels` (`["translation", "rotation"]`; any of `"translation"`, `"rotation"` and `"scale"`), the channels it takes from the target; the others keep the owner's own. With `translation` and an offset, the owner rides the target as if parented.
+- **`rig`** is a camera rig (under Camera rig) on any owner: `follow` (required, the target) and every other key of `[camera.rig]`, its `tracks` (the replay moves `orbit`, `pitch`, `roll` and `look_offset` included) as a `[<owner>.constraint.tracks]` table under the constraint, `smooth` and `frame`. The rig's pose looks down the owner's −Z at its aim. `focus` and the lens tracks `focal` and `fov` are a camera's only.
+- **A target** is an object's name (its frame, the pose its constraints give it, or where it stands), one of its pieces' nodes (`hero.body`, `hero.wheel_fl`), `camera.<name>` or `light.<name>`. Every frame is +Z forward and +Y up, without scale. A target is evaluated before what targets it, whatever the order of the tables; a cycle (A looks at B, B copies A) is refused, naming the entry that closes it, and so is an unknown target, a constraint on its own owner, and any constraint in a recipe without a `[timeline]`.
+- **Sugar:** a `[[follow]]` is the first `follow_path` of its object, and a `[camera.rig]` the first `rig` of its camera, ahead of the explicit constraints; both build the same bytes as the constraint form, and both keep their own problems' names (`follow[hero].speed`, `camera[chase].rig.lag`). A camera with constraints takes no `path`, and is a perspective camera; its `position` and `target` are optional (a first `rig` gives them its `offset` and `look`, as `[camera.rig]` does, otherwise they default to the origin and −Z) and serve only where there is no timeline.
+- **What is written:** an object's nodes are keyed as a follow's (above); a camera is its top-level node `camera.<name>` (under Camera rig), with a `rig`'s `focus = "follow"` as `focus_keys`. A light is a top-level empty node `light.<name>` in the GLB, keyed like any node, and the scene's `[[light]]` rides it, `parent` the timeline's scene object with `node = "light.<name>"` and `at = [0, 0, 0]`; its `direction` is in that node's frame (`[0, 0, -1]` when left out, where `look_at` and `rig` aim it). A constrained light takes `position`, never `parent`. Manfred's own views pose it there at `--time`.
+- **`--set`, variants and `manfred set`** reach every key by the constraint's position in its owner's list, from 0, or by its `name`: `object.hero.constraint.0.lane=2.0`, `object.drone.constraint.ride.offset=[0, 3, -1]`, `camera.chase.constraint.0.tracks.distance=[[0, 4], [2, 9]]`, `light.search.constraint.0.offset=[0, 1, 0]`, and the window's edits use the same paths. A name is looked up first, so a constraint named `"1"` is reached by that name before the position.
 
 ## Variants, look and bake
 
@@ -1183,9 +1312,9 @@ The recipe is Manfred's authoring layer; `scene.toml` is the engine's runtime da
 - **Cards:** a card's image is a `[content.<card>]`, and the card's material is a copy named `<material>+content<slot>` with the engine's content layer on that slot, laid `Over`, one slot per image, four at most. A slot card keeps its plain material: the app paints its live content.
 - **Text:** a `text` object with one span is a `[text.<name>]`: the span's words, its font (the embedded mono, written beside the scene as `JetBrainsMonoNerdFont-Regular.ttf` or `-Bold.ttf` by weight, or the span's own file), its size times the placement's uniform scale, its colour with alpha 1, and `at` and `rotate` from its placement, `on` included.
 - **The sun:** an authored `[sun]` is `model = "authored"` with `toward`, `color`, `irradiance` and `hour = 16.0`, the sun as the still draws it at its own hour. `[daylight]` is `model = "daylight"` with `hour`, `day`, `latitude`, `heading` and `reference_hour = 16.0`, Manfred's reference. With neither, the daylight of Manfred's default hour, 16, at the engine's day, latitude and heading. `radius` is the recipe's `radius_deg` for an authored sun, 0 to 10 (refused at `sun.radius_deg` outside it), and 0.27 for a daylight sun. An authored sun also writes `reference_hour = 16.0`, so it is exactly as authored at hour 16 and follows the hour as the still's does.
-- **The sky:** `analytic` writes the sky's `intensity` as the analytic sky's `ambient` (times the daylight's ambient under `[daylight]`); its `rotation_deg` is not used, as live. `hdr` writes `path`, `rotation_deg`, and `[sky.prepare]` as the bake does (cap 60, the balance, mean 0.3). `room` writes `rotation_deg` and every `[sky.room]` and lamp key. For `hdr` and `room`, `intensity` is the recipe's times what the still multiplies the texels by at its hour: the `[sky.shade]` tint and the hourly ambient (under `[daylight]` for an HDR, and for a room with `ambient = "authored"`). Without `[sky]`, an analytic sky, as the still draws. A `mix` writes `kind = "mix"` with two `[[sky.layer]]`: the prepared HDR (`path`, `rotation_deg`, `intensity` as for `hdr`, and its `[sky.layer.prepare]`) and the room's lamps alone, a `room` layer with `floor`, `wall` and `ceiling` black, its `width` the HDR's, the same `rotation_deg` and `intensity`, and a `weight` of `fill` (0.25 unless set) times the prepared HDR's mean luminance over the lamps' own, the gain the still's mix applies, worked out from the file when the scene is written. The engine bakes the layers into one HDR at the HDR's width: Manfred's own mix. A mix with no lamps writes `weight = 0.0`, the HDR alone.
+- **The sky:** `analytic` writes `turbidity` and `ground_albedo` when the recipe sets them, and the sky's `intensity` as the analytic sky's `ambient` (times the daylight's ambient under `[daylight]`); its `rotation_deg` is not used, as live. `hdr` writes `path`, `rotation_deg`, and `[sky.prepare]` as the bake does (cap 60, the balance, mean 0.3). `room` writes `rotation_deg` and every `[sky.room]` and lamp key. For `hdr` and `room`, `intensity` is the recipe's times what the still multiplies the texels by at its hour: the `[sky.shade]` tint and the hourly ambient (under `[daylight]` for an HDR, and for a room with `ambient = "authored"`). Without `[sky]`, an analytic sky, as the still draws. A `mix` writes `kind = "mix"` with two `[[sky.layer]]`: the prepared HDR (`path`, `rotation_deg`, `intensity` as for `hdr`, and its `[sky.layer.prepare]`) and the room's lamps alone, a `room` layer with `floor`, `wall` and `ceiling` black, its `width` the HDR's, the same `rotation_deg` and `intensity`, and a `weight` of `fill` (0.25 unless set) times the prepared HDR's mean luminance over the lamps' own, the gain the still's mix applies, worked out from the file when the scene is written. The engine bakes the layers into one HDR at the HDR's width: Manfred's own mix. A mix with no lamps writes `weight = 0.0`, the HDR alone.
 - **Lights:** each `[[light]]` with every key: `range` resolved (`sqrt(intensity / 0.01)` when 0) and `shadow` written, since the scene's defaults differ. A spot writes `kind`, `direction` and `cone`; a parented light `parent` and `at` in place of `position`. In format 1 each light has an `id`, derived under the kind `light`.
-- **Shot effects:** `[[particles]]` (each with an `id` under the kind `particles`, after the lights), `[flare]`, `[motion_blur]`, the outdoor `[haze]` keys, a material's `wet`, the LUT pass and `sound`, as "Shot effects" says.
+- **Shot effects:** `[[particles]]` (each with an `id` under the kind `particles`, after the lights), `[flare]`, `[motion_blur]`, the `[haze]` keys, a material's `wet` (the recipe's, or a generator's such as `manfred/road`'s looks), the LUT pass and `sound`, as "Shot effects" says.
 - **The camera:** `projection`, `at`, `look_at`, `up`, `fov` (vertical, from `focal_mm` at the plate's aspect, or at 1586 × 992 without a plate) or `height`, `near` and `far` as the still fits them to the scene's bounds, and `shift` when it isn't `[0, 0]`. A perspective camera with `fstop` above 0 writes `focal`, `sensor` (the vertical height, so the engine's fov is the camera's), `fstop` and, when set, `focus` (`focus_m`, the distance from the eye along the view, which is the engine's `focus`) in place of `fov`; a `focus_m` at or below the focal length is refused at `camera[<name>].focus_m`.
 - **The haze:** `look.grade.haze` above 0, under `view = "graded"`, is `[haze]` with `lo`, `hi` (Manfred's room), `amount`, `phase = 0.35` and `back = 0.7`: the engine's room haze, the same one the still draws. The tracer draws none.
 - **The finish:** `[look]` as the still's chain, in the still's own order: `exposure` alone for `view = "standard"`; for `graded` (and without `[look]`) one `[[finish.pass]]` each for `exposure`, a tent `bloom` (round, where a box kernel would draw squares) with the still's shape, a power `vignette` (2.4, 0.8, 1.28), `saturation`, linear `warmth` and the ACES `tone`. The engine orders inline keys by name, which puts the warmth after the tone where the still has it before, so the passes are listed in `[[finish.pass]]`, which the engine applies in the order written.
@@ -1221,6 +1350,25 @@ The GLB carries what a loader needs about movers and shadows in glTF `extras` on
 - **Dialects:** the extras are written whatever the dialect, `none` included.
 - **`manfred diff`:** compares extras key by key, with nested keys joined by dots, and marks a difference under the node's name: `extras manfred.travel 0.003 -> 0.004`, or `extras manfred.group only in a`. A node that has extras on one side and none on the other lists every key as only on the side that has it. When one file carries no extras at all, as a Blender export doesn't, extras are left out of the diff.
 - **The runtime library:** `manfred_runtime` reads only `extras.manfred`, and a GLB a node of which still carries the older key `extras.manf` is an `Error::Glb` that names the new key; rebuild it with `manfred build`. It takes the movers from nodes whose `manfred` has a `pivot`. When the sidecar has movers too, the two must agree group for group, number for number, and a group that differs or is on one side only is an `Error::Sidecar` naming it. With no sidecar movers the extras are used alone; with no extras the sidecar is. A root without a `group`, or two roots of one group, is an `Error::Glb`. `Scene::groups` keeps each object's `extras.manfred.group` beside `Scene::objects`, and `Scene::group_of(object)` gives that group, or `mover_group(name)` when the GLB has none for the object, so `Scene::mover_of` finds a part the recipe lists in a mover's `parts` without the `mv_` prefix; a GLB without extras finds parts by their names as before.
+
+## Editing from the command line
+
+Besides `--set` (one build) and `manfred route` (a route's points), four commands change the recipe file's entries. Each writes the file through the same edits the window makes, so its comments and layout stay; reads the recipe back and checks it, and when the write brings in a problem the recipe did not have, puts every file back byte for byte and refuses, naming the problem. An entry in an included file is changed in that file. A refusal is one line on stderr, `manfred <command>: …`, exit 1.
+
+```sh
+manfred add r.toml object lamp2 kind=sphere radius=0.1 at='[0,2,0]' material=brass
+manfred add r.toml marker launch t=1.25
+manfred add r.toml follow hero route=main speed='[[0, 12]]'
+manfred duplicate r.toml object lamp2 lamp3 at='[1,2,0]'
+manfred remove r.toml object lamp3
+manfred list r.toml object --json
+```
+
+- **The tables:** `object`, `camera`, `light`, `route`, `stage`, `particles`, `follow`, `use`, `mover` and `marker`. An entry is named by its `name`, a follow's by its `object`, a use's by its `prefix` and a mover's by its `group`. Any other table is refused by the parser.
+- **`manfred add <recipe> <table> <name> [key=value]... [--json]`** appends an entry after the table's last, or starts the table at the end of the file. A value is read as TOML (`0.1`, `true`, `[0, 2, 0]`, `{ amount = 0.4 }`), and as a string when it is not TOML (`kind=sphere`); quote a string that would read as something else (`name='"7"'`). A dotted key writes a dotted key, as `params.radius=0.1` gives `params.radius = 0.1`. A name the table already has (a copy a use places, for objects) is refused, and so is the name key among the pairs.
+- **`manfred remove <recipe> <table> <name> [--json]`** removes the entry with the comments above it. It refuses while another entry refers to it, naming the referrer: an object that is another's `parent`, a pocket's `into`, a text's `on`, a use's `parent`, a `[[follow]]`'s object, a camera rig's `follow`, a light's or particles' `parent` (the object or one of its pieces), a mover's `parts` or the only object a stage's glob matches; a route a follow or a generator's `params.route` names; a camera `[output] scene_camera`, `[plate] camera` or a stage's `camera` names. Anything else that would break is caught by the check after the write.
+- **`manfred duplicate <recipe> <table> <name> <new-name> [key=value]... [--json]`** copies the entry, with its sub-tables, after the table's last entry under the new name, then applies the pairs as `add` does.
+- **`manfred list <recipe> [<table>] [--json]`** lists every entry as `<table>[<name>]`, with an object's kind (its generator's name for a generator) and parent, a marker's `t`, a follow's route, a light's or particles' parent and a camera rig's followed object. `--json` prints `{ "recipe", "entries": [{ "table", "name", ... }] }`; the editing commands print `{ "recipe", "done": "added"|"removed"|"duplicated", "table", "name", "entry" }`, with `entry` null after a remove.
 
 ## Defaults and requirements
 

@@ -3,7 +3,9 @@ mod check;
 mod clip;
 mod curve;
 mod diff;
+mod entries;
 mod gui;
+mod key;
 mod library;
 mod library_add;
 mod library_bake;
@@ -95,6 +97,12 @@ enum Verb {
     )]
     Curve(curve::Args),
     #[command(
+        about = "Set or insert a key of an animatable property in the recipe, as object.hero.at at 2 s"
+    )]
+    Key(key::KeyArgs),
+    #[command(about = "Remove one key of a property, or every key of it")]
+    Unkey(key::UnkeyArgs),
+    #[command(
         about = "Write a starter recipe",
         subcommand_required = true,
         arg_required_else_help = false
@@ -112,6 +120,14 @@ enum Verb {
         arg_required_else_help = false
     )]
     Library(library::Args),
+    #[command(about = "Append an entry to one of the recipe's arrays of tables, in the file")]
+    Add(entries::Add),
+    #[command(about = "Remove an entry from the recipe, refused while another entry refers to it")]
+    Remove(entries::Remove),
+    #[command(about = "Copy an entry under a new name, with keys changed")]
+    Duplicate(entries::Duplicate),
+    #[command(about = "List the recipe's entries and their names")]
+    List(entries::List),
 }
 
 fn line(host: &Host) -> clap::Command {
@@ -315,6 +331,12 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::Timeline(parsed) => timeline::run(&parsed, registry),
         Verb::Shoot(parsed) => shoot::run(&parsed, registry),
         Verb::Library(parsed) => library::run(&parsed, registry),
+        Verb::Key(parsed) => key::key(&parsed, registry),
+        Verb::Unkey(parsed) => key::unkey(&parsed, registry),
+        Verb::Add(parsed) => entries::add(&parsed),
+        Verb::Remove(parsed) => entries::remove(&parsed),
+        Verb::Duplicate(parsed) => entries::duplicate(&parsed),
+        Verb::List(parsed) => entries::list(&parsed),
     }
 }
 
@@ -387,7 +409,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, curve, set, get, new, timeline, shoot, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, curve, set, get, key, unkey, new, timeline, shoot, library, add, remove, duplicate, list, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),

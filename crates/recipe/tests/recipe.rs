@@ -278,15 +278,15 @@ fn parse_errors_name_the_key_the_line_and_what_was_expected() {
     let cases: &[(&str, &str)] = &[
         (
             "unknown_key",
-            "line 8: object[a].colour: unknown key `colour` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px",
+            "line 8: object[a].colour: unknown key `colour` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px, keys, interp, constraint",
         ),
         (
             "wrong_kind_key",
-            "line 8: object[a].radius: unknown key `radius` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px",
+            "line 8: object[a].radius: unknown key `radius` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px, keys, interp, constraint",
         ),
         (
             "unknown_top",
-            "line 3: sky_colour: unknown key `sky_colour` in the top level, expected one of: manfred, include, name, seed, params, library, plate, output, object, use, camera, sun, sky, light, mover, route, follow, stage, variant, sidecar, look, trace, bake, timeline, materials, particles, flare, motion_blur, haze, sound",
+            "line 3: sky_colour: unknown key `sky_colour` in the top level, expected one of: manfred, include, name, seed, params, library, plate, output, object, use, camera, sun, sky, light, mover, route, reference, follow, stage, marker, variant, sidecar, look, trace, bake, timeline, materials, particles, flare, motion_blur, haze, sound",
         ),
         (
             "missing_manfred",

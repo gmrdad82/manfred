@@ -2,8 +2,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
+mod constraint;
 mod curve;
+mod entries;
 mod include;
+mod keyframes;
 mod patch;
 mod path;
 mod read;
@@ -15,7 +18,15 @@ mod validate;
 mod variant;
 
 pub use curve::{CurveEdit, CurveParam, curve_keys, curve_patch, curve_points, curves_of};
+pub use entries::{
+    Entry, TABLES, add_patch, duplicate_patch, entries, label_key, referrers, remove_patch,
+    write_checked,
+};
 pub use include::Files;
+pub use keyframes::{
+    Channel, Goes, Interp, KeyEdit, Keyable, Keyed, Place, Property, Rule, SAME_TIME, SECTIONS,
+    Table, key_patches, place, properties, property,
+};
 pub use patch::{
     apply, apply_all, edit, flag, number, numbers, params_in, path_text, reread, save, save_to,
     string, value_at, write,
@@ -66,6 +77,8 @@ pub struct Recipe {
     pub follows: Vec<Follow>,
     pub stages: Vec<Stage>,
     pub keep: Vec<Vec<String>>,
+    pub markers: Vec<Marker>,
+    pub constraints: Vec<Constrained>,
     pub variants: BTreeMap<String, Variant>,
     pub sidecar: serde_json::Map<String, serde_json::Value>,
     pub look: Option<Look>,
@@ -76,6 +89,7 @@ pub struct Recipe {
     pub effects: Effects,
     pub textures: BTreeMap<String, Textures>,
     pub uses: Vec<Use>,
+    pub keyed: BTreeMap<String, Keyed>,
     pub files: Files,
     pub source: String,
     pub base: Option<PathBuf>,
@@ -465,6 +479,15 @@ pub struct Rig {
     pub bank_spring: Option<Spring>,
     pub release: Option<f64>,
     pub release_ease: f64,
+    pub smooth: BTreeMap<String, f64>,
+    pub frame: RigFrame,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RigFrame {
+    #[default]
+    Target,
+    World,
 }
 
 pub const RELEASE_EASE: f64 = 1.5;
@@ -478,10 +501,16 @@ pub struct RigTracks {
     pub lag: Option<Vec<[f64; 2]>>,
     pub shake: Option<Vec<[f64; 2]>>,
     pub look_ahead: Option<Vec<[f64; 2]>>,
+    pub orbit: Option<Vec<[f64; 2]>>,
+    pub pitch: Option<Vec<[f64; 2]>>,
+    pub roll: Option<Vec<[f64; 2]>>,
+    pub focal: Option<Vec<[f64; 2]>>,
+    pub fov: Option<Vec<[f64; 2]>>,
+    pub look_offset: Option<Vec<(f64, [f64; 3])>>,
 }
 
 impl RigTracks {
-    pub const NAMES: [&'static str; 7] = [
+    pub const NAMES: [&'static str; 12] = [
         "distance",
         "lateral",
         "height",
@@ -489,7 +518,14 @@ impl RigTracks {
         "lag",
         "shake",
         "look_ahead",
+        "orbit",
+        "pitch",
+        "roll",
+        "focal",
+        "fov",
     ];
+
+    pub const LOOK_OFFSET: &'static str = "look_offset";
 
     pub fn get(&self, name: &str) -> Option<&Vec<[f64; 2]>> {
         match name {
@@ -500,8 +536,17 @@ impl RigTracks {
             "lag" => self.lag.as_ref(),
             "shake" => self.shake.as_ref(),
             "look_ahead" => self.look_ahead.as_ref(),
+            "orbit" => self.orbit.as_ref(),
+            "pitch" => self.pitch.as_ref(),
+            "roll" => self.roll.as_ref(),
+            "focal" => self.focal.as_ref(),
+            "fov" => self.fov.as_ref(),
             _ => None,
         }
+    }
+
+    pub fn spherical(&self) -> bool {
+        self.orbit.is_some() || self.pitch.is_some()
     }
 }
 
@@ -591,6 +636,8 @@ pub struct Sky {
     pub ambient: Option<SkyAmbient>,
     pub shade: BTreeMap<u32, [f64; 3]>,
     pub room: Option<Room>,
+    pub turbidity: Option<f64>,
+    pub ground_albedo: Option<[f64; 3]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -768,6 +815,112 @@ pub struct Stage {
     pub name: String,
     pub objects: Vec<String>,
     pub camera: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Marker {
+    pub name: String,
+    pub t: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Owner {
+    Object(String),
+    Camera(String),
+    Light(String),
+}
+
+impl Owner {
+    pub fn name(&self) -> &str {
+        match self {
+            Owner::Object(name) | Owner::Camera(name) | Owner::Light(name) => name,
+        }
+    }
+
+    pub fn node(&self) -> String {
+        match self {
+            Owner::Object(name) => name.clone(),
+            Owner::Camera(name) => format!("camera.{name}"),
+            Owner::Light(name) => format!("light.{name}"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Constrained {
+    pub owner: Owner,
+    pub list: Vec<Constraint>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Constraint {
+    pub name: Option<String>,
+    pub path: String,
+    pub ipath: String,
+    pub kind: ConstraintKind,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConstraintKind {
+    FollowPath(Follow),
+    LookAt(LookAt),
+    Copy(CopyOf),
+    Rig(Box<Rig>),
+}
+
+impl ConstraintKind {
+    pub fn target(&self) -> Option<(&'static str, &str)> {
+        match self {
+            ConstraintKind::FollowPath(_) => None,
+            ConstraintKind::LookAt(l) => Some(("target", &l.target)),
+            ConstraintKind::Copy(c) => Some(("target", &c.target)),
+            ConstraintKind::Rig(r) => Some(("follow", &r.follow)),
+        }
+    }
+
+    pub fn verb(&self) -> &'static str {
+        match self {
+            ConstraintKind::FollowPath(_) => "follows a path",
+            ConstraintKind::LookAt(_) => "looks at",
+            ConstraintKind::Copy(_) => "copies",
+            ConstraintKind::Rig(_) => "rigs on",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Axis {
+    X,
+    NegX,
+    Y,
+    NegY,
+    Z,
+    NegZ,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct LookAt {
+    pub target: String,
+    pub up: [f64; 3],
+    pub offset: [f64; 3],
+    pub axis: Option<Axis>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct CopyOf {
+    pub target: String,
+    pub offset: [f64; 3],
+    pub rotate: [f64; 3],
+    pub translation: bool,
+    pub rotation: bool,
+    pub scale: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cycle {
+    pub path: String,
+    pub ipath: String,
+    pub text: String,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1092,6 +1245,11 @@ impl Recipe {
                     .follows
                     .iter()
                     .any(|follow| follow.object == object.name)
+                || self.keyed.contains_key(&format!("object.{}", object.name))
+                || self
+                    .constraints
+                    .iter()
+                    .any(|c| c.owner == Owner::Object(object.name.clone()))
             {
                 return true;
             }

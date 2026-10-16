@@ -29,6 +29,7 @@ pub struct Node {
 
 pub const ANIMATION: &str = "timeline";
 pub const CAMERA_PREFIX: &str = "camera.";
+pub const LIGHT_PREFIX: &str = "light.";
 pub const ZNEAR: f64 = 0.05;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -44,6 +45,7 @@ pub struct Track {
     pub keys: Vec<Trs>,
     pub camera: Option<Lens>,
     pub focus: Option<Vec<f64>>,
+    pub fov: Option<Vec<f64>>,
 }
 
 impl Track {
@@ -51,12 +53,20 @@ impl Track {
         self.camera?;
         self.node.strip_prefix(CAMERA_PREFIX)
     }
+
+    pub fn light_name(&self) -> Option<&str> {
+        match self.camera {
+            Some(_) => None,
+            None => self.node.strip_prefix(LIGHT_PREFIX),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub struct Animation<'a> {
     pub fps: u32,
     pub tracks: &'a [Track],
+    pub markers: &'a [(String, f64)],
 }
 
 #[derive(Clone, Debug)]

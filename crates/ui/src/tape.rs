@@ -128,6 +128,7 @@ enum Beat {
         to: crate::clay::Shading,
         seconds: f32,
     },
+    Seek(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -366,6 +367,17 @@ impl Tape {
                 script.push('\n');
                 continue;
             }
+            if command == "seek" {
+                let to = rest.trim();
+                if to.is_empty() || to.contains(char::is_whitespace) {
+                    return Err(Error(format!(
+                        "line {number}: seek wants a marker's name or seconds on the timeline"
+                    )));
+                }
+                order.push((number, Some(Beat::Seek(to.to_string()))));
+                script.push('\n');
+                continue;
+            }
             if command == "wireframe" {
                 order.push((number, Some(shading(number, rest)?)));
                 script.push('\n');
@@ -390,7 +402,7 @@ impl Tape {
             }
             if !VERBS.contains(&command) {
                 return Err(Error(format!(
-                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe, curve, stage, view, camera, select, orbit, dolly, reveal, region, strip, clay and shade"
+                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe, curve, stage, view, camera, select, orbit, dolly, reveal, region, strip, clay, shade and seek"
                 )));
             }
             order.push((number, None));
@@ -486,6 +498,7 @@ struct Frame {
     curve: Option<Curve>,
     acts: Vec<Act>,
     clay: Option<f32>,
+    seek: Option<String>,
 }
 
 fn modifiers_of(mods: Mods) -> Modifiers {
@@ -544,6 +557,7 @@ impl Plan {
             curve: None,
             acts: Vec::new(),
             clay: None,
+            seek: None,
         });
     }
 
@@ -791,6 +805,12 @@ fn plan_from(
                     plan.mould(clay, wire);
                 }
                 (plan.clay, plan.wire) = to.amounts();
+            }
+            Beat::Seek(to) => {
+                plan.frame(Vec::new());
+                if let Some(last) = plan.frames.last_mut() {
+                    last.seek = Some(to.clone());
+                }
             }
         }
         if plan.full() {
@@ -1075,6 +1095,12 @@ pub fn play(
                 .curve_key(&curve.camera, &curve.track, curve.key, curve.at)
                 .map_err(|why| Error(format!("line {line}: {why}")))?;
         }
+        if let Some(to) = &frame.seek {
+            player.app.seek_to(to).map_err(|why| {
+                let line = frame.step.and_then(|step| tape.line(step)).unwrap_or(0);
+                Error(format!("line {line}: {why}"))
+            })?;
+        }
         let first = player.pass(frame, time, true);
         if let Some(why) = player.refused.take() {
             return Err(Error(why));
@@ -1178,6 +1204,26 @@ mod tests {
         assert!(!frames[pressed + 1].down);
         let second = Tape::parse("wait 1\n").unwrap();
         assert_eq!(plan(&second, 60, [200.0, 100.0]).unwrap().len(), 61);
+    }
+
+    #[test]
+    fn a_seek_step_takes_one_frame_and_carries_its_marker_or_seconds() {
+        let tape = Tape::parse("seek tip\nwait 0.1\nseek 1.5\n").unwrap();
+        assert_eq!(
+            tape.beats,
+            vec![
+                Beat::Seek("tip".into()),
+                Beat::Wait(0.1),
+                Beat::Seek("1.5".into())
+            ]
+        );
+        let frames = plan(&tape, 30, [200.0, 100.0]).unwrap();
+        let seeks: Vec<Option<&str>> = frames.iter().map(|f| f.seek.as_deref()).collect();
+        assert_eq!(seeks, [None, Some("tip"), None, None, None, Some("1.5")]);
+        for bad in ["seek\n", "seek a b\n"] {
+            let error = Tape::parse(bad).unwrap_err().0;
+            assert!(error.starts_with("line 1: seek wants"), "{error}");
+        }
     }
 
     #[test]

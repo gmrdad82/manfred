@@ -223,6 +223,10 @@ impl Reel {
         self.stage.set_poses(posed)
     }
 
+    pub fn set_lights(&mut self, lights: &[manfred_recipe::Light]) -> Result<bool, Error> {
+        self.stage.set_lights(lights)
+    }
+
     pub fn eye(&self, camera: &Camera) -> Eye {
         Eye::from_camera(camera, f64::from(self.size[0]) / f64::from(self.size[1]))
     }

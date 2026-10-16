@@ -962,9 +962,15 @@ fn animate(
         }
     }
     if !channels.is_empty() {
+        let markers: Vec<Value> = animation
+            .markers
+            .iter()
+            .map(|(name, t)| serde_json::json!({ "name": name, "t": t }))
+            .collect();
+        let extras = (!markers.is_empty()).then(|| serde_json::json!({ "markers": markers }));
         builder.root.animations.push(json::Animation {
             extensions: None,
-            extras: Default::default(),
+            extras: raw(extras.as_ref()),
             channels,
             name: Some(ANIMATION.to_string()),
             samplers,
@@ -1049,13 +1055,18 @@ pub fn write_animated(
     }
     levels(&mut builder, nodes, content.lods, &placed);
     for track in tracks {
-        let Some(lens_of) = &track.camera else {
-            continue;
+        let camera = match &track.camera {
+            Some(lens_of) => Some(lens(&mut builder, &track.node, lens_of)),
+            None if track.light_name().is_some()
+                && !nodes.iter().any(|node| node.name == track.node) =>
+            {
+                None
+            }
+            None => continue,
         };
-        let camera = lens(&mut builder, &track.node, lens_of);
         let start = track.keys.first().map(pose);
         builder.root.nodes.push(json::Node {
-            camera: Some(camera),
+            camera,
             name: Some(track.node.clone()),
             translation: start.map(|p| p.0),
             rotation: start.map(|p| p.1),

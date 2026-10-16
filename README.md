@@ -221,7 +221,7 @@ manfred clip <recipe> --camera <name> (--frames N --fps F [--spin <object> [--tu
                                                           a camera moving along the recipe's path, as frames and a video
 manfred new street [--seed N] [--out <file.toml>] [--json]
                                                           writes a starter chase shot: a 9:16 timeline, a route, a low-rise street, a drifting hero car, traffic, a low chase camera, road spray behind each rear wheel, a golden-hour sun about 5 degrees up dead ahead down the route (its hour and heading from the daylight model), a top camera over the route, five stages (street, car, city, camera, look) and lilac.cube beside the recipe, a lilac grade the scene copies beside itself when it is built
-manfred timeline <recipe> [--json]                           builds the recipe and reports its frames, keyed nodes, camera node and each followed object's distance and top speed
+manfred timeline <recipe> [--json]                           builds the recipe and reports its frames, keyed nodes, camera node, each followed object's distance and top speed, and the markers with their frames
 manfred shoot <recipe> --out <dir> [--draft|--final] [--range a..b] [--camera <name>] [--json]
                                                           builds the recipe and renders its timeline with `pfx shot` on the live renderer: frames, the scene's sound as a WAV and shoot.json; resumes where it stopped
 manfred library bake <recipe> <object> --as <kind>/<name> [--thumb] [--tags a,b] [--library <dir>] [--json]
@@ -246,7 +246,19 @@ manfred set <recipe> <key>=<value>... [--json]               writes values into 
 manfred get <recipe> <key>... [--json]                       prints the recipe's values by dotted key, as TOML or JSON
 manfred curve <recipe> <object> <param> list|set|add|remove [--at <i>] [--point a,b] [--json]
                                                           list one curve param of a generator object, or move, add or remove a point in the file
+manfred add <recipe> <table> <name> [key=value]... [--json]
+                                                          append an entry to object, camera, light, route, stage, particles, follow, use, mover or marker, in the file
+manfred remove <recipe> <table> <name> [--json]
+                                                          remove an entry; refused, naming the referrer, while another entry refers to it
+manfred duplicate <recipe> <table> <name> <new-name> [key=value]... [--json]
+                                                          copy an entry under a new name, with keys changed
+manfred list <recipe> [<table>] [--json]                     the recipe's entries and their names (an object's kind and parent)
+manfred key <recipe> <path> <t> <value> [--interp linear|smooth|step] [--json]
+                                                          set or insert a key of a property over the timeline, as object.hero.at 2 0,0,12, in the file
+manfred unkey <recipe> <path> [<t>] [--json]             remove the property's key at t, or every key of it, in the file
 ```
+
+`add`, `remove` and `duplicate` write the recipe file through the window's own edits, keeping its comments, check the recipe again after the write, and put the file back byte for byte when it no longer checks.
 
 `manfred --help` and `manfred help <command>` print the whole help. A line Manfred cannot parse gets clap's short error on stderr and exits 2; a recipe, camera or file it refuses after that is one line on stderr, `manfred <command>: …`, and exits 1.
 

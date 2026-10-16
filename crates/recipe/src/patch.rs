@@ -394,10 +394,31 @@ fn step<'a>(at: At<'a>, key: &Key) -> Option<At<'a>> {
         (At::Tables(a), Key::Object(n) | Key::Table(n)) => a
             .iter()
             .find(|t| label_of(t) == Some(n.as_str()))
+            .or_else(|| n.parse::<usize>().ok().and_then(|i| a.get(i)))
             .map(At::Table),
         (At::Tables(a), Key::Index(i)) => a.get(*i).map(At::Table),
         (At::Value(Value::Array(a)), Key::Index(i)) => a.get(*i).map(At::Value),
         _ => None,
+    }
+}
+
+fn walk<'a>(doc: &'a DocumentMut, path: &[Key]) -> Option<At<'a>> {
+    let mut at = At::Table(doc.as_table());
+    for key in path {
+        at = step(at, key)?;
+    }
+    Some(at)
+}
+
+pub(crate) fn item_exists(doc: &DocumentMut, path: &[Key]) -> bool {
+    walk(doc, path).is_some()
+}
+
+pub(crate) fn names_at(doc: &DocumentMut, path: &[Key]) -> Vec<String> {
+    match walk(doc, path) {
+        Some(At::Table(t)) => t.iter().map(|(k, _)| k.to_string()).collect(),
+        Some(At::Value(Value::InlineTable(t))) => t.iter().map(|(k, _)| k.to_string()).collect(),
+        _ => Vec::new(),
     }
 }
 
@@ -608,6 +629,7 @@ pub(crate) fn edit_root(t: &mut Table, path: &[Key], value: Option<Item>) -> Res
 fn find(a: &ArrayOfTables, name: &str) -> Result<usize, String> {
     a.iter()
         .position(|t| label_of(t) == Some(name))
+        .or_else(|| name.parse::<usize>().ok().filter(|i| *i < a.len()))
         .ok_or_else(|| format!("no entry named `{name}`"))
 }
 

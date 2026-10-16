@@ -79,6 +79,27 @@ fn aspect(scene: &Scene, object: usize) -> Option<f32> {
         .map(|aspect| aspect as f32)
 }
 
+pub fn markers(scene: &Scene) -> Vec<(String, f64)> {
+    let found = || -> Option<Vec<(String, f64)>> {
+        let first = played(scene).into_iter().next()?;
+        let mesh = scene.meshes.get(&scene.objects.get(first.place)?.mesh)?;
+        let json =
+            glb_json(&scene.path.parent()?.join(&mesh.file)).or_else(|| glb_json(&mesh.file))?;
+        let animation = json["animations"]
+            .as_array()?
+            .iter()
+            .find(|a| a["name"] == "timeline")?;
+        Some(
+            animation["extras"]["markers"]
+                .as_array()?
+                .iter()
+                .filter_map(|m| Some((m["name"].as_str()?.to_string(), m["t"].as_f64()?)))
+                .collect(),
+        )
+    };
+    found().unwrap_or_default()
+}
+
 pub fn span(scene: &Scene) -> Option<Span> {
     let played = played(scene);
     let first = played.first()?;

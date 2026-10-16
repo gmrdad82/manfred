@@ -35,6 +35,7 @@ pub fn camera_track(camera: &Camera, timeline: &Timeline, keys: Vec<Trs>) -> Tra
         keys,
         camera: Some(lens(camera, timeline)),
         focus: None,
+        fov: None,
     }
 }
 
@@ -69,11 +70,19 @@ pub(crate) fn bake(
         return Ok(Vec::new());
     };
     let keys = timeline.frames as usize + 1;
+    let owners: Vec<String> = recipe
+        .constrained()
+        .into_iter()
+        .filter_map(|c| match c.owner {
+            manfred_recipe::Owner::Object(name) => Some(name),
+            _ => None,
+        })
+        .collect();
     let followed = |piece: &str| {
-        recipe.follows.iter().any(|f| {
-            piece == f.object
+        owners.iter().any(|owner| {
+            piece == owner
                 || piece
-                    .strip_prefix(f.object.as_str())
+                    .strip_prefix(owner.as_str())
                     .is_some_and(|rest| rest.starts_with('.'))
         })
     };
@@ -86,6 +95,7 @@ pub(crate) fn bake(
             keys: k.clone(),
             camera: None,
             focus: None,
+            fov: None,
         })
         .collect();
     if registry.bakers.is_empty() {
@@ -105,20 +115,24 @@ pub(crate) fn bake(
             baker(&bake).map_err(|text| Error::new("timeline", format!("{name}: {text}")))?;
         for track in made {
             let focus = track.focus.as_ref().map_or(keys, Vec::len);
-            if track.keys.len() != keys || focus != keys {
+            let fov = track.fov.as_ref().map_or(keys, Vec::len);
+            if track.keys.len() != keys || focus != keys || fov != keys {
                 return Err(Error::new(
                     "timeline",
                     format!(
                         "{name}: the track of `{}` has {} keys, expected {keys}, one a frame from 0 to {}",
                         track.node,
-                        track.keys.len().min(focus),
+                        track.keys.len().min(focus).min(fov),
                         timeline.frames
                     ),
                 ));
             }
-            let known = match track.camera_name() {
-                Some(camera) => recipe.cameras.iter().any(|c| c.name == camera),
-                None => nodes.iter().any(|n| n.name == track.node),
+            let known = match (track.camera_name(), track.light_name()) {
+                (Some(camera), _) => recipe.cameras.iter().any(|c| c.name == camera),
+                (None, light) => {
+                    nodes.iter().any(|n| n.name == track.node)
+                        || light.is_some_and(|light| recipe.lights.iter().any(|l| l.name == light))
+                }
             };
             if !known || tracks.iter().any(|t| t.node == track.node) {
                 return Err(Error::new(
@@ -178,8 +192,20 @@ pub fn pose_cameras(recipe: &Recipe, built: &Built, time: f64) -> Result<Recipe,
         return Err(Error::new("timeline", text));
     }
     let fps = recipe.timeline.map_or(1, |t| t.fps);
-    let mut recipe = recipe.clone();
+    let mut recipe = recipe.keyed_at(time);
     for track in &built.tracks {
+        if let Some(name) = track.light_name()
+            && !built.parts.iter().any(|p| p.node.name == track.node)
+            && let Some(light) = recipe.lights.iter_mut().find(|l| l.name == name)
+        {
+            let trs = sample(&track.keys, fps, time);
+            let turn = DQuat::from_array(trs.rotation).normalize();
+            light.position = trs.translation;
+            if let Some(direction) = &mut light.direction {
+                *direction = (turn * DVec3::from(*direction)).to_array();
+            }
+            continue;
+        }
         let Some(name) = track.camera_name() else {
             continue;
         };
@@ -187,6 +213,10 @@ pub fn pose_cameras(recipe: &Recipe, built: &Built, time: f64) -> Result<Recipe,
             posed_camera(camera, &sample(&track.keys, fps, time));
             if let Some(focus) = track.focus.as_deref().and_then(|f| lerp(f, fps, time)) {
                 camera.focus_m = Some(focus);
+            }
+            if let Some(fov) = track.fov.as_deref().and_then(|f| lerp(f, fps, time)) {
+                camera.fov_y_deg = Some(fov);
+                camera.focal_mm = None;
             }
         }
     }

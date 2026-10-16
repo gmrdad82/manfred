@@ -283,6 +283,7 @@ pub fn document(scene: &Scene, path: &str) -> Document {
         patch: "none".to_string(),
         source: 0,
         timeline: crate::animated::span(scene),
+        markers: crate::animated::markers(scene),
     }
 }
 

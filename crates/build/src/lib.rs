@@ -252,6 +252,7 @@ pub struct Built {
     pub catalogue: BTreeMap<String, serde_json::Value>,
     pub notes: Vec<String>,
     pub timeline: Option<Timeline>,
+    pub markers: Vec<(String, f64)>,
     pub tracks: Vec<Track>,
     facts_by_object: serde_json::Map<String, serde_json::Value>,
     trees: BTreeMap<String, library::Tree>,
@@ -260,6 +261,7 @@ pub struct Built {
     pub looks: Arc<Looks>,
     pub lods: Vec<Lod>,
     nest: Vec<Option<(usize, DMat4)>>,
+    wet: BTreeMap<String, (String, pfx_scene::types::Wet)>,
 }
 
 impl Built {
@@ -343,7 +345,11 @@ impl Built {
         let tracks: Vec<Track> = self
             .tracks
             .iter()
-            .filter(|t| t.camera.is_some() || nodes.iter().any(|n| n.name == t.node))
+            .filter(|t| {
+                t.camera.is_some()
+                    || t.light_name().is_some()
+                    || nodes.iter().any(|n| n.name == t.node)
+            })
             .cloned()
             .collect();
         let animation = self
@@ -352,6 +358,7 @@ impl Built {
             .map(|timeline| manfred_glb::Animation {
                 fps: timeline.fps,
                 tracks: &tracks,
+                markers: &self.markers,
             });
         manfred_glb::write_animated(
             &nodes,
@@ -1163,14 +1170,26 @@ fn assemble(
     let facts = facts::facts(recipe, &generated);
     let sidecar = sidecar(recipe, registry, &facts)?;
     let mut materials = BTreeMap::new();
+    let mut wet = BTreeMap::new();
     let mut notes = Vec::new();
-    for (name, (owner, value)) in offered {
+    for (name, (owner, mut value)) in offered {
         match recipe.materials.get(&name) {
             Some(own) if *own != value => notes.push(format!(
                 "materials.{name}: the recipe's entry replaces the one the object `{owner}` returned"
             )),
             Some(_) => {}
             None => {
+                if let Some(keys) = value.as_object_mut()
+                    && let Some(found) = keys.remove("wet")
+                {
+                    let found = serde_json::from_value(found).map_err(|e| {
+                        Error::new(
+                            format!("object[{owner}].params"),
+                            format!("the material `{name}` has a wet table pfx does not read: {e}"),
+                        )
+                    })?;
+                    wet.insert(name.clone(), (owner.to_string(), found));
+                }
                 materials.insert(name, value);
             }
         }
@@ -1196,7 +1215,13 @@ fn assemble(
         lods,
         extras: extras::of(recipe, &parts, &facts.movers),
         nest: nest(recipe, &parts),
+        wet,
         timeline: recipe.timeline,
+        markers: recipe
+            .markers
+            .iter()
+            .map(|m| (m.name.clone(), m.t))
+            .collect(),
         tracks: Vec::new(),
         facts_by_object: by_object,
         trees,

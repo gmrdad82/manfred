@@ -575,6 +575,16 @@ impl Stage {
         }
     }
 
+    pub fn set_lights(&mut self, lights: &[manfred_recipe::Light]) -> Result<bool, Error> {
+        let lights = crate::light::lights_of(lights)?;
+        if lights == self.lighting.lights {
+            return Ok(false);
+        }
+        self.renderer.set_lights(&lights).map_err(Error)?;
+        Arc::make_mut(&mut self.lighting).lights = lights;
+        Ok(true)
+    }
+
     pub fn set_poses(&mut self, posed: BTreeMap<String, Matrix>) -> bool {
         if posed == self.posed {
             return false;

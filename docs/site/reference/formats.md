@@ -61,7 +61,7 @@ With `[output] bake`, `manfred build` writes a `pfx bake` recipe in the engine's
 
 With `[output] scene`, `manfred build` writes the engine's runtime scene, a `*.scene.toml` ([pfx-scene](https://docs.pitomd.com/pfx-scene/)). `manfred gui` opens one too, read only, and reloads it as it is saved.
 
-A recipe's shot effects (spot and parented lights, particle systems, flare, motion blur, outdoor haze, wet materials, a LUT and a sound file) pass into the scene under pfx-scene 1.1.0's keys; [the recipe](../recipe/) lists them under "Shot effects".
+A recipe's shot effects (spot and parented lights, particle systems, flare, motion blur, haze, wet materials, a LUT and a sound file) and the analytic sky's `turbidity` and `ground_albedo` pass into the scene under pfx-scene 1.1.0's keys; [the recipe](../recipe/) lists them under "Shot effects".
 
 ## `manfred render --progress json`
 
@@ -123,6 +123,14 @@ One JSON object on stdout, after the edit when there is one: `recipe` (the path 
 
 ```json
 {"object":"hull","param":"silhouettes.side","points":[[0.0,0.5],[2.0,1.3],[4.4,0.6]],"recipe":"hull.toml","view":"side"}
+```
+
+## `manfred key --json` and `manfred unkey --json`
+
+One JSON object on stdout, the property as the file holds it after the edit: `recipe` (the path as given), `path` (as `object.hero.at`), `keys` (`[t, value]` pairs, the value a number or an array) and `interp` (`linear`, `smooth` or `step`). After `unkey` without a time, `keys` is empty.
+
+```json
+{"interp":"smooth","keys":[[0.0,[0.0,0.0,0.0]],[2.0,[0.0,0.0,12.0]]],"path":"object.hero.at","recipe":"street.toml"}
 ```
 
 ## A clip's folder

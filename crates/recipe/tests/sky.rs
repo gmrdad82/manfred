@@ -386,3 +386,28 @@ fn the_bake_file_is_named_as_pfx_reads_it() {
         ]
     );
 }
+
+#[test]
+fn an_analytic_sky_takes_turbidity_and_ground_albedo_and_other_kinds_refuse_them() {
+    let sky =
+        recipe("[sky]\nkind = \"analytic\"\nturbidity = 6.5\nground_albedo = [0.1, 0.2, 0.3]\n")
+            .sky
+            .unwrap();
+    assert_eq!(sky.turbidity, Some(6.5));
+    assert_eq!(sky.ground_albedo, Some([0.1, 0.2, 0.3]));
+    let plain = recipe("[sky]\nkind = \"analytic\"\n").sky.unwrap();
+    assert_eq!((plain.turbidity, plain.ground_albedo), (None, None));
+    assert!(error("[sky]\nkind = \"analytic\"\nturbidity = 12.0\n").contains("sky.turbidity"));
+    assert!(error("[sky]\nkind = \"room\"\nturbidity = 3.0\n").contains("sky.turbidity"));
+}
+
+#[test]
+fn a_room_haze_needs_lo_below_hi() {
+    let r = recipe(
+        "[haze]\nlo = [-1.0, 0.0, -1.0]\nhi = [1.0, 2.0, 1.0]\nphase = 0.6\nambient = [0.05, 0.04, 0.03]\nseed = 4\n",
+    );
+    assert_eq!(r.effects.haze.unwrap().len(), 5);
+    assert!(error("[haze]\nlo = [-1.0, 0.0, -1.0]\n").contains("haze.hi"));
+    assert!(error("[haze]\nlo = [1.0, 0.0, -1.0]\nhi = [1.0, 2.0, 1.0]\n").contains("haze.hi"));
+    assert!(error("[haze]\nheight = 0.0\nphase = 0.95\n").contains("haze.phase"));
+}

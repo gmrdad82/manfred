@@ -104,17 +104,26 @@ pub(crate) fn keep_in(table: &mut Table, globs: &[String]) {
             .and_then(Item::as_str)
             .map(str::to_string)
     };
+    let follows_dropped = |t: &dyn TableLike| {
+        rig_of(t).is_some_and(|follow| dropped.contains(&follow))
+            || t.get("constraint")
+                .map(each)
+                .unwrap_or_default()
+                .into_iter()
+                .any(|c| {
+                    text(c, "type") == Some("rig")
+                        && text(c, "follow").is_some_and(|f| owned_by(&dropped, f))
+                })
+    };
     let cameras: BTreeSet<String> = table
         .get("camera")
         .map(each)
         .unwrap_or_default()
         .into_iter()
-        .filter(|t| rig_of(*t).is_some_and(|follow| dropped.contains(&follow)))
+        .filter(|t| follows_dropped(*t))
         .filter_map(|t| text(t, "name").map(str::to_string))
         .collect();
-    retain(table, "camera", |t| {
-        rig_of(t).is_none_or(|follow| !dropped.contains(&follow))
-    });
+    retain(table, "camera", |t| !follows_dropped(t));
     if let Some(output) = table.get_mut("output").and_then(Item::as_table_like_mut)
         && output
             .get("scene_camera")
@@ -127,6 +136,18 @@ pub(crate) fn keep_in(table: &mut Table, globs: &[String]) {
         retain(table, key, |t| {
             text(t, "parent").is_none_or(|parent| !owned_by(&dropped, parent))
         });
+    }
+    let aims_at_dropped = |c: &dyn TableLike| {
+        ["target", "follow"]
+            .iter()
+            .any(|key| text(c, key).is_some_and(|name| owned_by(&dropped, name)))
+    };
+    for key in ["object", "camera", "light"] {
+        if let Some(Item::ArrayOfTables(list)) = table.get_mut(key) {
+            for entry in list.iter_mut() {
+                retain(entry, "constraint", |c| !aims_at_dropped(c));
+            }
+        }
     }
     table.remove("stage");
     table.remove("variant");

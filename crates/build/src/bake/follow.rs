@@ -9,51 +9,6 @@ const SLIP_SMOOTH_S: f64 = 0.2;
 const CRAWL_M_S: f64 = 1.0;
 const WHEELBASE_M: f64 = 2.7;
 
-pub(crate) fn animates(recipe: &Recipe) -> Vec<String> {
-    let mut out: Vec<String> = recipe.follows.iter().map(|f| f.object.clone()).collect();
-    for follow in &recipe.follows {
-        let prefix = format!("{}.", follow.object);
-        out.extend(
-            recipe
-                .objects
-                .iter()
-                .filter(|o| o.name.starts_with(&prefix))
-                .map(|o| o.name.clone()),
-        );
-    }
-    out
-}
-
-pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
-    let mut tracks = Vec::new();
-    for follow in &b.recipe.follows {
-        let route = b.routes.get(&follow.route).ok_or_else(|| {
-            format!(
-                "follow[{}].route: no route named `{}`",
-                follow.object, follow.route
-            )
-        })?;
-        let scale = b
-            .recipe
-            .objects
-            .iter()
-            .find(|o| o.name == follow.object)
-            .map_or(DVec3::ONE, |o| DVec3::from_array(o.scale));
-        let path = drive(follow, route, b.timeline);
-        let facts = b.facts.get(&follow.object);
-        let subs = subs(b, &follow.object)?;
-        tracks.extend(car(
-            &follow.object,
-            &path,
-            route,
-            (b.nodes, &subs),
-            facts,
-            scale,
-        ));
-    }
-    Ok(tracks)
-}
-
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Drive {
     pub distance: Vec<f64>,
@@ -212,7 +167,7 @@ fn wheel_of(node: &Node, corner: &str, facts: Option<&serde_json::Value>) -> Whe
     }
 }
 
-struct Sub<'a> {
+pub(crate) struct Sub<'a> {
     name: String,
     rel: DMat4,
     wheel: Option<(bool, Wheel)>,
@@ -232,20 +187,28 @@ impl Sub<'_> {
             .unwrap_or(true)
     }
 
-    fn keys(&self, node: &str, path: &Drive, route: &Route, base: f64, scaled: DMat4) -> Vec<Trs> {
-        let Some((front, wheel)) = self.wheel else {
-            return path
-                .pose
+    fn keys(
+        &self,
+        node: &str,
+        poses: &[DMat4],
+        drive: Option<(&Drive, &Route)>,
+        base: f64,
+        scaled: &dyn Fn(usize) -> DMat4,
+    ) -> Vec<Trs> {
+        let (Some((front, wheel)), Some((path, route))) = (self.wheel, drive) else {
+            return poses
                 .iter()
-                .map(|pose| trs_from_matrix(*pose * scaled * self.rel))
+                .enumerate()
+                .map(|(n, pose)| trs_from_matrix(*pose * scaled(n) * self.rel))
                 .collect();
         };
         let spins = self.spins(node);
         let pivot = self.rel.transform_point3(wheel.centre);
-        path.pose
+        poses
             .iter()
             .zip(&path.distance)
-            .map(|(pose, &d)| {
+            .enumerate()
+            .map(|(n, (pose, &d))| {
                 let turn = if front { steer(route, d, base) } else { 0.0 };
                 let roll = if spins { spin(d, wheel.radius) } else { 0.0 };
                 let local = DMat4::from_translation(pivot)
@@ -255,7 +218,7 @@ impl Sub<'_> {
                     * DMat4::from_translation(wheel.centre)
                     * DMat4::from_quat(DQuat::from_axis_angle(wheel.axle, roll))
                     * DMat4::from_translation(-wheel.centre);
-                trs_from_matrix(*pose * scaled * local)
+                trs_from_matrix(*pose * scaled(n) * local)
             })
             .collect()
     }
@@ -278,7 +241,7 @@ fn descends(recipe: &Recipe, from: usize, to: usize) -> bool {
     false
 }
 
-fn subs<'a>(b: &Bake<'a>, object: &str) -> Result<Vec<Sub<'a>>, String> {
+pub(crate) fn subs<'a>(b: &Bake<'a>, object: &str) -> Result<Vec<Sub<'a>>, String> {
     let prefix = format!("{object}.");
     let wheel_prefix = format!("{object}.wheel_");
     let Some(root) = b.recipe.objects.iter().position(|o| o.name == object) else {
@@ -358,13 +321,14 @@ fn wheelbase(wheels: &[(bool, Wheel)], facts: Option<&serde_json::Value>) -> f64
     }
 }
 
-fn car(
+pub(crate) fn nodes(
     object: &str,
-    path: &Drive,
-    route: &Route,
+    poses: &[DMat4],
+    scales: Option<&[DVec3]>,
+    scale: DVec3,
+    drive: Option<(&Drive, &Route)>,
     (nodes, subs): (&[Node], &[Sub]),
     facts: Option<&serde_json::Value>,
-    scale: DVec3,
 ) -> Vec<Track> {
     let prefix = format!("{object}.");
     let wheel_prefix = format!("{object}.wheel_");
@@ -393,41 +357,48 @@ fn car(
         ))
     }));
     let base = wheelbase(&axles, facts);
-    let scaled = DMat4::from_scale(scale);
+    let constant = DMat4::from_scale(scale);
+    let scaled = |n: usize| match scales {
+        Some(scales) => DMat4::from_scale(scales[n]),
+        None => constant,
+    };
     let mut tracks = Vec::with_capacity(owned.len());
     let mut wheel_at = 0;
     for node in owned {
-        let keys = if let Some(sub) = sub_of(node) {
-            sub.keys(&node.name, path, route, base, scaled)
-        } else if node.name.starts_with(&wheel_prefix) {
-            let (front, wheel) = wheels[wheel_at];
-            wheel_at += 1;
-            path.pose
+        let keys = match (sub_of(node), drive) {
+            (Some(sub), _) => sub.keys(&node.name, poses, drive, base, &scaled),
+            (None, Some((path, route))) if node.name.starts_with(&wheel_prefix) => {
+                let (front, wheel) = wheels[wheel_at];
+                wheel_at += 1;
+                poses
+                    .iter()
+                    .zip(&path.distance)
+                    .enumerate()
+                    .map(|(n, (pose, &d))| {
+                        let turn = if front { steer(route, d, base) } else { 0.0 };
+                        let local = DMat4::from_translation(wheel.centre)
+                            * DMat4::from_rotation_y(turn)
+                            * DMat4::from_quat(DQuat::from_axis_angle(
+                                wheel.axle,
+                                spin(d, wheel.radius),
+                            ))
+                            * DMat4::from_translation(-wheel.centre);
+                        trs_from_matrix(*pose * scaled(n) * local)
+                    })
+                    .collect()
+            }
+            _ => poses
                 .iter()
-                .zip(&path.distance)
-                .map(|(pose, &d)| {
-                    let turn = if front { steer(route, d, base) } else { 0.0 };
-                    let local = DMat4::from_translation(wheel.centre)
-                        * DMat4::from_rotation_y(turn)
-                        * DMat4::from_quat(DQuat::from_axis_angle(
-                            wheel.axle,
-                            spin(d, wheel.radius),
-                        ))
-                        * DMat4::from_translation(-wheel.centre);
-                    trs_from_matrix(*pose * scaled * local)
-                })
-                .collect()
-        } else {
-            path.pose
-                .iter()
-                .map(|pose| trs_from_matrix(*pose * scaled))
-                .collect()
+                .enumerate()
+                .map(|(n, pose)| trs_from_matrix(*pose * scaled(n)))
+                .collect(),
         };
         tracks.push(Track {
             node: node.name.clone(),
             keys,
             camera: None,
             focus: None,
+            fov: None,
         });
     }
     tracks
