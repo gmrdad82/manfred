@@ -76,11 +76,11 @@ fn the_old_daylight_table_is_refused_with_the_new_spelling() {
 fn each_sun_model_takes_only_its_own_keys() {
     assert_eq!(
         error(&format!("{DAYLIGHT}irradiance = 3.0\n")),
-        "line 8: sun.irradiance: unknown key `irradiance` in `sun`, expected one of: model, hour, day, latitude, heading, reference_hour"
+        "line 8: sun.irradiance: unknown key `irradiance` in `sun`, expected one of: model, hour, day, latitude, heading, reference_hour, keys, interp"
     );
     assert_eq!(
         error(&format!("{AUTHORED}latitude = 52.0\n")),
-        "line 7: sun.latitude: unknown key `latitude` in `sun`, expected one of: model, hour, toward, radius_deg, color, irradiance"
+        "line 7: sun.latitude: unknown key `latitude` in `sun`, expected one of: model, hour, toward, radius_deg, color, irradiance, keys, interp"
     );
     assert_eq!(
         error(&format!("{AUTHORED}hour = 9.0\n")),
@@ -118,13 +118,13 @@ fn the_daylight_hour_and_reference_hour_are_checked() {
 fn the_color_key_is_spelled_as_the_scene_file_spells_it() {
     assert_eq!(
         error(&format!("{AUTHORED}colour = [1.0, 0.9, 0.8]\n")),
-        "line 7: sun.colour: unknown key `colour` in `sun`, expected one of: model, hour, toward, radius_deg, color, irradiance"
+        "line 7: sun.colour: unknown key `colour` in `sun`, expected one of: model, hour, toward, radius_deg, color, irradiance, keys, interp"
     );
     assert_eq!(
         error(
             "[[light]]\nname = \"a\"\nposition = [0.0, 1.0, 0.0]\nintensity = 1.0\ncolour = [1.0, 1.0, 1.0]\n"
         ),
-        "line 7: light[a].colour: unknown key `colour` in `light[a]`, expected one of: name, kind, parent, at, position, direction, cone, color, intensity, radius, range, shadow"
+        "line 7: light[a].colour: unknown key `colour` in `light[a]`, expected one of: name, kind, parent, at, position, direction, cone, color, intensity, radius, range, shadow, keys, interp"
     );
     assert_eq!(
         error(

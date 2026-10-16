@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use toml_edit::{Item, TableLike, Value};
 
 use super::{Cx, NUM, STR, Tab, V3, bad_item, bad_value, choice, num_value, tables};
+use crate::keyframes::Context;
 use crate::{Error, Light, LightKind};
 
 #[derive(Clone, Debug, PartialEq)]
@@ -354,6 +355,25 @@ fn read_particles(
     let name = tab.req(cx, "name", STR)?;
     let parent = tab.opt(cx, "parent", STR)?;
     let settings = settings(cx, &mut tab, PARTICLES)?;
+    super::keys::read(
+        cx,
+        &mut tab,
+        "particles",
+        Some(name.as_str()),
+        Context::default(),
+    )?;
+    if settings.iter().any(|(k, _)| *k == "rate_keys")
+        && cx
+            .keyed
+            .get(&format!("particles.{name}"))
+            .is_some_and(|k| k.contains_key("rate"))
+    {
+        return Err(Error::new(
+            tab.kpath("keys.rate"),
+            Some(line),
+            "`rate_keys` and a keyed `rate` are one track, expected one of the two",
+        ));
+    }
     if settings.iter().any(|(k, _)| *k == "color") && settings.iter().any(|(k, _)| *k == "colors") {
         return Err(Error::new(
             tab.kpath("colors"),
@@ -379,6 +399,9 @@ fn table(
         return Ok(None);
     };
     let out = settings(cx, &mut tab, spec)?;
+    if key == "haze" {
+        super::keys::read(cx, &mut tab, "haze", None, Context::default())?;
+    }
     tab.finish(cx)?;
     Ok(Some(out))
 }
@@ -538,6 +561,11 @@ pub(super) fn read_light(
             ),
         ));
     }
+    let context = Context {
+        spot: kind == LightKind::Spot,
+        parented: parent.is_some(),
+        ..Context::default()
+    };
     let light = Light {
         name,
         kind,
@@ -551,6 +579,7 @@ pub(super) fn read_light(
         range: tab.or(cx, "range", 0.0, NUM)?,
         shadow: tab.or(cx, "shadow", false, super::BOOL)?,
     };
+    super::keys::read(cx, &mut tab, "light", Some(light.name.as_str()), context)?;
     tab.finish(cx)?;
     Ok(light)
 }

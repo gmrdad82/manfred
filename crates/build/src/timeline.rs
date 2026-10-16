@@ -160,7 +160,7 @@ pub fn pose_cameras(recipe: &Recipe, built: &Built, time: f64) -> Result<Recipe,
         return Err(Error::new("timeline", text));
     }
     let fps = recipe.timeline.map_or(1, |t| t.fps);
-    let mut recipe = recipe.clone();
+    let mut recipe = recipe.keyed_at(time);
     for track in &built.tracks {
         let Some(name) = track.camera_name() else {
             continue;

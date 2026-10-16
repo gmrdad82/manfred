@@ -4,6 +4,7 @@ mod clip;
 mod diff;
 mod entries;
 mod gui;
+mod key;
 mod new;
 mod process;
 mod render;
@@ -87,6 +88,12 @@ enum Verb {
     Set(set::SetArgs),
     #[command(about = "Print a recipe's values by dotted key")]
     Get(set::GetArgs),
+    #[command(
+        about = "Set or insert a key of an animatable property in the recipe, as object.hero.at at 2 s"
+    )]
+    Key(key::KeyArgs),
+    #[command(about = "Remove one key of a property, or every key of it")]
+    Unkey(key::UnkeyArgs),
     #[command(
         about = "Write a starter recipe",
         subcommand_required = true,
@@ -305,6 +312,8 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::Route(parsed) => route::run(&parsed, registry),
         Verb::Set(parsed) => set::run_set(&parsed, registry),
         Verb::Get(parsed) => set::run_get(&parsed, registry),
+        Verb::Key(parsed) => key::key(&parsed, registry),
+        Verb::Unkey(parsed) => key::unkey(&parsed, registry),
         Verb::New(parsed) => new::run(&parsed),
         Verb::Timeline(parsed) => timeline::run(&parsed, registry),
         Verb::Shoot(parsed) => shoot::run(&parsed, registry),
@@ -384,7 +393,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, new, timeline, shoot, add, remove, duplicate, list, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, key, unkey, new, timeline, shoot, add, remove, duplicate, list, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),

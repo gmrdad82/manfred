@@ -836,6 +836,46 @@ A `[[stage]]` is one step of building the scene up, for a breakdown: `manfred bu
 - **`--only <glob>[,<glob>]`** builds only these objects or pieces, with the same rules, on `build`, `shot` and `render`; after `--stage` when both are given.
 - **Order:** the variant, then each `--set` (so `--set stage.<name>.objects=[...]` and a variant's `set` reach a stage), then `--stage`, then `--only`. In Rust: `manfred_recipe::apply_stage(&recipe, "3")`, `apply_only(&recipe, &globs)` and `Pick { stage, only }.apply(&recipe)`; `manfred_build::staged` and `manfred_build::only` are the same functions.
 
+## Keyframes
+
+```toml
+[[object]]
+name = "hero"
+kind = "box"
+size = [1.0, 1.0, 1.0]
+keys = { at = [[0.0, [0.0, 0.0, 0.0]], [2.0, [0.0, 0.0, 12.0]]], rotate = [[0.0, [0.0, 0.0, 0.0]], [2.0, [0.0, 90.0, 0.0]]] }
+interp = { at = "smooth" }
+
+[[light]]
+name = "lamp"
+position = [0.0, 3.0, 0.0]
+intensity = 2.0
+keys = { intensity = [[0.0, 2.0], [1.5, 8.0]], color = [[0.0, [1.0, 0.2, 0.1]], [1.5, [1.0, 0.9, 0.8]]] }
+```
+
+A `keys` table keys the properties of its table over the recipe's `[timeline]`: each name is one of the table's own keys, and holds `[t, value]` keys, `t` in seconds of the timeline, at least 0 and strictly rising, at least one key. The value has the property's shape: a number, or `[x, y, z]` (`[r, g, b]` for a colour, `[inner, outer]` for a cone, `[low, high]` for a span). Between keys the value is linear in each component; before the first key it holds the first value, after the last the last, and a keyed property overrides its static value. `interp = { <property> = "linear" | "smooth" | "step" }` blends one property otherwise: `smooth` is a Catmull-Rom Hermite curve through the keys (flat at the first and last), `step` holds each key's value until the next. A recipe with `keys` needs a `[timeline]`.
+
+| table | keyable | where it goes |
+|---|---|---|
+| `[[object]]` | `at`, `rotate`, `scale` | the GLB's `timeline` animation, one key a frame |
+| `[[camera]]` | `position`, `target` | the GLB's `camera.<name>` node, one key a frame |
+| `[[camera]]` | `fov_y_deg` or `focal_mm`, `fstop`, `focus_m` | the scene's `[camera]` `keys` as `fov` (a keyed `focal_mm` turned into `fov` at the scene's aspect), `fstop` and `focus` |
+| `[[camera]]` | `exposure` | the scene's `[finish]` `keys.exposure`; the scene camera's alone, and not with `[look]`'s |
+| `[[light]]` | `intensity`, `color`, `range`, `cone` (a spot light) | the scene's `[[light]]` `keys` |
+| `[[light]]` | `position` (no `parent`) or `at` (with a `parent`) | Manfred's own views; the scene has no keyed light position, so a light that moves rides a `parent` node |
+| `[[particles]]` | `rate`, `speed`, `size`, `color`, `alpha` | the scene's `[[particles]]` `keys` (`alpha` from 0 to 1 scales the `alpha` curve); a keyed `rate` is not with `rate_keys` |
+| `[look]` | `exposure`, `lut_amount` | the scene's `[finish]` `keys` |
+| `[sun]` | `hour` (`model = "daylight"`) | the scene's `[sun]` `keys` |
+| `[haze]` | `amount`, `color` | the scene's `[haze]` `keys` |
+
+- **Ranges:** colours, intensities, ranges, rates, speeds, sizes and exposures are at least 0; `fstop`, `focus_m` and `focal_mm` above 0; `fov_y_deg` above 0 and below 180; `cone` from 0 to 180 with inner no more than outer; `alpha`, `lut_amount` and the haze's `amount` from 0 to 1; `hour` from 0 to 24. The scene's names and shapes are pfx-scene's (`KEYED` of its `Light`, `Camera`, `Particles`, `Finish`, `Sun` and `Haze`), and the scene checker reads them back.
+- **The scene's keys** are pfx-scene's `keys` inline table (format 1, pfx-scene 1.3.0). A linear property is written key for key; a smooth one is sampled once a frame, a stepped one as each key plus the value before it a millisecond earlier, so pfx's linear keys play the same curve.
+- **Objects:** a keyed object, and every object whose `parent` chain reaches one, is animated: its mesh stays in its own frame and its node is keyed with its world transform at each frame, the keyed `at`, `rotate` and `scale` composed as the static ones are. A `[[follow]]` drives its object's whole transform, so a followed object takes no keys.
+- **Cameras:** a keyed `position` or `target` keys the camera node as a rig does, looking from the position to the target with the camera's `up`; a camera with `[camera.rig]` takes neither, and a keyed `focus_m` is not with `rig.focus = "follow"`. A keyed `focus_m` needs an `fstop` above 0, static or keyed. An orthographic camera keys `position`, `target` and `exposure` only.
+- **Order:** keys are the base. Manfred's keys baker runs first, and the bakers after it (follow, the rig, constraints) read its tracks.
+- **Manfred's own views:** `manfred shot` and `manfred render --time`, `manfred clip --timeline` and the window's timeline pose the keyed objects and cameras and light the keyed lights at `t`; `shot` and `render` also take the keyed lens, exposure, LUT amount and sun hour.
+- **Editing:** `manfred key <recipe> <path> <t> <value> [--interp linear|smooth|step]` sets the key at `t` or inserts one, and `manfred unkey <recipe> <path> [<t>]` removes one key, or every key of the property; `<path>` is `object.hero.at`, `camera.chase.fov_y_deg`, `light.lamp.intensity`, `particles.spray.rate`, `look.exposure`, `sun.hour` or `haze.amount`. They edit the file in place, keeping its comments and layout, re-read and re-check it, and leave it untouched when the edit is refused. `--set object.hero.keys.at=[[0, [0, 0, 0]], [3, [0, 0, 20]]]` and a variant's `set` replace a whole keyed property.
+
 ## Variants, look and bake
 
 ```toml

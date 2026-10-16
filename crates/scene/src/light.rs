@@ -497,15 +497,18 @@ fn mixed(mut daylight: Sky, room: &RoomSky, fill: f32) -> Sky {
 }
 
 fn lights(recipe: &Recipe) -> Result<Vec<LocalLight>, Error> {
-    if recipe.lights.len() > MAX_LIGHTS + MAX_CLUSTERED {
+    lights_of(&recipe.lights)
+}
+
+pub(crate) fn lights_of(lights: &[manfred_recipe::Light]) -> Result<Vec<LocalLight>, Error> {
+    if lights.len() > MAX_LIGHTS + MAX_CLUSTERED {
         return Err(Error(format!(
             "light: the engine draws {} local lights at most, the recipe has {}",
             MAX_LIGHTS + MAX_CLUSTERED,
-            recipe.lights.len()
+            lights.len()
         )));
     }
-    Ok(recipe
-        .lights
+    Ok(lights
         .iter()
         .filter(|light| light.parent.is_none())
         .map(|light| LocalLight {

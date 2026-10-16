@@ -36,6 +36,7 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 | `manfred route` | lists a recipe's routes, or moves, adds and removes their points in the file |
 | `manfred set` | writes values into a recipe's file by dotted key, keeping its comments, and checks it |
 | `manfred get` | prints a recipe's values by dotted key |
+| `manfred key`, `manfred unkey` | set, insert or remove a key of an object's, camera's, light's, particles', look's, sun's or haze's property over the timeline, in the file |
 | `manfred new street` | writes a starter chase-shot recipe from a seed, with its lilac grade in lilac.cube beside it |
 | `manfred timeline` | a recipe's timeline: frames, keyed nodes, the camera node, what travels how far and how fast |
 | `manfred shoot` | a timeline's frames rendered by `pfx shot` on the live renderer, with its WAV and a manifest, resumable |

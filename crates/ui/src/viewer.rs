@@ -994,6 +994,18 @@ impl Viewer {
                 self.previewed = None;
                 moved = true;
             }
+            let lit = self
+                .follow
+                .recipe()
+                .filter(|_| self.scene.is_none())
+                .filter(|r| r.keyed.keys().any(|entry| entry.starts_with("light.")));
+            if let Some(recipe) = lit {
+                let lights = match at {
+                    Some((_, time)) => recipe.lights_at(time),
+                    None => recipe.lights.clone(),
+                };
+                moved |= stage.set_lights(&lights).unwrap_or(false);
+            }
         }
         moved
     }

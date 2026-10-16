@@ -117,6 +117,14 @@ One JSON object on stdout. `set` prints `recipe` (the path as given), `set[]` wi
 {"recipe":"chase.toml","values":[{"key":"sky.intensity","value":1.8}]}
 ```
 
+## `manfred key --json` and `manfred unkey --json`
+
+One JSON object on stdout, the property as the file holds it after the edit: `recipe` (the path as given), `path` (as `object.hero.at`), `keys` (`[t, value]` pairs, the value a number or an array) and `interp` (`linear`, `smooth` or `step`). After `unkey` without a time, `keys` is empty.
+
+```json
+{"interp":"smooth","keys":[[0.0,[0.0,0.0,0.0]],[2.0,[0.0,0.0,12.0]]],"path":"object.hero.at","recipe":"street.toml"}
+```
+
 ## A clip's folder
 
 `manfred clip --out <dir>` writes:

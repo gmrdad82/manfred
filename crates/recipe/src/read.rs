@@ -4,8 +4,10 @@ use std::path::Path;
 use toml_edit::{Document, DocumentMut, Item, Table, TableLike, Value};
 
 use crate::include::{self, Assembly, Edit, File, Files, Role, Sources};
+use crate::keyframes::Context;
 
 pub(crate) mod effects;
+mod keys;
 
 use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
@@ -51,6 +53,7 @@ pub(crate) struct Cx {
     twins: Vec<Problem>,
     plate: Option<Plate>,
     copies: BTreeMap<String, Vec<(Table, bool)>>,
+    keyed: BTreeMap<String, crate::Keyed>,
 }
 
 impl Cx {
@@ -1681,6 +1684,13 @@ fn read_object(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
     }
     let lod = read_lod(cx, &mut tab, &kind_name)?;
     let kind = read_kind(cx, &mut tab, &kind_name)?;
+    keys::read(
+        cx,
+        &mut tab,
+        "object",
+        Some(name.as_str()),
+        Context::default(),
+    )?;
     tab.finish(cx)?;
     Ok(Object {
         name,
@@ -2035,6 +2045,28 @@ fn read_camera(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
     let fstop = tab.or(cx, "fstop", 0.0, NUM)?;
     let ortho_height = tab.opt(cx, "ortho_height", NUM)?;
     let path = read_path(cx, &mut tab)?;
+    let context = Context {
+        ortho: kind == Projection::Orthographic,
+        ..Context::default()
+    };
+    keys::read(cx, &mut tab, "camera", Some(name.as_str()), context)?;
+    if let Some(keyed) = cx.keyed.get(&format!("camera.{name}")) {
+        let line = cx.lines.get(&tab.kipath("keys")).copied();
+        if keyed.contains_key("fov_y_deg") && keyed.contains_key("focal_mm") {
+            return Err(Error::new(
+                tab.kpath("keys.focal_mm"),
+                line,
+                "a camera keys `fov_y_deg` or `focal_mm`, not both",
+            ));
+        }
+        if keyed.contains_key("focus_m") && fstop <= 0.0 && !keyed.contains_key("fstop") {
+            return Err(Error::new(
+                tab.kpath("keys.focus_m"),
+                line,
+                "a keyed focus needs depth of field, expected an `fstop` above 0, static or keyed",
+            ));
+        }
+    }
     tab.finish(cx)?;
     Ok(Camera {
         name,
@@ -2225,6 +2257,7 @@ fn read_sun(cx: &mut Cx, root: &mut Tab<'_>) -> Result<(Option<Sun>, Option<Dayl
         let latitude = tab.req(cx, "latitude", NUM)?;
         let heading = tab.req(cx, "heading", NUM)?;
         let reference_hour = tab.or(cx, "reference_hour", REFERENCE_HOUR, NUM)?;
+        keys::read(cx, &mut tab, "sun", None, Context::default())?;
         tab.finish(cx)?;
         return Ok((
             None,
@@ -2248,6 +2281,11 @@ fn read_sun(cx: &mut Cx, root: &mut Tab<'_>) -> Result<(Option<Sun>, Option<Dayl
     let radius_deg = tab.or(cx, "radius_deg", 0.27, NUM)?;
     let color = tab.or(cx, "color", [1.0, 1.0, 1.0], V3)?;
     let irradiance = tab.req(cx, "irradiance", NUM)?;
+    let context = Context {
+        authored: true,
+        ..Context::default()
+    };
+    keys::read(cx, &mut tab, "sun", None, context)?;
     tab.finish(cx)?;
     Ok((
         Some(Sun {
@@ -2742,6 +2780,19 @@ fn read_look(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Option<Look>, Error> {
             haze: 0.0,
         },
     };
+    keys::read(cx, &mut tab, "look", None, Context::default())?;
+    if lut.is_none()
+        && cx
+            .keyed
+            .get("look")
+            .is_some_and(|k| k.contains_key("lut_amount"))
+    {
+        return Err(Error::new(
+            tab.kpath("keys.lut_amount"),
+            cx.lines.get(&tab.kipath("keys")).copied(),
+            "expected a `lut` beside a keyed `lut_amount`",
+        ));
+    }
     tab.finish(cx)?;
     Ok(Some(Look {
         view,
@@ -3122,6 +3173,7 @@ fn read_recipe(
         twins: Vec::new(),
         plate: None,
         copies: asm.copies,
+        keyed: BTreeMap::new(),
     };
     match read_root(&mut cx, &asm.table, text, base) {
         Ok(mut recipe) => {
@@ -3275,6 +3327,16 @@ fn read_root(
     };
     let effects = effects::read_effects(cx, &mut root, wet)?;
     root.finish(cx)?;
+    if timeline.is_none()
+        && let Some(entry) = cx.keyed.keys().next()
+    {
+        return Err(Error::new(
+            format!("{entry}.keys"),
+            None,
+            "keys animate over the recipe's [timeline], expected a [timeline] with fps and seconds or frames",
+        ));
+    }
+    let keyed = std::mem::take(&mut cx.keyed);
 
     Ok(Recipe {
         manfred: manfred as u32,
@@ -3305,6 +3367,7 @@ fn read_root(
         effects,
         textures,
         uses,
+        keyed,
         files: Files::default(),
         source: text.to_string(),
         base: base.map(Path::to_path_buf),

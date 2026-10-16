@@ -155,6 +155,11 @@ pub(super) fn particles(
             parent.put(&mut s);
         }
         put(&mut s, &particles.settings)?;
+        let entry = format!("particles.{}", particles.name);
+        super::keys::put(
+            &mut s,
+            &super::keys::tracks(recipe, &entry, manfred_recipe::Table::Particles),
+        )?;
     }
     Ok(())
 }

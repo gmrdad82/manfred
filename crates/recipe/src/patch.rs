@@ -401,6 +401,26 @@ fn step<'a>(at: At<'a>, key: &Key) -> Option<At<'a>> {
     }
 }
 
+fn walk<'a>(doc: &'a DocumentMut, path: &[Key]) -> Option<At<'a>> {
+    let mut at = At::Table(doc.as_table());
+    for key in path {
+        at = step(at, key)?;
+    }
+    Some(at)
+}
+
+pub(crate) fn item_exists(doc: &DocumentMut, path: &[Key]) -> bool {
+    walk(doc, path).is_some()
+}
+
+pub(crate) fn names_at(doc: &DocumentMut, path: &[Key]) -> Vec<String> {
+    match walk(doc, path) {
+        Some(At::Table(t)) => t.iter().map(|(k, _)| k.to_string()).collect(),
+        Some(At::Value(Value::InlineTable(t))) => t.iter().map(|(k, _)| k.to_string()).collect(),
+        _ => Vec::new(),
+    }
+}
+
 pub fn value_at(doc: &DocumentMut, path: &[Key]) -> Option<Value> {
     value_in(doc.as_table(), path)
 }

@@ -324,7 +324,7 @@ fn rigid(m: DMat4) -> (DQuat, DVec3) {
     (turn.normalize(), at)
 }
 
-fn view(eye: DVec3, target: DVec3, up: DVec3) -> Result<DQuat, String> {
+pub(crate) fn view(eye: DVec3, target: DVec3, up: DVec3) -> Result<DQuat, String> {
     let back = (eye - target).normalize_or_zero();
     let right = up.cross(back).normalize_or_zero();
     if back == DVec3::ZERO || right == DVec3::ZERO {

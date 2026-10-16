@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 mod entries;
 mod include;
+mod keyframes;
 mod patch;
 mod path;
 mod read;
@@ -19,6 +20,10 @@ pub use entries::{
     write_checked,
 };
 pub use include::Files;
+pub use keyframes::{
+    Channel, Goes, Interp, KeyEdit, Keyable, Keyed, Place, Property, Rule, SAME_TIME, SECTIONS,
+    Table, key_patches, place, properties, property,
+};
 pub use patch::{
     apply, apply_all, edit, flag, number, numbers, params_in, path_text, reread, save, save_to,
     string, value_at, write,
@@ -78,6 +83,7 @@ pub struct Recipe {
     pub effects: Effects,
     pub textures: BTreeMap<String, Textures>,
     pub uses: Vec<Use>,
+    pub keyed: BTreeMap<String, Keyed>,
     pub files: Files,
     pub source: String,
     pub base: Option<PathBuf>,
@@ -976,6 +982,7 @@ impl Recipe {
                     .follows
                     .iter()
                     .any(|follow| follow.object == object.name)
+                || self.keyed.contains_key(&format!("object.{}", object.name))
             {
                 return true;
             }

@@ -247,6 +247,9 @@ manfred remove <recipe> <table> <name> [--json]
 manfred duplicate <recipe> <table> <name> <new-name> [key=value]... [--json]
                                                           copy an entry under a new name, with keys changed
 manfred list <recipe> [<table>] [--json]                     the recipe's entries and their names (an object's kind and parent)
+manfred key <recipe> <path> <t> <value> [--interp linear|smooth|step] [--json]
+                                                          set or insert a key of a property over the timeline, as object.hero.at 2 0,0,12, in the file
+manfred unkey <recipe> <path> [<t>] [--json]             remove the property's key at t, or every key of it, in the file
 ```
 
 `add`, `remove` and `duplicate` write the recipe file through the window's own edits, keeping its comments, check the recipe again after the write, and put the file back byte for byte when it no longer checks.

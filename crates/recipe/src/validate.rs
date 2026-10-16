@@ -98,6 +98,7 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     bake(&mut out);
     sidecar(&mut out);
     materials(&mut out);
+    keyframes(&mut out);
     if let Some(d) = &r.daylight {
         if !(0.0..=24.0).contains(&d.hour) {
             out.same("sun.hour", "expected an hour from 0 to 24");
@@ -121,6 +122,68 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     let mut list = out.list;
     list.sort_by(|a, b| (a.line, &a.path, &a.text).cmp(&(b.line, &b.path, &b.text)));
     list
+}
+
+fn keyframes(out: &mut Out<'_>) {
+    let r = out.r;
+    for (index, object) in r.objects.iter().enumerate() {
+        if r.keyed.contains_key(&format!("object.{}", object.name))
+            && r.follows.iter().any(|f| f.object == object.name)
+        {
+            out.add(
+                format!("object[{}].keys", object.name),
+                &format!("object#{index}.keys"),
+                "a [[follow]] drives this object's whole transform, expected its keys or its follow removed",
+            );
+        }
+    }
+    let scene_camera = r.scene_camera().map(|c| c.name.as_str());
+    for (index, camera) in r.cameras.iter().enumerate() {
+        let Some(keyed) = r.keyed.get(&format!("camera.{}", camera.name)) else {
+            continue;
+        };
+        let at = At::new(
+            format!("camera[{}].keys", camera.name),
+            format!("camera#{index}.keys"),
+        );
+        if let Some(rig) = &camera.rig {
+            for key in ["position", "target"] {
+                if keyed.contains_key(key) {
+                    out.at(
+                        &at,
+                        key,
+                        "the camera's [camera.rig] places and aims it, expected the keyed position and target removed or the rig",
+                    );
+                }
+            }
+            if rig.focus == Some(RigFocus::Follow) && keyed.contains_key("focus_m") {
+                out.at(
+                    &at,
+                    "focus_m",
+                    "rig.focus = \"follow\" already sets the focus over time, expected one of the two",
+                );
+            }
+        }
+        if keyed.contains_key("exposure") {
+            if scene_camera != Some(camera.name.as_str()) {
+                out.at(
+                    &at,
+                    "exposure",
+                    "a camera's keyed exposure is the scene's [finish] exposure, so only the scene camera (output.scene_camera, else the first) keys it",
+                );
+            } else if r
+                .keyed
+                .get("look")
+                .is_some_and(|k| k.contains_key("exposure"))
+            {
+                out.at(
+                    &at,
+                    "exposure",
+                    "[look] keys the exposure too, expected one of the two",
+                );
+            }
+        }
+    }
 }
 
 fn materials(out: &mut Out<'_>) {
