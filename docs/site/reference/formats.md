@@ -112,7 +112,9 @@ One JSON object a line on stderr, at most about one a second while tracing. Ever
 
 - `.master.mp4`: x264 High, CRF 14, 8-bit 4:2:0, BT.709 limited range, a keyframe every two seconds;
 - `.poster.png`: the poster frame, 8-bit sRGB;
-- `.json`, the manifest: `tool` (`name`, `version`), `kind` (`window-clip`), `target` and `tape` as given, `params` (`size`, `fps`, `poster`), `frames` (`master`, the frame count; `seconds`; `poster`, the poster's frame), `outputs` (the formats in words), `files[]` (`file`, `role` `master` or `poster`, `bytes`, `fps`, `size`, and the poster's `frame`) and `encodes[]` (`file`, `role`, `fps`, `size`, `args`). Readers ignore keys they don't know.
+- `.json`, the manifest: `tool` (`name`, `version`), `kind` (`window-clip`), `target` and `tape` as given, `tape_sha256` (of the tape's bytes), `params` (`size`, `fps`, `poster`, `scale`, `framed`, `window` (points, or null), `pixels_per_point` and `drawn`, the window's pixels inside the frame), `frames` (`master`, the frame count; `seconds`; `poster`, the poster's frame), `outputs` (the formats in words), `files[]` (`file`, `role` `master` or `poster`, `bytes`, `fps`, `size`, and the poster's `frame`) and `encodes[]` (`file`, `role`, `fps`, `size`, `args`). Readers ignore keys they don't know.
+
+With `--frames` it writes a folder `<tape>-<W>x<H>-<fps>fps/` of `frame-00000.png`… (8-bit sRGB PNGs of the whole frame, five digits) and the `.json` manifest beside it, whole only once every frame is written: `kind` `window-frames`; `tool`, `target`, `tape`, `tape_sha256` and `params` as above, without `poster`; `frames` (`count`, `seconds`, `folder`, `pattern` `frame-%05d.png`); `outputs`; and `files[]`, one a frame in order: `file` (`<folder>/frame-00000.png`), `role` `frame`, `frame`, `bytes`, and the tape `step` it is in (counting from 0 over the tape's steps and waits) with its `line` in the tape, both null for frame 0, the window before the tape's first step.
 
 ## Exit codes
 
