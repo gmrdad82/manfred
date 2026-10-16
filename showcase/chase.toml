@@ -100,14 +100,14 @@ speed = [[0.0, 12.9]]
 name = "chase"
 kind = "perspective"
 position = [1.75, 0.75, -7.57]
-target = [1.75, 2.92, 8.0]
+target = [1.75, 2.77, 8.0]
 fov_y_deg = 80.0
 fstop = 2.8
 
 [camera.rig]
 follow = "hero"
 offset = [0.0, 0.75, -7.57]
-look = [0.0, 2.92, 8.0]
+look = [0.0, 2.77, 8.0]
 lag = 0.25
 look_ahead = 0.2
 bank = 4.0
@@ -130,13 +130,13 @@ intensity = 1.5
 view = "graded"
 exposure = 2.6
 grade = { vignette = 0.25, saturation = 1.0, warmth = 0.05, bloom = 0.15, haze = 0.0 }
-lut = "out/lilac.cube"
+lut = "lilac.cube"
 lut_amount = 0.8
 
 [[particles]]
 name = "spray_rl"
 parent = "hero.body"
-at = [0.778, 0.05, -1.655]
+at = [0.768, 0.05, -1.655]
 rate = 300.0
 rate_keys = [[0.0, 300.0], [10.0, 1500.0]]
 max = 2000
@@ -158,7 +158,7 @@ seed = 1
 [[particles]]
 name = "spray_rr"
 parent = "hero.body"
-at = [-0.778, 0.05, -1.655]
+at = [-0.768, 0.05, -1.655]
 rate = 300.0
 rate_keys = [[0.0, 300.0], [10.0, 1500.0]]
 max = 2000
@@ -183,7 +183,7 @@ max_px = 48.0
 samples = 12
 
 [haze]
-amount = 0.3
+amount = 0.03
 height = 0.0
 falloff = 0.08
 shafts = 0.6

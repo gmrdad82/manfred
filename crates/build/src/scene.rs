@@ -47,7 +47,8 @@ const VIGNETTE: [f64; 3] = [2.4, 0.8, 1.28];
 const MIX_FILL: f64 = 0.25;
 const MIX_FLOOR: f64 = 1e-9;
 
-type Beside = Vec<(PathBuf, Cow<'static, [u8]>)>;
+type File = (PathBuf, Cow<'static, [u8]>);
+type Beside = Vec<File>;
 
 pub(crate) struct Written {
     pub text: String,
@@ -172,7 +173,7 @@ pub(crate) fn text(
     sun(&mut out, recipe, &light)?;
     sky(&mut out, recipe, &light, &paths, base)?;
     camera(&mut out, recipe, built)?;
-    finish(&mut out, recipe, &paths, base)?;
+    let lut = finish(&mut out, recipe, (&paths, base, scene))?;
     effects::tables(&mut out, recipe)?;
     haze(&mut out, recipe)?;
     trace(&mut out, recipe)?;
@@ -189,7 +190,8 @@ pub(crate) fn text(
         None => objects(&mut out, built, recipe, &glb_name, &cards, paths.pick())?,
     }
     contents(&mut out, &cards, &paths, base)?;
-    let fonts = texts(&mut out, built, recipe, scene, &paths, base)?;
+    let mut fonts = texts(&mut out, built, recipe, scene, &paths, base)?;
+    fonts.extend(lut);
     let mut written = Written {
         text: out,
         library,
@@ -889,21 +891,39 @@ pub(crate) fn depth_range(camera: &Camera, bounds: Option<[[f64; 3]; 2]>) -> (f6
     (near, far.max(near * 2.0))
 }
 
-fn finish(out: &mut String, recipe: &Recipe, paths: &Paths, base: &Path) -> Result<(), Error> {
-    let lut = match recipe.look.as_ref().and_then(|look| look.lut.as_ref()) {
-        Some(lut) => Some(effects::file(paths, base, lut, "look.lut")?),
+fn finish(
+    out: &mut String,
+    recipe: &Recipe,
+    (paths, base, scene): (&Paths, &Path, &Path),
+) -> Result<Option<File>, Error> {
+    let copy = match recipe.look.as_ref().and_then(|look| look.lut.as_ref()) {
+        Some(lut) => {
+            let from = base.join(lut);
+            let bytes = std::fs::read(&from).map_err(|e| {
+                Error::new(
+                    "look.lut",
+                    format!(
+                        "{}: {e}, expected a .cube file relative to the recipe",
+                        from.display()
+                    ),
+                )
+            })?;
+            let name = from.file_name().unwrap_or_default();
+            Some((scene.with_file_name(name), Cow::Owned(bytes)))
+        }
         None => None,
     };
     let amount = recipe.look.as_ref().and_then(|look| look.lut_amount);
     standard_or_graded(out, recipe)?;
-    if let Some(lut) = lut {
+    if let Some((file, _)) = &copy {
+        let lut = paths.relative(file, "look.lut")?;
         let mut s = Section::new(out, "[[finish.pass]]", "look.lut");
         s.put("lut", &string(&lut));
         if let Some(amount) = amount {
             s.num("lut_amount", amount)?;
         }
     }
-    Ok(())
+    Ok(copy)
 }
 
 fn standard_or_graded(out: &mut String, recipe: &Recipe) -> Result<(), Error> {

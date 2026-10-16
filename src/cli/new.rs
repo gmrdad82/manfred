@@ -62,7 +62,7 @@ const CAR_DOWN: f64 = 0.6;
 const LOOK_AT_M: f64 = 8.0;
 const LAG_S: f64 = 0.25;
 const DRIFT: [f64; 3] = [1.2, 2.5, 26.0];
-const LUT: &str = "out/lilac.cube";
+const LUT: &str = "lilac.cube";
 const LUT_SIZE: usize = 33;
 const TRAFFIC: [&str; 3] = ["sedan", "hatch", "van"];
 const HERO_PAINTS: [&str; 4] = ["#5b0f1a", "#0e2a4f", "#14361f", "#2a0f3d"];
@@ -445,7 +445,7 @@ pub(super) fn street(seed: u64) -> Made {
     let _ = writeln!(w, "samples = 12");
     let _ = writeln!(w);
     let _ = writeln!(w, "[haze]");
-    let _ = writeln!(w, "amount = 0.3");
+    let _ = writeln!(w, "amount = 0.03");
     let _ = writeln!(w, "height = 0.0");
     let _ = writeln!(w, "falloff = 0.08");
     let _ = writeln!(w, "shafts = 0.6");

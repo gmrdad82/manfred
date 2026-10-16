@@ -71,7 +71,7 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
             pose *= DQuat::from_rotation_z(f64::from(offset.roll).to_radians());
         }
         keys.push(trs_from_matrix(DMat4::from_rotation_translation(pose, eye)));
-        focus.push(eye.distance(looked[n]));
+        focus.push(eye.distance(frames[n].1));
     }
     let mut track = camera_track(camera, b.timeline, keys);
     if rig.focus == Some(RigFocus::Follow) {
@@ -475,13 +475,19 @@ mod tests {
     }
 
     #[test]
-    fn focus_follows_the_distance_to_the_aim() {
-        let track = baked(Rig { lag: 0.2, ..rig() });
+    fn focus_follows_the_distance_to_the_followed_object_not_the_aim() {
+        let track = baked(Rig {
+            lag: 0.2,
+            look: [0.0, 2.9, 8.0],
+            ..rig()
+        });
         let focus = track.focus.as_ref().expect("focus");
         assert_eq!(focus.len(), 61);
         for n in [0u32, 30, 60] {
-            let want = eye(&track, n as usize).distance(wanted(n, [0.0, 0.6, 0.0]));
+            let want = eye(&track, n as usize).distance(wanted(n, [0.0, 0.0, 0.0]));
             assert!((focus[n as usize] - want).abs() < 1e-9);
+            let aim = eye(&track, n as usize).distance(wanted(n, [0.0, 2.9, 8.0]));
+            assert!(aim - focus[n as usize] > 2.0, "{aim} {}", focus[n as usize]);
         }
         assert_eq!(
             baked(Rig {

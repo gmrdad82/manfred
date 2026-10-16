@@ -34,7 +34,7 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 | `manfred clip` | a camera moving along a path, as frames and a video |
 | `manfred gui` | the window: pick, move, re-material, set cameras, render |
 | `manfred route` | lists a recipe's routes, or moves, adds and removes their points in the file |
-| `manfred new street` | writes a starter chase-shot recipe from a seed, with its lilac grade in out/lilac.cube |
+| `manfred new street` | writes a starter chase-shot recipe from a seed, with its lilac grade in lilac.cube beside it |
 | `manfred timeline` | a recipe's timeline: frames, keyed nodes, the camera node, what travels how far and how fast |
 | `manfred shoot` | a timeline's frames rendered by `pfx shot` on the live renderer, with its WAV and a manifest, resumable |
 

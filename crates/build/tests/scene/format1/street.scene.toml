@@ -132,7 +132,7 @@ warmth = { amount = 0.0, kind = "linear" }
 tone = "aces"
 
 [[finish.pass]]
-lut = "recipes/grade.cube"
+lut = "scenes/grade.cube"
 lut_amount = 0.75
 
 [flare]

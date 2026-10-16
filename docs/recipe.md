@@ -527,7 +527,7 @@ focus = "follow"
 - `yaw_lag` (0, seconds) damps the heading the offset and the aim turn with, so the camera stays with the road while the car yaws in a drift and shows its flank; it starts settled at frame 0's turn rate, and 0 turns them with the object exactly.
 - `bank` (0, degrees per m/s²) rolls the camera into the turns by the followed object's sideways acceleration, its route's curvature times its speed squared, eased over half a second and held within 30 degrees; 0 keeps the horizon level, and an object without a `[[follow]]` never banks. A drift's wander doesn't bank it. `bank = 4` rolls about 8 to 14 degrees at the peaks of `manfred new street`'s S bends at 30 m/s.
 - `shake` is pfx's `fx::Shake` at full trauma: `translation` (0, metres, across the frame's right and up), `roll` (0, degrees, below 90), `frequency` (2, hertz, above 0) and `seed` (the timeline's seed). The same seed gives the same shake.
-- `focus` sets depth of field and needs the camera's `fstop` above 0: `"follow"` keeps the focus on the aim point, written into the scene's `[camera]` as `focus_keys = [[t, metres], ...]` one key a frame; a number is a fixed focus distance in metres, written as `focus`.
+- `focus` sets depth of field and needs the camera's `fstop` above 0: `"follow"` keeps the focus on the followed object, the distance from the camera to its origin (a car's centre on the ground under it) at every frame, written into the scene's `[camera]` as `focus_keys = [[t, metres], ...]` one key a frame; a number is a fixed focus distance in metres, written as `focus`.
 - The camera's `position` and `target` are optional with a rig (they default to `offset` and `look`) and serve only where there is no timeline. A rig is for a perspective camera, and a camera takes `path` or `rig`, not both.
 - `--set` and variants reach every key: `camera.chase.rig.lag=0.4`, `camera.chase.rig.shake.seed=3`, `camera.chase.rig.offset=[0, 1.4, -7]`. `--set` keeps a value's kind, so it changes a numeric `focus` but can't turn `"follow"` into a number; a variant or the file can.
 
@@ -695,7 +695,7 @@ amount = 0.8
 - **`[haze]`:** the outdoor haze: `amount` (0 to 1), `height` (a number), `falloff` (>= 0), `reach` (>= 0, metres the march goes), `shafts` (0 to 1), `steps` (whole number >= 1) and `color`. It needs `height` or `falloff`, unless `look.grade.haze` gives the room's haze, whose `[haze]` it then joins; `amount` and `look.grade.haze` together are refused at `haze.amount`.
 - **`[materials.<name>.wet]`:** `amount` and `puddles` (0 to 1), `puddle_scale` (> 0, metres) and `seed` (whole number). Manfred's own materials ignore it; the scene's library writes it on that material.
 - **`sound`:** a path ending in `.sound.toml`, relative to the recipe, written as the scene's `sound`.
-- **Paths:** `look.lut` and `sound` must be files when the scene is written, and are written relative to the project root, as the scene's other paths are.
+- **Paths:** `look.lut` and `sound` must be files when the scene is written. The LUT is copied beside the scene under its own file name, so `manfred build --out <folder>` carries it, and the scene names the copy; `sound` is written relative to the project root, as the scene's other paths are.
 
 ## Timeline
 
