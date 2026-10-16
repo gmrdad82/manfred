@@ -92,16 +92,16 @@ pub fn run(args: &Args, registry: &Registry) -> ExitCode {
                 } else {
                     Mode::Stage
                 };
-                let mut viewer = Viewer::with(super::gui::picked(
-                    Follow::new_with(recipe, mode, registry.clone()),
-                    &args.pick,
-                ));
                 let mut shell = if options.start {
                     Shell::start(recipe)
                 } else {
                     Shell::open(recipe)
                 }
                 .without_recent();
+                let mut viewer = Viewer::with(super::gui::picked(
+                    Follow::new_with(shell.recipe_path(), mode, registry.clone()),
+                    &args.pick,
+                ));
                 if options.bare {
                     shell = shell.bare().strip(args.strip);
                 }

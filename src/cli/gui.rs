@@ -21,8 +21,8 @@ fn rates() -> impl TypedValueParser<Value = u32> {
 #[command(group(clap::ArgGroup::new("offscreen").args(["shot", "clip"])))]
 pub(super) struct Args {
     #[arg(
-        value_name = "recipe|folder",
-        help = "A recipe, a .scene.toml, or a folder to pick one from [default: the start scene]"
+        value_name = "file|folder",
+        help = "A recipe, a .scene.toml, a .manf, a .glb (opened as an imported document), or a folder to pick one from [default: the start scene]"
     )]
     pub(super) target: Option<String>,
     #[command(flatten)]
@@ -247,8 +247,8 @@ pub fn run(
         shell = shell.with_installed_showcase();
     }
     let viewer = match &choice {
-        Target::Recipe(path) | Target::Start(path) => Some(Viewer::with(picked(
-            Follow::idle_with(path, Mode::Stage, registry.clone()),
+        Target::Recipe(_) | Target::Start(_) => Some(Viewer::with(picked(
+            Follow::idle_with(shell.recipe_path(), Mode::Stage, registry.clone()),
             &args.pick,
         ))),
         Target::Scene(path) => Some(Viewer::scene(path, Mode::Stage)),

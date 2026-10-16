@@ -135,6 +135,10 @@ impl<'a> Manfred<'a> {
         self.shell.rendering()
     }
 
+    pub(crate) fn file(&mut self, step: &crate::file::Step) {
+        self.shell.file_step(step);
+    }
+
     pub fn steady(&mut self) {
         self.steady = true;
         if let Some(viewer) = self.viewer.get_mut() {
@@ -227,8 +231,10 @@ impl App for Manfred<'_> {
 
     fn opened(&mut self) -> bool {
         let Some(path) = self.shell.take_opened() else {
-            return false;
+            return self.shell.retitled();
         };
+        self.shell.retitled();
+
         let mut next = if crate::watched::is_scene(Path::new(&path)) {
             Viewer::scene(PathBuf::from(&path), Mode::Stage)
         } else {

@@ -99,7 +99,7 @@ A recipe with a `[timeline]` (`docs/recipe.md`) shows a transport bar along the 
 
 ## Opening a recipe
 
-Ctrl+O opens the recipe picker over the viewport. Esc closes it, and so does a click on the viewport beside it. In a window with no recipe (the picker's own folder, `manfred gui <folder>`), Esc clears the field while the picker stays. The hint bar lists `ctrl o`, and clicking it opens the picker; the picker's own `enter` and `esc` caps do what those keys do.
+Ctrl+O, or Open… in the File menu, opens the picker over the viewport. Esc closes it, and so does a click on the viewport beside it. In a window with no recipe (the picker's own folder, `manfred gui <folder>`), Esc clears the field while the picker stays. The hint bar lists `ctrl o`, and clicking it opens the picker; the picker's own `enter` and `esc` caps do what those keys do.
 
 The picker lists the recipes in the folders it knows, sorted by name: `showcase/` beside the repo the binary was built from, when that folder is there, or, for an installed `manfred`, a copy in `${XDG_DATA_HOME:-~/.local/share}/manfred/showcase`, which the install step writes without overwriting (Manfred's own `workshop.toml` and `gallery.toml`, `showcase/README.md`), and the folder of the recipe last opened. An app's scenes are opened from its own repo, with its own build binary, so their generators are registered. The last ten recipes opened are listed first, newest at the top. They are kept in `$XDG_STATE_HOME/manfred/recent`, or `$HOME/.local/state/manfred/recent` when that variable is unset or empty, one path a line. Opening a recipe again moves it to the top. The file is written atomically, as `.<name>.manfred-tmp` beside it and then a rename, the same way a recipe is saved.
 
@@ -135,7 +135,29 @@ A file named `*.scene.toml` is the engine's runtime scene (pfx's `docs/scenes.md
 - **The outliner lists the scene's objects** under their `parent`, and a click in the view picks the object under it by its `id`.
 - **The window does not write a scene file.** Panels show its values, but no gesture is saved, there is no undo, C2 shows the selection's values read only, the camera buttons other than the jump are off, and C3's fields and Render button are disabled, since it renders recipes only; edit a scene in its file. The hour slider is disabled and does not move a scene's sun, and `[text.*]` entries are not drawn.
 
+## Files
+
+The top bar's File menu, beside the A header, opens, saves, imports and exports. Every dialog is the window's own picker, never the system's, so it works the same offscreen and in a tape.
+
+| Item | Keys | Does |
+| --- | --- | --- |
+| Open… | Ctrl+O | opens a recipe (`.toml`), a scene (`.scene.toml`), a document (`.manf`) or a `.glb`, which opens as an imported document: a new recipe holding one `kind = "mesh"` object at the origin with that file |
+| Save | Ctrl+S | writes a `.manf` in place; a `.toml` recipe is already saved, since every edit writes it as it is made; an imported `.glb` asks for a name as Save As does |
+| Save As .manf… | Ctrl+Shift+S | packs the open recipe, with the files it reads, into a `.manf`, and goes on editing that document |
+| Import glTF… | | adds a `.glb` into the open scene as a new `kind = "mesh"` object at the origin, named from the file (`car.glb` is `car`, then `car_2`), as one edit Ctrl+Z puts back; into a `.manf` the file is copied into the document, into a `.toml` its path is written relative to the recipe |
+| Export glTF… | | writes the scene as a standalone `.glb`, or only the selected object when "the selected object only" is ticked |
+
+- **The save dialog** is the picker with a folder field over a name field. It opens on the document's folder with its name filled in (`chase.manf`, `chase.glb`), lists the folder's subfolders and the files of the type it writes, and a click on a file takes its name, so Enter overwrites it. A name without the extension gets it.
+- **A `.manf` is edited on an unpacked copy.** Opening one unpacks its recipe and files into `$XDG_STATE_HOME/manfred/documents/<name>-<hash>/` (`~/.local/state/manfred/documents/` when the variable is unset), and every edit (a gizmo, a route, a field, a set) patches that copy. The `.manf` itself changes only on Save, through the container's atomic writer. While edits are unsaved the top bar shows ● after the name, and the window's title carries it: `manfred · chase.manf ●`.
+- **Drop a file on the window** to open it, or hold Shift while dropping a `.glb` to import it into the open scene.
+- **The recent list** keeps `.manf` documents beside recipes and scenes, marked `manf`, with the document's thumbnail when it has one.
+- **D1 says what happened:** `file saved …`, `file exported …`, or the error.
+- `manfred gui chase.manf` and `manfred gui car.glb` open a document directly, and `--shot` and `--clip` take them too.
+
+In a tape, each item is one step, taking one frame, played as the menu would: `open <path>`, `save`, `save-as <path>`, `import <path>`, `export <path> [--selected]`, and `drop <path> [shift]`, which drops the file on the window the way a file manager does. A path is the rest of the line, relative to where the clip plays (its `.work/` copy).
+
 ## Scripts for `--shot`
+
 
 `manfred gui --shot <png> --input <script>` plays a script of one step a line, then draws. The script and the offscreen harness that plays it are pfx's `pfx-editor-shell`, the same for every editor built on it. A line starting with `#` is a comment. Coordinates are points from the window's top left.
 

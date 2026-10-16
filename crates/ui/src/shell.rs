@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::{Path, PathBuf};
 
 use egui::epaint::RectShape;
 use egui::{
@@ -16,9 +17,11 @@ use crate::edit::{
     self, Dial, Editor, Fields, Join, Lit, LitFields, Outcome, Said, Slots, Smoothing, Triple,
     rename, set_lit, set_material, set_smoothing, set_triple,
 };
+use crate::file::{self, Held, Kind, Step};
 use crate::fixture::{self, Fixture};
 use crate::follow::{self, Seen};
 use crate::gizmo::{Gizmo, Matrix, Mode, Poses};
+use crate::open::{Act, Purpose};
 use crate::orbit;
 use crate::panel::Panel;
 use crate::pick::{self, Lens};
@@ -112,6 +115,15 @@ enum Command {
     Redo,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Menu {
+    Open,
+    Save,
+    SaveAs,
+    Import,
+    Export,
+}
+
 struct ShotViews {
     thumb: TextureHandle,
     full: TextureHandle,
@@ -203,6 +215,9 @@ pub struct Shell {
     strip: bool,
     region: Option<[f32; 4]>,
     guides: crate::overlay::Guides,
+    held: Option<Held>,
+    file_note: Option<(String, bool)>,
+    titled_dirty: bool,
 }
 
 impl fmt::Debug for Shell {
@@ -361,6 +376,21 @@ impl Shell {
     }
 
     pub fn open(path: &str) -> Shell {
+        let at = Path::new(path);
+        if matches!(file::kind(at), Some(Kind::Manf | Kind::Glb)) {
+            return match file::hold(at) {
+                Ok((held, recipe)) => {
+                    let mut shell = Shell::open(&recipe.display().to_string());
+                    shell.held = Some(held);
+                    shell
+                }
+                Err(error) => {
+                    let mut shell = Shell::empty();
+                    shell.file_note = Some((error, true));
+                    shell
+                }
+            };
+        }
         if crate::watched::is_scene(std::path::Path::new(path)) {
             return Shell::scene(path);
         }
@@ -487,7 +517,344 @@ impl Shell {
             strip: true,
             region: None,
             guides: crate::overlay::Guides::default(),
+            held: None,
+            file_note: None,
+            titled_dirty: false,
         }
+    }
+
+    pub fn recipe_path(&self) -> &str {
+        &self.document.path
+    }
+
+    fn shown_path(&self) -> String {
+        match &self.held {
+            Some(held) => held.shown().display().to_string(),
+            None => self.document.path.clone(),
+        }
+    }
+
+    fn kind_word(&self) -> &'static str {
+        match &self.held {
+            Some(held) if held.kind == Kind::Glb && held.target.is_none() => "glb",
+            Some(_) => "manf",
+            None if self.scene => "scene",
+            None => "recipe",
+        }
+    }
+
+    pub fn dirty(&self) -> bool {
+        self.held.as_ref().is_some_and(|held| {
+            !self.edits.is_empty()
+                || self.editor.as_ref().map_or(0, |editor| editor.steps().0) != held.saved
+        })
+    }
+
+    pub(crate) fn retitled(&mut self) -> bool {
+        let dirty = self.dirty();
+        if dirty == self.titled_dirty {
+            return false;
+        }
+        self.titled_dirty = dirty;
+        true
+    }
+
+    fn fail(&mut self, error: String) {
+        if self.picker.shown() {
+            self.picker.fail(error.clone());
+        }
+        self.file_note = Some((error, true));
+    }
+
+    fn said_file(&mut self, text: String) {
+        self.file_note = Some((text, false));
+    }
+
+    pub fn file_step(&mut self, step: &Step) {
+        match step {
+            Step::Open(path) => self.open_file(path),
+            Step::Save => {
+                self.save();
+            }
+            Step::SaveAs(path) => {
+                self.save_as(path);
+            }
+            Step::Import(path) => {
+                self.import(path);
+            }
+            Step::Export { path, selected } => {
+                self.export(path, *selected);
+            }
+            Step::Drop { path, shift } => self.dropped_file(path, *shift),
+        }
+    }
+
+    pub fn open_file(&mut self, path: &Path) {
+        self.file_note = None;
+        match file::kind(path) {
+            Some(Kind::Manf | Kind::Glb) => match file::hold(path) {
+                Ok((held, recipe)) => {
+                    if self.open_recipe(&recipe, path) {
+                        self.held = Some(held);
+                    }
+                }
+                Err(error) => self.fail(error),
+            },
+            Some(Kind::Scene) => self.open_scene(path),
+            _ => {
+                self.open_recipe(path, path);
+            }
+        }
+    }
+
+    fn dropped_file(&mut self, path: &Path, shift: bool) {
+        if shift && self.editor.is_some() {
+            self.import(path);
+        } else {
+            self.open_file(path);
+        }
+    }
+
+    fn drops(&mut self, ctx: &Context) {
+        let (files, shift) = ctx.input(|input| {
+            (
+                input
+                    .raw
+                    .dropped_files
+                    .iter()
+                    .map(|file| file.path().to_path_buf())
+                    .collect::<Vec<_>>(),
+                input.modifiers.shift,
+            )
+        });
+        for path in files {
+            let opens = !(shift && self.editor.is_some());
+            self.dropped_file(&path, shift);
+            if opens {
+                break;
+            }
+        }
+    }
+
+    pub fn save(&mut self) -> bool {
+        self.file_note = None;
+        if let Some(held) = self.held.clone() {
+            return match held.target {
+                Some(target) => self.pack_to(&target),
+                None => {
+                    self.ask(Purpose::SaveAs);
+                    false
+                }
+            };
+        }
+        if self.editor.is_some() {
+            self.said_file(format!(
+                "{} saves as you edit; save as .manf packs it",
+                self.document.path
+            ));
+            return true;
+        }
+        self.fail(if self.scene {
+            "a scene is written by building its recipe; open the recipe to save".to_string()
+        } else {
+            "nothing to save: open a recipe or a .manf".to_string()
+        });
+        false
+    }
+
+    fn pack_to(&mut self, target: &Path) -> bool {
+        let recipe = PathBuf::from(&self.document.path);
+        match file::pack(&recipe, &self.registry, target) {
+            Ok(written) => {
+                let undo = self.editor.as_ref().map_or(0, |editor| editor.steps().0);
+                if let Some(held) = self.held.as_mut() {
+                    held.target = Some(written.clone());
+                    held.saved = undo;
+                }
+                let _ = self.book.remember(&written);
+                self.said_file(format!("saved {}", written.display()));
+                true
+            }
+            Err(error) => {
+                self.fail(error);
+                false
+            }
+        }
+    }
+
+    pub fn save_as(&mut self, path: &Path) -> bool {
+        self.file_note = None;
+        if self.editor.is_none() {
+            self.fail("only a recipe or a .manf saves as a .manf".to_string());
+            return false;
+        }
+        if self.held.is_some() {
+            return self.pack_to(path);
+        }
+        let recipe = PathBuf::from(&self.document.path);
+        match file::pack(&recipe, &self.registry, path) {
+            Ok(written) => {
+                self.open_file(&written);
+                if self.held.is_none() {
+                    return false;
+                }
+                self.said_file(format!("saved {}", written.display()));
+                true
+            }
+            Err(error) => {
+                self.fail(error);
+                false
+            }
+        }
+    }
+
+    pub fn import(&mut self, path: &Path) -> bool {
+        self.file_note = None;
+        if !file::is_glb(path) {
+            self.fail(format!("{}: not a binary glTF 2.0 file", path.display()));
+            return false;
+        }
+        if self.editor.as_mut().is_some_and(Editor::fresh) {
+            self.refresh(&[]);
+        }
+        let stem = path
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let known: Vec<&str> = self
+            .document
+            .objects
+            .iter()
+            .map(|object| object.name.as_str())
+            .collect();
+        let name = file::object_name(&stem, &known);
+        let base = Path::new(&self.document.path)
+            .parent()
+            .unwrap_or(Path::new("."))
+            .to_path_buf();
+        let made = match self.editor.as_ref().and_then(Editor::loaded) {
+            None => Err("open a recipe or a .manf to import into".to_string()),
+            Some(loaded) => {
+                let placed = match &self.held {
+                    Some(_) => file::copy_in(path, &base),
+                    None => Ok(file::relative(path, &base)),
+                };
+                placed.and_then(|placed| file::import_patches(loaded, &placed, &name))
+            }
+        };
+        match made {
+            Ok(patches) => {
+                self.edits.push(format!("import {name}"), patches);
+                self.said_file(format!("imported {} as {name}", path.display()));
+                true
+            }
+            Err(error) => {
+                self.fail(error);
+                false
+            }
+        }
+    }
+
+    pub fn export(&mut self, path: &Path, selected: bool) -> bool {
+        self.file_note = None;
+        if self.editor.is_none() {
+            self.fail("export works on a recipe or a .manf".to_string());
+            return false;
+        }
+        let only = match (selected, self.object) {
+            (false, _) => None,
+            (true, Some(object)) => Some(self.document.objects[object].name.clone()),
+            (true, None) => {
+                self.fail("select an object to export it alone".to_string());
+                return false;
+            }
+        };
+        let recipe = PathBuf::from(&self.document.path);
+        match file::export(&recipe, &self.registry, only.as_deref(), path) {
+            Ok(written) => {
+                self.said_file(format!("exported {}", written.display()));
+                true
+            }
+            Err(error) => {
+                self.fail(error);
+                false
+            }
+        }
+    }
+
+    fn ask(&mut self, purpose: Purpose) {
+        let shown = PathBuf::from(self.shown_path());
+        let folder = shown.parent().map(Path::to_path_buf);
+        let stem = shown
+            .file_stem()
+            .map(|stem| stem.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let stem = stem.strip_suffix(".scene").unwrap_or(&stem).to_string();
+        let (name, selected) = match purpose {
+            Purpose::SaveAs => (format!("{stem}.manf"), None),
+            Purpose::Export => (format!("{stem}.glb"), self.object.map(|_| false)),
+            Purpose::Open | Purpose::Import => (String::new(), None),
+        };
+        self.picker.show_for(purpose, folder, name, selected);
+    }
+
+    fn menu(&mut self, ctx: &Context, menu: Menu) {
+        match menu {
+            Menu::Open => self.show_picker(ctx),
+            Menu::Save => {
+                self.save();
+            }
+            Menu::SaveAs => self.ask(Purpose::SaveAs),
+            Menu::Import => self.ask(Purpose::Import),
+            Menu::Export => self.ask(Purpose::Export),
+        }
+    }
+
+    fn file_menu(&mut self, ui: &mut Ui) {
+        let editable = self.editor.is_some();
+        let savable = editable || self.held.is_some();
+        let mut chosen = None;
+        let title = RichText::new("File")
+            .font(Theme::of(ui.ctx()).font(SIZE_BODY))
+            .color(TEXT_PRIMARY);
+        ui.menu_button(title, |ui| {
+            for (label, keys, enabled, menu) in [
+                ("Open…", "Ctrl+O", true, Menu::Open),
+                ("Save", "Ctrl+S", savable, Menu::Save),
+                ("Save As .manf…", "Ctrl+Shift+S", editable, Menu::SaveAs),
+                ("Import glTF…", "", editable, Menu::Import),
+                ("Export glTF…", "", editable, Menu::Export),
+            ] {
+                if ui
+                    .add_enabled(enabled, Button::new(label).shortcut_text(keys))
+                    .clicked()
+                {
+                    chosen = Some(menu);
+                    ui.close();
+                }
+            }
+        });
+        if let Some(menu) = chosen {
+            self.menu(ui.ctx(), menu);
+        }
+    }
+
+    fn file_chord(ctx: &Context) -> Option<Menu> {
+        ctx.input(|input| {
+            input.events.iter().find_map(|event| match event {
+                Event::Key {
+                    key: Key::S,
+                    pressed: true,
+                    modifiers,
+                    ..
+                } if modifiers.ctrl || modifiers.command => Some(if modifiers.shift {
+                    Menu::SaveAs
+                } else {
+                    Menu::Save
+                }),
+                _ => None,
+            })
+        })
     }
 
     pub fn with_installed_showcase(mut self) -> Shell {
@@ -982,6 +1349,7 @@ impl Shell {
         }
         self.drain(ctx);
         self.take_shots(ctx);
+        self.drops(ctx);
         self.keyboard(ctx);
         self.pointer(ctx);
         self.tick(ctx);
@@ -1015,6 +1383,7 @@ impl Shell {
         if gestures.is_empty() {
             return;
         }
+        self.file_note = None;
         let Some(editor) = self.editor.as_mut() else {
             return;
         };
@@ -1279,6 +1648,10 @@ impl Shell {
     fn keyboard(&mut self, ctx: &Context) {
         if Self::open_chord(ctx) {
             self.show_picker(ctx);
+            return;
+        }
+        if let Some(menu) = Self::file_chord(ctx) {
+            self.menu(ctx, menu);
             return;
         }
         let in_picker = ctx.memory(|memory| memory.has_focus(crate::open::field_id()));
@@ -1845,6 +2218,18 @@ impl Shell {
     }
 
     pub fn label(&self) -> Option<String> {
+        if let Some(held) = &self.held {
+            let name = held
+                .shown()
+                .file_name()
+                .map(|name| name.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            return Some(if self.dirty() {
+                format!("{name} {}", file::MARK)
+            } else {
+                name
+            });
+        }
         if self.document.path == sample::RECIPE_PATH {
             return None;
         }
@@ -1993,14 +2378,20 @@ impl Shell {
 
     fn top(&mut self, ui: &mut Ui) {
         let rect = bar(egui::Panel::top("A"), TOP, BG_DEEP, ui, |ui| {
-            let kind = if self.scene { "scene" } else { "recipe" };
+            let kind = self.kind_word();
             self.header(ui, Panel::A, Header::new("A", kind).width(92.0));
+            self.file_menu(ui);
+            ui.add_space(SECTION_GAP);
             ui.label(
                 RichText::new(&self.document.name)
                     .font(Theme::of(ui.ctx()).bold_font(SIZE_HEADING))
                     .color(TEXT_PRIMARY),
             );
-            ui.label(code(ui, &self.document.path, TEXT_MUTED));
+            if self.dirty() {
+                ui.label(code(ui, file::MARK, ACCENT))
+                    .on_hover_text("unsaved edits: ctrl s saves the .manf");
+            }
+            ui.label(code(ui, self.shown_path(), TEXT_MUTED));
             ui.add_space(SECTION_GAP * 2.0);
             let mut tab = tab_of(self.focus);
             if ui.add(Tabs::new(&mut tab, &TABS)).changed()
@@ -2043,10 +2434,20 @@ impl Shell {
     fn status(&mut self, ui: &mut Ui) {
         let rect = bar(egui::Panel::bottom("D1"), STATUS, BG_DEEP, ui, |ui| {
             self.header(ui, Panel::D1, Header::new("D1", "status").width(92.0));
-            let kind = if self.scene { "scene" } else { "recipe" };
-            item(ui, kind, &self.document.path, TEXT_CODE);
+            let kind = self.kind_word();
+            item(ui, kind, &self.shown_path(), TEXT_CODE);
             divider(ui);
             match (&self.trouble, self.note, self.said()) {
+                _ if self.file_note.is_some() => {
+                    if let Some((text, error)) = &self.file_note {
+                        let (label, colour) = if *error {
+                            ("error", DANGER)
+                        } else {
+                            ("file", ACCENT)
+                        };
+                        item(ui, label, &first_line(text, 96), colour);
+                    }
+                }
                 (_, _, Some(Said::Refused(why))) => {
                     item(ui, "refused", &first_line(why, 96), DANGER)
                 }
@@ -2286,19 +2687,31 @@ impl Shell {
         }
         let act = self.picker.draw(ctx, live, &self.document.path, &self.book);
         match act {
-            Some(crate::open::Act::Open(path)) => self.open_recipe(&path),
-            Some(crate::open::Act::Close) => self.picker.close(),
+            Some(Act::Open(path)) => self.open_file(&path),
+            Some(Act::Import(path)) => {
+                if self.import(&path) {
+                    self.picker.close();
+                }
+            }
+            Some(Act::SaveAs(path)) => {
+                if self.save_as(&path) {
+                    self.picker.close();
+                }
+            }
+            Some(Act::Export(path, selected)) => {
+                if self.export(&path, selected) {
+                    self.picker.close();
+                }
+            }
+            Some(Act::Close) => self.picker.close(),
             None => {}
         }
     }
 
-    fn open_recipe(&mut self, path: &std::path::Path) {
-        if crate::watched::is_scene(path) {
-            return self.open_scene(path);
-        }
+    fn open_recipe(&mut self, path: &Path, shown: &Path) -> bool {
         if let Err(error) = manfred_recipe::load(path) {
-            self.picker.fail(error.to_string());
-            return;
+            self.fail(error.to_string());
+            return false;
         }
         let path_text = path.display().to_string();
         let mut editor =
@@ -2311,14 +2724,15 @@ impl Shell {
         self.editor = Some(editor);
         self.scene = false;
         self.drains |= !cfg!(test);
-        self.adopt(path, document);
+        self.adopt(path, shown, document);
+        true
     }
 
     fn open_scene(&mut self, path: &std::path::Path) {
         let scene = match pfx_load::scene::Scene::open(path) {
             Ok(scene) => scene,
             Err(error) => {
-                self.picker.fail(error.to_string());
+                self.fail(error.to_string());
                 return;
             }
         };
@@ -2326,12 +2740,15 @@ impl Shell {
         let document = crate::watched::document(&scene, &path_text);
         self.editor = None;
         self.scene = true;
-        self.adopt(path, document);
+        self.adopt(path, path, document);
     }
 
-    fn adopt(&mut self, path: &std::path::Path, document: Document) {
+    fn adopt(&mut self, path: &Path, shown: &Path, document: Document) {
         let path_text = path.display().to_string();
-        let _ = self.book.remember(path);
+        let _ = self.book.remember(shown);
+        self.held = None;
+        self.file_note = None;
+        self.titled_dirty = false;
         self.edits.take();
         self.hour_set = false;
         self.eye = None;
@@ -3888,6 +4305,38 @@ heading = 0.0
     }
 
     #[test]
+    fn save_as_packs_a_recipe_and_open_reads_the_same_document_back() {
+        let path = scratch("shell-save-as");
+        let text = "manfred = 1\nname = \"crate\"\n\n[[object]]\nname = \"crate\"\nkind = \"box\"\nsize = [0.2, 0.2, 0.2]\n";
+        std::fs::write(&path, text).unwrap();
+        let saved = path.with_file_name("crate.manf");
+        let _ = std::fs::remove_file(&saved);
+        let mut shell = Shell::empty();
+        shell.file_step(&Step::Open(path.clone()));
+        shell.file_step(&Step::SaveAs(path.with_file_name("crate")));
+        assert_eq!(
+            shell.file_note.as_ref().map(|(_, error)| *error),
+            Some(false)
+        );
+        assert_eq!(shell.label().as_deref(), Some("crate.manf"));
+        assert_eq!((shell.kind_word(), shell.dirty()), ("manf", false));
+        assert_ne!(Path::new(shell.recipe_path()), path);
+        let mut again = Shell::empty();
+        again.file_step(&Step::Open(saved.clone()));
+        assert_eq!(again.shown_path(), saved.display().to_string());
+        assert_eq!(std::fs::read_to_string(again.recipe_path()).unwrap(), text);
+        let names: Vec<&str> = again
+            .document()
+            .objects
+            .iter()
+            .map(|object| object.name.as_str())
+            .collect();
+        assert_eq!(names, ["crate"]);
+        let reopened = Shell::open(&saved.display().to_string());
+        assert_eq!(reopened.recipe_path(), again.recipe_path());
+    }
+
+    #[test]
     fn a_code_jumps_focus() {
         let mut shell = Shell::new();
         assert_eq!(shell.focus(), Panel::C1);
@@ -4975,7 +5424,8 @@ heading = 0.0
         let (mut shell, _, _) = live("shell-label", SCENE);
         let other = scratch("shell-label-other");
         std::fs::write(&other, SCENE).unwrap();
-        shell.open_recipe(&other);
+        shell.open_file(&other);
+
         assert_eq!(
             shell.label().as_deref(),
             other.file_name().and_then(|name| name.to_str())

@@ -1794,6 +1794,7 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "glam 0.33.12",
+ "manf",
  "manfred-build",
  "manfred-motion",
  "manfred-recipe",
