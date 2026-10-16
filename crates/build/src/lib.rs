@@ -245,7 +245,7 @@ pub struct Built {
     pub notes: Vec<String>,
     pub timeline: Option<Timeline>,
     pub tracks: Vec<Track>,
-    generated: serde_json::Map<String, serde_json::Value>,
+    facts_by_object: serde_json::Map<String, serde_json::Value>,
     pub lights: Vec<GeneratedLight>,
     pub looks: Arc<Looks>,
     nest: Vec<Option<(usize, DMat4)>>,
@@ -967,6 +967,7 @@ fn assemble(
     let mut claimed = BTreeMap::new();
     let mut parts = Vec::new();
     let mut generated = serde_json::Map::new();
+    let mut by_object = serde_json::Map::new();
     let mut offered: BTreeMap<String, (&str, serde_json::Value)> = BTreeMap::new();
     let mut lights = Vec::new();
     let mut imported = Looks::new();
@@ -986,6 +987,12 @@ fn assemble(
                 }
                 offer(&mut offered, object, made.materials.clone())?;
                 manfred_glb::merge(&mut generated, &made.facts);
+                if !made.facts.is_empty() {
+                    by_object.insert(
+                        object.name.clone(),
+                        serde_json::Value::Object(made.facts.clone()),
+                    );
+                }
             }
             Ok(())
         };
@@ -1058,7 +1065,7 @@ fn assemble(
         nest: nest(recipe, &parts),
         timeline: recipe.timeline,
         tracks: Vec::new(),
-        generated,
+        facts_by_object: by_object,
         parts,
         order: glb_order(recipe.output.order),
         sidecar,

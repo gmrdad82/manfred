@@ -78,7 +78,7 @@ pub(crate) fn bake(
         let bake = Bake {
             recipe,
             nodes: &nodes,
-            facts: &built.generated,
+            facts: &built.facts_by_object,
             timeline,
             routes,
             tracks: &tracks,
