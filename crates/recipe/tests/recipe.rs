@@ -286,7 +286,7 @@ fn parse_errors_name_the_key_the_line_and_what_was_expected() {
         ),
         (
             "unknown_top",
-            "line 3: sky_colour: unknown key `sky_colour` in the top level, expected one of: manfred, include, name, seed, params, plate, output, object, use, camera, sun, sky, light, mover, route, follow, stage, variant, sidecar, look, trace, bake, timeline, materials, particles, flare, motion_blur, haze, sound",
+            "line 3: sky_colour: unknown key `sky_colour` in the top level, expected one of: manfred, include, name, seed, params, library, plate, output, object, use, camera, sun, sky, light, mover, route, follow, stage, variant, sidecar, look, trace, bake, timeline, materials, particles, flare, motion_blur, haze, sound",
         ),
         (
             "missing_manfred",
@@ -314,7 +314,7 @@ fn parse_errors_name_the_key_the_line_and_what_was_expected() {
         ),
         (
             "unknown_kind",
-            "line 6: object[a].kind: expected one of \"box\", \"cylinder\", \"sphere\", \"plane\", \"disc\", \"torus\", \"capsule\", \"outline\", \"pocket\", \"lathe\", \"sweep\", \"mesh\", \"generator\", \"card\", \"text\", found \"cube\"",
+            "line 6: object[a].kind: expected one of \"box\", \"cylinder\", \"sphere\", \"plane\", \"disc\", \"torus\", \"capsule\", \"outline\", \"pocket\", \"lathe\", \"sweep\", \"mesh\", \"generator\", \"library\", \"card\", \"text\", found \"cube\"",
         ),
         (
             "bad_choice",

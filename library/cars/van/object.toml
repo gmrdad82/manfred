@@ -1,0 +1,87 @@
+[facts]
+height = 1.95
+length = 4.9
+size = [2.081528, 1.985, 4.934]
+style = "van"
+track = 1.6849999999999998
+wheelbase = 3.0380000000000003
+width = 1.95
+
+[[facts.lights]]
+color = [1.0, 0.93, 0.82]
+cone = [20.0, 40.0]
+direction = [0.0, -0.059892, 0.998205]
+intensity = 90.0
+name = "headlight_l"
+node = "body"
+position = [0.527589, 0.594741, 2.514]
+range = 40.0
+shadow = false
+
+[[facts.lights]]
+color = [1.0, 0.93, 0.82]
+cone = [20.0, 40.0]
+direction = [0.0, -0.059892, 0.998205]
+intensity = 90.0
+name = "headlight_r"
+node = "body"
+position = [-0.527589, 0.594741, 2.514]
+range = 40.0
+shadow = false
+
+[[facts.lights]]
+color = [1.0, 0.06, 0.03]
+cone = [15.0, 35.0]
+direction = [0.0, -0.14834, -0.988936]
+intensity = 6.0
+name = "taillight_l"
+node = "body"
+position = [0.771744, 0.731605, -2.514]
+range = 6.0
+shadow = false
+
+[[facts.lights]]
+color = [1.0, 0.06, 0.03]
+cone = [15.0, 35.0]
+direction = [0.0, -0.14834, -0.988936]
+intensity = 6.0
+name = "taillight_r"
+node = "body"
+position = [-0.771744, 0.731605, -2.514]
+range = 6.0
+shadow = false
+
+[facts.wheels.fl]
+axle = [1.0, 0.0, 0.0]
+centre = [0.8424999999999999, 0.33, 1.4259]
+radius = 0.33
+
+[facts.wheels.fr]
+axle = [1.0, 0.0, 0.0]
+centre = [-0.8424999999999999, 0.33, 1.4259]
+radius = 0.33
+
+[facts.wheels.rl]
+axle = [1.0, 0.0, 0.0]
+centre = [0.8424999999999999, 0.33, -1.6121000000000003]
+radius = 0.33
+
+[facts.wheels.rr]
+axle = [1.0, 0.0, 0.0]
+centre = [-0.8424999999999999, 0.33, -1.6121000000000003]
+radius = 0.33
+
+[object]
+kind = "cars"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "van"
+tags = ["car", "van", "neutral"]
+
+[source]
+generator = "manfred/car"
+manfred = "1.3.0"
+
+[source.params]
+paint = "#c4c4bf"
+seed = 4
+style = "van"

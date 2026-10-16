@@ -68,12 +68,30 @@ pub(crate) fn bake(
     let Some(timeline) = &recipe.timeline else {
         return Ok(Vec::new());
     };
+    let keys = timeline.frames as usize + 1;
+    let followed = |piece: &str| {
+        recipe.follows.iter().any(|f| {
+            piece == f.object
+                || piece
+                    .strip_prefix(f.object.as_str())
+                    .is_some_and(|rest| rest.starts_with('.'))
+        })
+    };
+    let mut tracks: Vec<Track> = built
+        .clips
+        .iter()
+        .filter(|(piece, k)| !followed(piece) && k.len() == keys)
+        .map(|(piece, k)| Track {
+            node: piece.clone(),
+            keys: k.clone(),
+            camera: None,
+            focus: None,
+        })
+        .collect();
     if registry.bakers.is_empty() {
-        return Ok(Vec::new());
+        return Ok(tracks);
     }
     let nodes: Vec<Node> = built.parts.iter().map(|p| p.node.clone()).collect();
-    let keys = timeline.frames as usize + 1;
-    let mut tracks: Vec<Track> = Vec::new();
     for (name, baker) in &registry.bakers {
         let bake = Bake {
             recipe,

@@ -1620,6 +1620,7 @@ name = "manfred"
 version = "1.3.0"
 dependencies = [
  "clap",
+ "glam 0.33.12",
  "gltf",
  "manfred-build",
  "manfred-generators",
@@ -1663,6 +1664,7 @@ dependencies = [
  "pfx-trace",
  "png",
  "serde_json",
+ "sha2",
  "toml 1.1.6+spec-1.1.0",
 ]
 

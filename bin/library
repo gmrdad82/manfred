@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+usage() {
+  echo "usage: bin/library [--bin <manfred>] [--no-thumb]" >&2
+  exit 2
+}
+bin=target/release/manfred
+thumb=--thumb
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --bin) [ $# -ge 2 ] || usage; bin=$2; shift 2 ;;
+    --no-thumb) thumb=; shift ;;
+    *) usage ;;
+  esac
+done
+[ -x "$bin" ] || { echo "bin/library: no manfred binary at $bin" >&2; exit 1; }
+sources=library/sources.toml
+entries=(
+  "coupe cars/coupe car,coupe,dark"
+  "sedan cars/sedan car,sedan,neutral"
+  "hatch cars/hatch car,hatch,dark"
+  "van cars/van car,van,neutral"
+  "lamp-pole furniture/lamp-pole street,lamp,pole"
+  "sign furniture/sign street,sign"
+  "traffic-light furniture/traffic-light street,signal"
+  "bollard furniture/bollard street,bollard"
+  "wires-span furniture/wires-span street,wires,pole"
+  "lowrise-a buildings/lowrise-a building,lowrise,brick"
+  "lowrise-b buildings/lowrise-b building,lowrise,brick"
+  "lowrise-c buildings/lowrise-c building,lowrise,brick"
+  "tower-a buildings/tower-a building,tower"
+  "straight-10m road/straight-10m road,straight"
+  "crosswalk-10m road/crosswalk-10m road,crosswalk"
+)
+for entry in "${entries[@]}"; do
+  read -r object as tags <<<"$entry"
+  if [ -n "$thumb" ]; then
+    pgpu run --class clip --as manfred -- "$bin" library bake "$sources" "$object" --as "$as" --tags "$tags" --thumb --json
+  else
+    "$bin" library bake "$sources" "$object" --as "$as" --tags "$tags" --json
+  fi
+done

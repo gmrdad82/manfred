@@ -51,6 +51,7 @@ pub struct Recipe {
     pub name: String,
     pub seed: u64,
     pub params: Option<String>,
+    pub library: Option<String>,
     pub plate: Option<Plate>,
     pub output: Output,
     pub objects: Vec<Object>,
@@ -299,6 +300,11 @@ pub enum Kind {
     Generator {
         generator: String,
         params: BTreeMap<String, serde_json::Value>,
+    },
+    Library {
+        object: String,
+        clip: Option<String>,
+        looped: bool,
     },
     Card {
         size: [f64; 2],
@@ -1002,6 +1008,7 @@ impl Kind {
             Kind::Sweep { .. } => "sweep",
             Kind::Mesh { .. } => "mesh",
             Kind::Generator { .. } => "generator",
+            Kind::Library { .. } => "library",
             Kind::Card { .. } => "card",
             Kind::Text { .. } => "text",
         }

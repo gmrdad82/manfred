@@ -1,0 +1,17 @@
+[facts]
+size = [2.279999, 8.044824, 24.339996]
+
+[object]
+kind = "furniture"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "wires-span"
+tags = ["street", "wires", "pole"]
+
+[source]
+generator = "manfred/furniture"
+manfred = "1.3.0"
+
+[source.params]
+max_lights = 0
+piece = "span"
+route = "span"

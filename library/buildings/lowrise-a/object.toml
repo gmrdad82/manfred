@@ -1,0 +1,23 @@
+[facts]
+size = [12.717057, 18.370834, 15.902832]
+
+[facts.buildings]
+count = 2
+setback = 0.0
+
+[object]
+kind = "buildings"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "lowrise-a"
+tags = ["building", "lowrise", "brick"]
+
+[source]
+generator = "manfred/buildings"
+manfred = "1.3.0"
+
+[source.params]
+route = "block"
+seed = 11
+setback = 0.0
+side = "right"
+style = "lowrise"

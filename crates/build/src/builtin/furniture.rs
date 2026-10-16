@@ -13,7 +13,7 @@ const LAMP_OFF: &str = "furniture_lamp_off";
 const WIRE: &str = "furniture_wire";
 const SIGN: &str = "furniture_sign";
 const SIGNAL: &str = "furniture_signal";
-const KEYS: [&str; 19] = [
+const KEYS: [&str; 20] = [
     "route",
     "offset",
     "spacing",
@@ -33,7 +33,9 @@ const KEYS: [&str; 19] = [
     "cone",
     "signs",
     "reveal",
+    "piece",
 ];
+const PIECES: [&str; 5] = ["lamp_pole", "span", "sign", "traffic_light", "bollard"];
 const WIRE_SEGMENTS: usize = 12;
 const CLEAR: f64 = 3.5;
 
@@ -58,6 +60,7 @@ pub(crate) struct Params {
     pub cone: [f64; 2],
     pub signs: f64,
     pub reveal: f64,
+    pub piece: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -78,7 +81,10 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
             params.route
         )
     })?;
-    Ok(furnish(route, &call.object.name, &params))
+    Ok(match params.piece.as_deref() {
+        Some(piece) => single(route, &call.object.name, &params, piece),
+        None => furnish(route, &call.object.name, &params),
+    })
 }
 
 fn number(params: &BTreeMap<String, Value>, key: &str, default: f64) -> Result<f64, String> {
@@ -203,6 +209,16 @@ impl Params {
             cone: numbers(params, "cone", [35.0, 60.0])?,
             signs: number(params, "signs", 0.2)?,
             reveal: number(params, "reveal", 1.0)?,
+            piece: match params.get("piece") {
+                None => None,
+                Some(Value::String(name)) if PIECES.contains(&name.as_str()) => Some(name.clone()),
+                Some(value) => {
+                    return Err(format!(
+                        "params.piece: expected one of: {}, found {value}",
+                        PIECES.join(", ")
+                    ));
+                }
+            },
         };
         read.check()?;
         Ok(read)
@@ -484,6 +500,14 @@ fn bollard(at: DVec3, into: &mut Mesh) {
 
 fn signal(route: &Route, crossing: f64, side: f64, p: &Params, into: &mut Mesh) {
     let (base, inward, along) = spot(route, crossing - side * 2.5, side, p.offset - 0.4);
+    signal_head(base, inward, along, side, into);
+    for step in [-3.2, -2.0, 2.0, 3.2] {
+        let (at, _, _) = spot(route, crossing + step, side, p.offset - 0.9);
+        bollard(at, into);
+    }
+}
+
+fn signal_head(base: DVec3, inward: DVec3, along: DVec3, side: f64, into: &mut Mesh) {
     let height = 4.2;
     into.append(&upright(
         cylinder(0.1, height, 10, true),
@@ -510,14 +534,14 @@ fn signal(route: &Route, crossing: f64, side: f64, p: &Params, into: &mut Mesh) 
             material,
         ));
     }
-    for step in [-3.2, -2.0, 2.0, 3.2] {
-        let (at, _, _) = spot(route, crossing + step, side, p.offset - 0.9);
-        bollard(at, into);
-    }
 }
 
 fn sign(route: &Route, distance: f64, side: f64, p: &Params, rng: &mut Rng, into: &mut Mesh) {
     let (base, inward, along) = spot(route, distance, side, p.offset - 0.3);
+    sign_at(base, inward, along, side, rng, into);
+}
+
+fn sign_at(base: DVec3, inward: DVec3, along: DVec3, side: f64, rng: &mut Rng, into: &mut Mesh) {
     let height = 2.6;
     into.append(&upright(
         cylinder(0.04, height, 8, true),
@@ -626,14 +650,24 @@ pub(crate) fn furnish(route: &Route, object: &str, p: &Params) -> Generated {
         }
     }
     let extra = extras(route, &all, p, reach);
+    poles.sort_by(|a, b| a.distance.total_cmp(&b.distance));
+    assemble(
+        object,
+        vec![
+            ("poles", posts),
+            ("wires", cables),
+            ("lamps", lamps),
+            ("extras", extra),
+        ],
+        &poles,
+        p,
+    )
+}
+
+fn assemble(object: &str, meshes: Vec<(&str, Mesh)>, poles: &[Pole], p: &Params) -> Generated {
     let mut used = std::collections::BTreeSet::new();
     let mut pieces = Vec::new();
-    for (suffix, mesh) in [
-        ("poles", posts),
-        ("wires", cables),
-        ("lamps", lamps),
-        ("extras", extra),
-    ] {
+    for (suffix, mesh) in meshes {
         if mesh.indices.is_empty() {
             continue;
         }
@@ -645,7 +679,6 @@ pub(crate) fn furnish(route: &Route, object: &str, p: &Params) -> Generated {
     }
     let mut offered = materials();
     offered.retain(|name, _| used.contains(name));
-    poles.sort_by(|a, b| a.distance.total_cmp(&b.distance));
     let lights = if p.lamp {
         poles
             .iter()
@@ -662,6 +695,78 @@ pub(crate) fn furnish(route: &Route, object: &str, p: &Params) -> Generated {
         lights,
         ..Generated::default()
     }
+}
+
+fn single(route: &Route, object: &str, p: &Params, piece: &str) -> Generated {
+    let pole_at = |distance: f64| {
+        let (base, inward, along) = spot(route, distance, 1.0, 0.0);
+        Pole {
+            distance,
+            side: 1.0,
+            base,
+            top: base + DVec3::Y * p.height,
+            inward,
+            along,
+        }
+    };
+    let first = pole_at(0.0);
+    let mut mesh = Mesh::default();
+    let meshes = match piece {
+        "lamp_pole" | "span" => {
+            let poles = if piece == "span" {
+                vec![first, pole_at(route.length())]
+            } else {
+                vec![first]
+            };
+            let mut posts = Mesh::default();
+            let mut lamps = Mesh::default();
+            for pole in &poles {
+                street_pole(pole, p, &mut posts);
+                lamps.append(&lens(pole, p));
+            }
+            let mut cables = Mesh::default();
+            let one_side = Params {
+                sides: vec![1.0],
+                ..p.clone()
+            };
+            for path in wires(&poles, &one_side, false)
+                .into_iter()
+                .filter(|_| p.wires)
+            {
+                let path: Vec<[f64; 3]> = path.iter().map(|v| v.to_array()).collect();
+                let mut wire = sweep(&path, &[0.012], 4, false, false);
+                wire.set_material(WIRE);
+                cables.append(&wire);
+            }
+            return assemble(
+                object,
+                vec![("poles", posts), ("wires", cables), ("lamps", lamps)],
+                &poles,
+                p,
+            );
+        }
+        "sign" => {
+            let mut rng = Rng(p.seed ^ 0x5157_0000);
+            sign_at(
+                first.base,
+                first.inward,
+                first.along,
+                1.0,
+                &mut rng,
+                &mut mesh,
+            );
+            vec![("sign", mesh)]
+        }
+        "traffic_light" => {
+            signal_head(first.base, first.inward, first.along, 1.0, &mut mesh);
+            vec![("signal", mesh)]
+        }
+        _ => {
+            bollard(first.base, &mut mesh);
+            vec![("bollard", mesh)]
+        }
+    };
+    assemble(object, meshes, &[], p)
 }
 
 #[cfg(test)]

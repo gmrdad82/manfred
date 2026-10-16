@@ -1,0 +1,139 @@
+# The library's bake recipe: every original object of library/, one place each, from Manfred's own generators. bin/library bakes them.
+manfred = 1
+name = "library"
+seed = 1816
+
+[[object]]
+name = "coupe"
+kind = "generator"
+generator = "manfred/car"
+at = [0.0, 0.0, 0.0]
+params = { style = "sports", seed = 1, paint = "#17191d" }
+
+[[object]]
+name = "sedan"
+kind = "generator"
+generator = "manfred/car"
+at = [8.0, 0.0, 0.0]
+params = { style = "sedan", seed = 2, paint = "#3b4148" }
+
+[[object]]
+name = "hatch"
+kind = "generator"
+generator = "manfred/car"
+at = [16.0, 0.0, 0.0]
+params = { style = "hatch", seed = 3, paint = "#26303c" }
+
+[[object]]
+name = "van"
+kind = "generator"
+generator = "manfred/car"
+at = [24.0, 0.0, 0.0]
+params = { style = "van", seed = 4, paint = "#c4c4bf" }
+
+[[object]]
+name = "lamp-pole"
+kind = "generator"
+generator = "manfred/furniture"
+at = [0.0, 0.0, 40.0]
+params = { route = "pole", piece = "lamp_pole", max_lights = 0 }
+
+[[object]]
+name = "sign"
+kind = "generator"
+generator = "manfred/furniture"
+at = [8.0, 0.0, 40.0]
+params = { route = "pole", piece = "sign", seed = 2 }
+
+[[object]]
+name = "traffic-light"
+kind = "generator"
+generator = "manfred/furniture"
+at = [16.0, 0.0, 40.0]
+params = { route = "pole", piece = "traffic_light" }
+
+[[object]]
+name = "bollard"
+kind = "generator"
+generator = "manfred/furniture"
+at = [24.0, 0.0, 40.0]
+params = { route = "pole", piece = "bollard" }
+
+[[object]]
+name = "wires-span"
+kind = "generator"
+generator = "manfred/furniture"
+at = [32.0, 0.0, 40.0]
+params = { route = "span", piece = "span", max_lights = 0 }
+
+[[object]]
+name = "lowrise-a"
+kind = "generator"
+generator = "manfred/buildings"
+at = [0.0, 0.0, 100.0]
+params = { route = "block", side = "right", style = "lowrise", setback = 0.0, seed = 11 }
+
+[[object]]
+name = "lowrise-b"
+kind = "generator"
+generator = "manfred/buildings"
+at = [40.0, 0.0, 100.0]
+params = { route = "block", side = "right", style = "lowrise", setback = 0.0, seed = 12 }
+
+[[object]]
+name = "lowrise-c"
+kind = "generator"
+generator = "manfred/buildings"
+at = [80.0, 0.0, 100.0]
+params = { route = "block", side = "right", style = "lowrise", setback = 0.0, seed = 13 }
+
+[[object]]
+name = "tower-a"
+kind = "generator"
+generator = "manfred/buildings"
+at = [120.0, 0.0, 100.0]
+params = { route = "block", side = "right", style = "towers", setback = 0.0, seed = 21 }
+
+[[object]]
+name = "straight-10m"
+kind = "generator"
+generator = "manfred/road"
+at = [0.0, 0.0, 180.0]
+params = { route = "road" }
+
+[[object]]
+name = "crosswalk-10m"
+kind = "generator"
+generator = "manfred/road"
+at = [30.0, 0.0, 180.0]
+params = { route = "road", crosswalks = [5.0] }
+
+[[route]]
+name = "pole"
+points = [[0.0, 0.0, 0.0], [0.0, 0.0, 2.0]]
+
+[[route]]
+name = "span"
+points = [[0.0, 0.0, 0.0], [0.0, 0.0, 24.0]]
+
+[[route]]
+name = "block"
+points = [[0.0, 0.0, -10.0], [0.0, 0.0, 10.0]]
+
+[[route]]
+name = "road"
+points = [[0.0, 0.0, -5.0], [0.0, 0.0, 5.0]]
+
+[sun]
+model = "authored"
+toward = [-0.5, 0.55, 0.65]
+radius_deg = 0.8
+color = [1.0, 0.95, 0.88]
+irradiance = 3.0
+
+[sky]
+kind = "analytic"
+intensity = 0.9
+
+[look]
+exposure = 1.0

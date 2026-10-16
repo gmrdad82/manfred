@@ -1,0 +1,29 @@
+[facts]
+size = [18.800001, 0.15, 10.0]
+
+[facts.road]
+crosswalk_depth = 4.0
+crosswalks = [5.0]
+curb = 0.15
+lane_centres = [-4.800000000000001, -1.6, 1.6, 4.800000000000001]
+lane_width = 3.2
+lanes = 2
+length = 10.0
+outer = 9.4
+route = "road"
+sidewalk = [6.4, 9.4]
+width = 12.8
+
+[object]
+kind = "road"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "crosswalk-10m"
+tags = ["road", "crosswalk"]
+
+[source]
+generator = "manfred/road"
+manfred = "1.3.0"
+
+[source.params]
+crosswalks = [5.0]
+route = "road"

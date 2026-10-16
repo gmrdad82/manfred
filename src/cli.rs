@@ -4,6 +4,9 @@ mod clip;
 mod curve;
 mod diff;
 mod gui;
+mod library;
+mod library_add;
+mod library_bake;
 mod new;
 mod process;
 mod render;
@@ -103,6 +106,12 @@ enum Verb {
     Timeline(timeline::Args),
     #[command(about = "Build a recipe and render its timeline's frames with pfx shot, resumably")]
     Shoot(shoot::Args),
+    #[command(
+        about = "The object library: list, index, check, bake and add library/<kind>/<name> models and sidecars",
+        subcommand_required = true,
+        arg_required_else_help = false
+    )]
+    Library(library::Args),
 }
 
 fn line(host: &Host) -> clap::Command {
@@ -305,6 +314,7 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::New(parsed) => new::run(&parsed),
         Verb::Timeline(parsed) => timeline::run(&parsed, registry),
         Verb::Shoot(parsed) => shoot::run(&parsed, registry),
+        Verb::Library(parsed) => library::run(&parsed, registry),
     }
 }
 
