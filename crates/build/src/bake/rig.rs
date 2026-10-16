@@ -1,7 +1,7 @@
 use crate::{Bake, Track, camera_track};
 use glam::{DMat4, DQuat, DVec3};
 use manfred_motion::{matrix, trs_from_matrix};
-use manfred_recipe::{Camera, Rig, RigFocus};
+use manfred_recipe::{Camera, Rig, RigFocus, Spring};
 use pfx_core::fx::{Comfort, Shake, ShakeTuning};
 use pfx_core::rig::{Follow, FollowTuning, Input};
 use std::f64::consts::{PI, TAU};
@@ -22,20 +22,60 @@ pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
 fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
     let frames = frames(b, rig)?;
     let dt = 1.0 / f64::from(b.timeline.fps.max(1));
+    let times: Vec<f64> = (0..frames.len())
+        .map(|n| b.timeline.time(n as u32))
+        .collect();
+    let curve = |name: &str, fallback: f64| -> Vec<f64> {
+        match rig.tracks.get(name) {
+            Some(keys) if !keys.is_empty() => times.iter().map(|t| hermite(keys, *t)).collect(),
+            _ => vec![fallback; times.len()],
+        }
+    };
+    let distance = curve("distance", -rig.offset[2]);
+    let lateral = curve("lateral", -rig.offset[0]);
+    let height = curve("height", rig.offset[1]);
+    let lag: Vec<f64> = curve("lag", rig.lag).iter().map(|v| v.max(0.0)).collect();
+    let gain = curve("bank", rig.bank);
+    let jolt: Vec<f64> = curve("shake", 1.0).iter().map(|v| v.max(0.0)).collect();
+    let ahead_s: Vec<f64> = curve("look_ahead", rig.look_ahead)
+        .iter()
+        .map(|v| v.max(0.0))
+        .collect();
     let turns = headings(&frames, rig.yaw_lag, dt);
     let wanted: Vec<DVec3> = frames
         .iter()
         .zip(&turns)
-        .map(|((_, at), turn)| *at + *turn * DVec3::from(rig.offset))
+        .enumerate()
+        .map(|(n, ((_, at), turn))| *at + *turn * DVec3::new(-lateral[n], height[n], -distance[n]))
         .collect();
+    let crab = rig.tracks.lateral.is_some();
     let looked: Vec<DVec3> = frames
         .iter()
         .zip(&turns)
-        .map(|((_, at), turn)| *at + *turn * DVec3::from(rig.look))
+        .enumerate()
+        .map(|(n, ((_, at), turn))| {
+            let mut look = DVec3::from(rig.look);
+            if crab {
+                look.x -= lateral[n] + rig.offset[0];
+            }
+            *at + *turn * look
+        })
         .collect();
-    let banks = banks(b, rig, &frames, dt);
     let mut place = smoothing(rig.lag);
     let mut aim = smoothing(LOOK_AHEAD_EASE);
+    let mut eyes = Vec::with_capacity(frames.len());
+    let mut targets = Vec::with_capacity(frames.len());
+    for n in 0..frames.len() {
+        let moving = velocity(&wanted, n, dt);
+        let looking = velocity(&looked, n, dt);
+        place.tuning_mut().damping = [lag[n] as f32; 3];
+        let settled = eased(&mut place, moving, dt);
+        let ahead = eased(&mut aim, looking, dt);
+        eyes.push(wanted[n] - (moving - settled) * lag[n]);
+        targets.push(looked[n] + ahead * ahead_s[n]);
+    }
+    let calm = released(&mut eyes, &times, rig, dt);
+    let banks = banks(b, rig, &frames, dt, &gain, &calm);
     let mut shake = rig.shake.map(|s| {
         let mut shake = Shake::new(ShakeTuning {
             translation: [s.translation as f32; 2],
@@ -51,13 +91,8 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
     let mut keys = Vec::with_capacity(frames.len());
     let mut focus = Vec::with_capacity(frames.len());
     for n in 0..frames.len() {
-        let moving = velocity(&wanted, n, dt);
-        let looking = velocity(&looked, n, dt);
-        let settled = eased(&mut place, moving, dt);
-        let ahead = eased(&mut aim, looking, dt);
-        let mut eye = wanted[n] - (moving - settled) * rig.lag.max(0.0);
-        let target = looked[n] + ahead * rig.look_ahead;
-        let mut pose = view(eye, target, up)?;
+        let mut eye = eyes[n];
+        let mut pose = view(eye, targets[n], up)?;
         if let Some(roll) = banks.get(n) {
             pose *= DQuat::from_rotation_z(-roll.to_radians());
         }
@@ -67,8 +102,8 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
             }
             let offset = shake.offset(1.0);
             let [x, y] = offset.translation.map(f64::from);
-            eye += pose * DVec3::X * x + pose * DVec3::Y * y;
-            pose *= DQuat::from_rotation_z(f64::from(offset.roll).to_radians());
+            eye += (pose * DVec3::X * x + pose * DVec3::Y * y) * jolt[n];
+            pose *= DQuat::from_rotation_z(f64::from(offset.roll).to_radians() * jolt[n]);
         }
         keys.push(trs_from_matrix(DMat4::from_rotation_translation(pose, eye)));
         focus.push(eye.distance(frames[n].1));
@@ -78,6 +113,74 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
         track.focus = Some(focus);
     }
     Ok(track)
+}
+
+fn hermite(keys: &[[f64; 2]], t: f64) -> f64 {
+    let last = keys.len() - 1;
+    if t <= keys[0][0] {
+        return keys[0][1];
+    }
+    if t >= keys[last][0] {
+        return keys[last][1];
+    }
+    let i = keys.partition_point(|k| k[0] <= t) - 1;
+    let slope = |j: usize| {
+        if j == 0 || j == last {
+            0.0
+        } else {
+            (keys[j + 1][1] - keys[j - 1][1]) / (keys[j + 1][0] - keys[j - 1][0])
+        }
+    };
+    let ([t0, v0], [t1, v1]) = (keys[i], keys[i + 1]);
+    let h = t1 - t0;
+    let u = (t - t0) / h;
+    let (u2, u3) = (u * u, u * u * u);
+    (2.0 * u3 - 3.0 * u2 + 1.0) * v0
+        + (u3 - 2.0 * u2 + u) * h * slope(i)
+        + (3.0 * u2 - 2.0 * u3) * v1
+        + (u3 - u2) * h * slope(i + 1)
+}
+
+fn released(eyes: &mut [DVec3], times: &[f64], rig: &Rig, dt: f64) -> Vec<f64> {
+    let mut calm = vec![1.0; eyes.len()];
+    let Some(release) = rig.release else {
+        return calm;
+    };
+    let Some(from) = times.iter().position(|t| *t >= release) else {
+        return calm;
+    };
+    let ease = rig.release_ease.max(dt);
+    let base = eyes[from];
+    let speed = velocity(eyes, from, dt);
+    for n in from..eyes.len() {
+        let u = ((times[n] - times[from]) / ease).min(1.0);
+        let (u2, u3) = (u * u, u * u * u);
+        eyes[n] = base + speed * ease * (u - u3 + 0.5 * u2 * u2);
+        calm[n] = 1.0 - 3.0 * u2 + 2.0 * u3;
+    }
+    calm
+}
+
+fn spring(wanted: &[f64], dt: f64, spring: Spring) -> Vec<f64> {
+    let omega = TAU * spring.frequency;
+    let steps = ((omega * dt) / 0.05).ceil().max(1.0);
+    let h = dt / steps;
+    let mut roll = wanted.first().copied().unwrap_or(0.0);
+    let mut rate = 0.0;
+    wanted
+        .iter()
+        .enumerate()
+        .map(|(n, goal)| {
+            if n > 0 {
+                for _ in 0..steps as usize {
+                    rate +=
+                        (omega * omega * (goal - roll) - 2.0 * spring.damping * omega * rate) * h;
+                    roll += rate * h;
+                }
+            }
+            roll
+        })
+        .collect()
 }
 
 fn headings(frames: &[(DQuat, DVec3)], lag: f64, dt: f64) -> Vec<DQuat> {
@@ -110,8 +213,15 @@ fn headings(frames: &[(DQuat, DVec3)], lag: f64, dt: f64) -> Vec<DQuat> {
         .collect()
 }
 
-fn banks(b: &Bake, rig: &Rig, frames: &[(DQuat, DVec3)], dt: f64) -> Vec<f64> {
-    if rig.bank == 0.0 {
+fn banks(
+    b: &Bake,
+    rig: &Rig,
+    frames: &[(DQuat, DVec3)],
+    dt: f64,
+    gain: &[f64],
+    calm: &[f64],
+) -> Vec<f64> {
+    if gain.iter().all(|g| *g == 0.0) {
         return Vec::new();
     }
     let Some(route) = b
@@ -124,15 +234,23 @@ fn banks(b: &Bake, rig: &Rig, frames: &[(DQuat, DVec3)], dt: f64) -> Vec<f64> {
         return Vec::new();
     };
     let places: Vec<DVec3> = frames.iter().map(|(_, at)| *at).collect();
-    let mut roll = smoothing(BANK_EASE);
-    (0..places.len())
+    let wanted: Vec<f64> = (0..places.len())
         .map(|n| {
             let speed = velocity(&places, n, dt).length();
             let lateral = route.curvature(route.nearest(places[n]).0) * speed * speed;
-            let wanted = (rig.bank * lateral).clamp(-MAX_BANK_DEG, MAX_BANK_DEG);
+            (gain[n] * lateral).clamp(-MAX_BANK_DEG, MAX_BANK_DEG) * calm[n]
+        })
+        .collect();
+    if let Some(tuning) = rig.bank_spring {
+        return spring(&wanted, dt, tuning);
+    }
+    let mut roll = smoothing(BANK_EASE);
+    wanted
+        .iter()
+        .map(|goal| {
             roll.tick(
                 dt as f32,
-                &Input::at([wanted as f32, 0.0, 0.0]),
+                &Input::at([*goal as f32, 0.0, 0.0]),
                 Comfort::FULL,
             );
             f64::from(roll.pose(1.0).at[0])
@@ -224,7 +342,7 @@ mod tests {
     use super::*;
     use crate::Lens;
     use manfred_motion::{Route, Timeline, Trs};
-    use manfred_recipe::RigShake;
+    use manfred_recipe::{RigShake, RigTracks};
     use std::collections::BTreeMap;
 
     const TIMELINE: Timeline = Timeline {
@@ -261,6 +379,10 @@ mod tests {
             bank: 0.0,
             shake: None,
             focus: Some(RigFocus::Follow),
+            tracks: RigTracks::default(),
+            bank_spring: None,
+            release: None,
+            release_ease: 1.5,
         }
     }
 
@@ -496,6 +618,154 @@ mod tests {
             })
             .focus,
             None
+        );
+    }
+
+    #[test]
+    fn a_track_overrides_its_static_key() {
+        let track = baked(Rig {
+            tracks: RigTracks {
+                distance: Some(vec![[0.0, 9.0]]),
+                lateral: Some(vec![[0.0, 2.0]]),
+                ..RigTracks::default()
+            },
+            ..rig()
+        });
+        for n in [0u32, 30, 60] {
+            assert!(eye(&track, n as usize).distance(wanted(n, [-2.0, 1.1, -9.0])) < 1e-4);
+        }
+        let held = baked(Rig {
+            tracks: RigTracks {
+                height: Some(vec![[0.0, 1.1]]),
+                lag: Some(vec![[0.0, 0.0]]),
+                ..RigTracks::default()
+            },
+            ..rig()
+        });
+        assert_eq!(held.keys, baked(rig()).keys);
+    }
+
+    #[test]
+    fn a_track_runs_through_its_keys_and_holds_past_the_ends() {
+        let keys = [[0.5, 3.0], [1.0, 10.0], [2.0, 6.0], [3.0, 15.0]];
+        for [t, v] in keys {
+            assert!((hermite(&keys, t) - v).abs() < 1e-12);
+        }
+        assert_eq!(hermite(&keys, 0.0), 3.0);
+        assert_eq!(hermite(&keys, 9.0), 15.0);
+        let even = [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [3.0, 3.0]];
+        assert!((hermite(&even, 1.5) - 1.5).abs() < 1e-12);
+        assert!((hermite(&even, 0.5) - 0.375).abs() < 1e-12);
+        let rising: Vec<f64> = (0..=100)
+            .map(|i| hermite(&keys, 0.5 + 0.005 * f64::from(i)))
+            .collect();
+        assert!(rising.windows(2).all(|w| w[1] >= w[0]));
+    }
+
+    #[test]
+    fn release_brings_the_camera_to_rest_while_the_target_drives_away() {
+        let track = baked(Rig {
+            release: Some(1.0),
+            release_ease: 0.5,
+            ..rig()
+        });
+        let free = baked(rig());
+        assert_eq!(track.keys[..30], free.keys[..30]);
+        let rest = eye(&track, 45);
+        for n in 45..=60 {
+            assert!(eye(&track, n).distance(rest) < 1e-9);
+        }
+        let steps: Vec<f64> = (31..=45)
+            .map(|n| eye(&track, n).distance(eye(&track, n - 1)))
+            .collect();
+        assert!(steps.windows(2).all(|w| w[1] <= w[0] + 1e-9));
+        let focus = track.focus.as_ref().expect("focus");
+        assert!(focus[46..].windows(2).all(|w| w[1] > w[0]));
+        assert!(focus[60] > focus[30] + 5.0);
+        for n in [45usize, 60] {
+            let forward = DQuat::from_array(track.keys[n].rotation) * DVec3::NEG_Z;
+            let toward = (wanted(n as u32, [0.0, 0.6, 0.0]) - eye(&track, n)).normalize();
+            assert!(forward.dot(toward) > 1.0 - 1e-9);
+        }
+    }
+
+    #[test]
+    fn a_bank_spring_overshoots_then_settles() {
+        let step: Vec<f64> = (0..240).map(|n| if n < 10 { 0.0 } else { 12.0 }).collect();
+        let roll = spring(
+            &step,
+            1.0 / 60.0,
+            Spring {
+                frequency: 1.5,
+                damping: 0.4,
+            },
+        );
+        assert_eq!(roll[0], 0.0);
+        let peak = roll.iter().copied().fold(0.0, f64::max);
+        assert!(peak > 13.0 && peak < 20.0, "{peak}");
+        assert!((roll[239] - 12.0).abs() < 0.1, "{}", roll[239]);
+        let bent = |spring| {
+            moved(
+                Rig {
+                    bank: 5.0,
+                    bank_spring: spring,
+                    ..rig()
+                },
+                bending,
+                Some(bend()),
+            )
+        };
+        assert_ne!(
+            bent(None).keys,
+            bent(Some(Spring {
+                frequency: 1.5,
+                damping: 0.4
+            }))
+            .keys
+        );
+    }
+
+    #[test]
+    fn a_directed_rig_is_deterministic() {
+        let directed = || {
+            moved(
+                Rig {
+                    lag: 0.2,
+                    yaw_lag: 0.3,
+                    bank: 6.0,
+                    shake: Some(RigShake {
+                        translation: 0.03,
+                        roll: 0.5,
+                        frequency: 6.0,
+                        seed: Some(5),
+                    }),
+                    tracks: RigTracks {
+                        distance: Some(vec![[0.0, 4.0], [0.6, 9.0], [1.5, 14.0]]),
+                        lateral: Some(vec![[0.0, -2.0], [1.0, 3.0]]),
+                        height: Some(vec![[0.0, 0.5], [1.0, 1.2]]),
+                        bank: Some(vec![[0.0, 2.0], [1.0, 9.0]]),
+                        lag: Some(vec![[0.0, 0.1], [1.0, 0.4]]),
+                        shake: Some(vec![[0.0, 1.0], [2.0, 0.3]]),
+                        look_ahead: Some(vec![[0.0, 0.0], [1.0, 0.3]]),
+                    },
+                    bank_spring: Some(Spring {
+                        frequency: 1.2,
+                        damping: 0.45,
+                    }),
+                    release: Some(1.5),
+                    release_ease: 0.4,
+                    ..rig()
+                },
+                bending,
+                Some(bend()),
+            )
+        };
+        let a = directed();
+        assert_eq!(a, directed());
+        assert!(
+            a.keys
+                .iter()
+                .all(|k| k.translation.iter().all(|v| v.is_finite()))
         );
     }
 }

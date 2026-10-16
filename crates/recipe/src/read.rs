@@ -12,9 +12,10 @@ use crate::{
     Casters, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind, Lines, Loaded,
     Lod, LodTarget, Look, Mover, NO_SIDECAR, NORMAL_SIZE, OLD_HEADER, Object, Orbit, Order, Origin,
     Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind,
-    Projection, Proxy, REFERENCE_HOUR, RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus, RigShake, Room,
-    RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun, TEXTURE_KEYS,
-    TextSpace, Textures, Timeline, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
+    Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE, RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus,
+    RigShake, RigTracks, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span,
+    Spring, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use, Uv, Variant,
+    VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -2054,6 +2055,7 @@ fn read_camera(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
 }
 
 const U64: Rd<u64> = Rd("a whole number", as_u64);
+const KEYS: Rd<Vec<[f64; 2]>> = Rd("an array of [t, value] pairs", as_points::<2>);
 
 fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
     let Some(mut sub) = tab.sub(cx, "rig")? else {
@@ -2098,6 +2100,36 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
             }
         },
     };
+    let tracks = match sub.sub(cx, "tracks")? {
+        Some(mut keyed) => {
+            let mut read = |name: &'static str| keyed.opt(cx, name, KEYS);
+            let tracks = RigTracks {
+                distance: read("distance")?,
+                lateral: read("lateral")?,
+                height: read("height")?,
+                bank: read("bank")?,
+                lag: read("lag")?,
+                shake: read("shake")?,
+                look_ahead: read("look_ahead")?,
+            };
+            keyed.finish(cx)?;
+            tracks
+        }
+        None => RigTracks::default(),
+    };
+    let bank_spring = match sub.sub(cx, "bank_spring")? {
+        Some(mut spring) => {
+            let read = Spring {
+                frequency: spring.or(cx, "frequency", 1.5, NUM)?,
+                damping: spring.or(cx, "damping", 0.5, NUM)?,
+            };
+            spring.finish(cx)?;
+            Some(read)
+        }
+        None => None,
+    };
+    let release = sub.opt(cx, "release", NUM)?;
+    let release_ease = sub.or(cx, "release_ease", RELEASE_EASE, NUM)?;
     sub.finish(cx)?;
     Ok(Some(Rig {
         follow,
@@ -2109,6 +2141,10 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
         bank,
         shake,
         focus,
+        tracks,
+        bank_spring,
+        release,
+        release_ease,
     }))
 }
 

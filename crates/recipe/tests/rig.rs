@@ -1,4 +1,6 @@
-use manfred_recipe::{Problem, Recipe, Rig, RigFocus, RigShake, apply_set, parse, validate};
+use manfred_recipe::{
+    Problem, Recipe, Rig, RigFocus, RigShake, RigTracks, Spring, apply_set, parse, validate,
+};
 
 const HEAD: &str = r#"
 manfred = 1
@@ -49,6 +51,10 @@ fn a_rig_reads_every_key_and_stands_in_for_position_and_target() {
                 seed: Some(9),
             }),
             focus: Some(RigFocus::Follow),
+            tracks: RigTracks::default(),
+            bank_spring: None,
+            release: None,
+            release_ease: 1.5,
         })
     );
     assert_eq!(camera.position, [0.5, 1.4, -7.0]);
@@ -87,4 +93,50 @@ fn a_rig_refuses_what_it_cannot_shoot() {
     .unwrap_err()
     .to_string();
     assert!(bad.contains("\"follow\" or a distance"), "{bad}");
+}
+
+#[test]
+fn a_rig_reads_its_tracks_spring_and_release_and_set_reaches_them() {
+    let r = recipe(
+        "\n[camera.rig]\nfollow = \"hero\"\nbank_spring = { frequency = 1.4, damping = 0.35 }\nrelease = 8.2\nrelease_ease = 1.2\n\n[camera.rig.tracks]\ndistance = [[0.0, 4.2], [0.6, 8.0]]\nlateral = [[0.0, -3.0], [5.0, 3.0]]\nshake = [[0.0, 1.0]]\n",
+    );
+    let rig = r.cameras[0].rig.as_ref().unwrap();
+    assert_eq!(
+        rig.tracks,
+        RigTracks {
+            distance: Some(vec![[0.0, 4.2], [0.6, 8.0]]),
+            lateral: Some(vec![[0.0, -3.0], [5.0, 3.0]]),
+            shake: Some(vec![[0.0, 1.0]]),
+            ..RigTracks::default()
+        }
+    );
+    assert_eq!(
+        rig.bank_spring,
+        Some(Spring {
+            frequency: 1.4,
+            damping: 0.35
+        })
+    );
+    assert_eq!((rig.release, rig.release_ease), (Some(8.2), 1.2));
+    assert!(validate(&r).is_empty(), "{:?}", validate(&r));
+    let set = apply_set(
+        &r,
+        &["camera.chase.rig.tracks.distance=[[0, 3], [1, 15]]".into()],
+    )
+    .unwrap();
+    assert_eq!(
+        set.cameras[0].rig.as_ref().unwrap().tracks.distance,
+        Some(vec![[0.0, 3.0], [1.0, 15.0]])
+    );
+    let found = problems(
+        "\n[camera.rig]\nfollow = \"hero\"\nrelease_ease = 0\nbank_spring = { frequency = 0 }\n\n[camera.rig.tracks]\ndistance = [[1.0, 4.0], [0.5, 8.0]]\nlag = [[0.0, -1.0]]\n",
+    );
+    for want in [
+        "camera[chase].rig.tracks.distance",
+        "camera[chase].rig.tracks.lag",
+        "camera[chase].rig.bank_spring.frequency",
+        "camera[chase].rig.release_ease",
+    ] {
+        assert!(found.iter().any(|p| p.contains(want)), "{want}: {found:?}");
+    }
 }

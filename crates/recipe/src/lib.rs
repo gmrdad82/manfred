@@ -448,6 +448,54 @@ pub struct Rig {
     pub bank: f64,
     pub shake: Option<RigShake>,
     pub focus: Option<RigFocus>,
+    pub tracks: RigTracks,
+    pub bank_spring: Option<Spring>,
+    pub release: Option<f64>,
+    pub release_ease: f64,
+}
+
+pub const RELEASE_EASE: f64 = 1.5;
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct RigTracks {
+    pub distance: Option<Vec<[f64; 2]>>,
+    pub lateral: Option<Vec<[f64; 2]>>,
+    pub height: Option<Vec<[f64; 2]>>,
+    pub bank: Option<Vec<[f64; 2]>>,
+    pub lag: Option<Vec<[f64; 2]>>,
+    pub shake: Option<Vec<[f64; 2]>>,
+    pub look_ahead: Option<Vec<[f64; 2]>>,
+}
+
+impl RigTracks {
+    pub const NAMES: [&'static str; 7] = [
+        "distance",
+        "lateral",
+        "height",
+        "bank",
+        "lag",
+        "shake",
+        "look_ahead",
+    ];
+
+    pub fn get(&self, name: &str) -> Option<&Vec<[f64; 2]>> {
+        match name {
+            "distance" => self.distance.as_ref(),
+            "lateral" => self.lateral.as_ref(),
+            "height" => self.height.as_ref(),
+            "bank" => self.bank.as_ref(),
+            "lag" => self.lag.as_ref(),
+            "shake" => self.shake.as_ref(),
+            "look_ahead" => self.look_ahead.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Spring {
+    pub frequency: f64,
+    pub damping: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

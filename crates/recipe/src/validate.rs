@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::variant::{apply_variant, glob_matches};
 use crate::{
     Bake, Camera, CameraPath, Casters, Kind, PathKind, PlateView, Plates, Problem, Projection,
-    Recipe, Rig, RigFocus, SCENE_SUFFIX, SkyKind, Trace, Uv, View,
+    Recipe, Rig, RigFocus, RigTracks, SCENE_SUFFIX, SkyKind, Trace, Uv, View,
 };
 
 struct Out<'a> {
@@ -818,6 +818,43 @@ fn camera_rig(out: &mut Out<'_>, camera: &At, c: &Camera, rig: &Rig) {
         if !(shake.frequency > 0.0 && shake.frequency.is_finite()) {
             out.at(&at, "frequency", "expected hertz above 0");
         }
+    }
+    let keyed = at.child("tracks", "tracks");
+    for name in RigTracks::NAMES {
+        let Some(keys) = rig.tracks.get(name) else {
+            continue;
+        };
+        if keys.is_empty() {
+            out.at(&keyed, name, "expected one [t, value] key at least");
+        } else if keys.iter().flatten().any(|v| !v.is_finite()) {
+            out.at(&keyed, name, "expected finite times and values");
+        } else if keys.windows(2).any(|w| w[1][0] <= w[0][0]) {
+            out.at(&keyed, name, "expected the keys' times to rise");
+        } else if keys[0][0] < 0.0 {
+            out.at(&keyed, name, "expected times from 0 up");
+        } else if name == "distance" && keys.iter().any(|k| k[1] <= 0.0) {
+            out.at(&keyed, name, "expected metres above 0 behind the object");
+        } else if matches!(name, "lag" | "shake" | "look_ahead") && keys.iter().any(|k| k[1] < 0.0)
+        {
+            out.at(&keyed, name, "expected values of 0 or more");
+        }
+    }
+    if let Some(spring) = &rig.bank_spring {
+        let at = at.child("bank_spring", "bank_spring");
+        if !(spring.frequency > 0.0 && spring.frequency.is_finite()) {
+            out.at(&at, "frequency", "expected hertz above 0");
+        }
+        if !(spring.damping > 0.0 && spring.damping.is_finite()) {
+            out.at(&at, "damping", "expected a damping ratio above 0");
+        }
+    }
+    if let Some(release) = rig.release
+        && !(release >= 0.0 && release.is_finite())
+    {
+        out.at(&at, "release", "expected seconds of 0 or more");
+    }
+    if !(rig.release_ease > 0.0 && rig.release_ease.is_finite()) {
+        out.at(&at, "release_ease", "expected seconds above 0");
     }
     match rig.focus {
         Some(RigFocus::Distance(metres)) if !(metres > 0.0 && metres.is_finite()) => {

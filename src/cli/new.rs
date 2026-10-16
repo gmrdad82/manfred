@@ -62,6 +62,12 @@ const CAR_DOWN: f64 = 0.6;
 const LOOK_AT_M: f64 = 8.0;
 const LAG_S: f64 = 0.25;
 const DRIFT: [f64; 3] = [1.2, 2.5, 26.0];
+const SHUTTER: f64 = 1.0;
+const OPEN_GAP: f64 = 1.1;
+const ENDING: [f64; 2] = [1.5, 3.5];
+const ENDING_FALLBACK: f64 = 2.2;
+const PAST_CROSSWALK: f64 = 6.0;
+const RELEASE_EASE: f64 = 1.5;
 const LUT: &str = "lilac.cube";
 const LUT_SIZE: usize = 33;
 const TRAFFIC: [&str; 3] = ["sedan", "hatch", "van"];
@@ -189,6 +195,125 @@ fn chase(hero: &Hero) -> ([f64; 3], [f64; 3]) {
     let wanted = ((2.0 * CAR_DOWN - 1.0) * half).atan();
     let look = EYE + (LOOK_AT_M - back) * (wanted - below).tan();
     ([0.0, EYE, round(back, 2)], [0.0, round(look, 2), LOOK_AT_M])
+}
+
+fn hero_at(t: f64) -> f64 {
+    HERO_SPEED[0] * t + 0.5 * (HERO_SPEED[1] - HERO_SPEED[0]) / SECONDS * t * t
+}
+
+fn hero_speed(t: f64) -> f64 {
+    HERO_SPEED[0] + (HERO_SPEED[1] - HERO_SPEED[0]) * t / SECONDS
+}
+
+fn share(hero: &Hero, share: f64) -> f64 {
+    let half = (FOV_Y_DEG.to_radians() * 0.5).tan();
+    hero.length * 0.5 + hero.width / (share * 2.0 * half * ASPECT)
+}
+
+fn release(close: f64, crosswalks: &[f64]) -> f64 {
+    let rest = |r: f64| hero_at(r) - close + hero_speed(r) * RELEASE_EASE * 0.5;
+    let window = [SECONDS - ENDING[1], SECONDS - ENDING[0]];
+    crosswalks
+        .iter()
+        .rev()
+        .find_map(|c| {
+            let goal = c + PAST_CROSSWALK;
+            let (mut low, mut high) = (0.0, SECONDS);
+            for _ in 0..60 {
+                let mid = 0.5 * (low + high);
+                if rest(mid) < goal {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+            }
+            let r = 0.5 * (low + high);
+            (r >= window[0] && r <= window[1]).then_some(r)
+        })
+        .unwrap_or(SECONDS - ENDING_FALLBACK)
+}
+
+fn keys(w: &mut String, name: &str, keys: &[(f64, f64)]) {
+    let list: Vec<String> = keys
+        .iter()
+        .map(|(t, v)| format!("[{}, {}]", num(round(*t, 2)), num(round(*v, 2))))
+        .collect();
+    let _ = writeln!(w, "{name} = [{}]", list.join(", "));
+}
+
+fn cinematic(w: &mut String, hero: &Hero, crosswalks: &[f64]) {
+    let near = share(hero, 0.35);
+    let r = round(release(near, crosswalks), 2);
+    let settle = r - 0.3;
+    let _ = writeln!(w, "bank_spring = {{ frequency = 1.2, damping = 0.3 }}");
+    let _ = writeln!(w, "release = {}", num(r));
+    let _ = writeln!(w, "release_ease = {}", num(RELEASE_EASE));
+    let _ = writeln!(w);
+    let _ = writeln!(w, "[camera.rig.tracks]");
+    keys(
+        w,
+        "distance",
+        &[
+            (0.0, hero.length * 0.5 + OPEN_GAP),
+            (0.65, near),
+            (2.2, share(hero, 0.2)),
+            (4.0, share(hero, 0.26)),
+            (5.6, share(hero, 0.15)),
+            (6.8, share(hero, 0.15)),
+            (settle, near),
+        ],
+    );
+    keys(
+        w,
+        "lateral",
+        &[
+            (0.0, 0.0),
+            (0.65, -1.8),
+            (2.2, -2.6),
+            (4.0, 0.8),
+            (5.6, 3.0),
+            (6.8, 2.4),
+            (settle, 0.3),
+        ],
+    );
+    keys(
+        w,
+        "height",
+        &[
+            (0.0, 0.42),
+            (0.65, 0.6),
+            (2.2, 0.8),
+            (5.6, 0.95),
+            (settle, 0.55),
+        ],
+    );
+    keys(
+        w,
+        "lag",
+        &[(0.0, 0.15), (2.2, 0.25), (4.0, 0.4), (6.8, 0.35), (r, 0.25)],
+    );
+    keys(
+        w,
+        "bank",
+        &[(0.0, 6.0), (2.2, 12.0), (4.0, 14.0), (r, 10.0)],
+    );
+    keys(
+        w,
+        "shake",
+        &[
+            (0.0, 0.6),
+            (0.65, 1.4),
+            (2.2, 1.0),
+            (4.0, 1.5),
+            (r, 1.0),
+            (r + RELEASE_EASE, 0.5),
+        ],
+    );
+    keys(
+        w,
+        "look_ahead",
+        &[(0.0, 0.1), (2.2, 0.2), (4.0, 0.35), (6.8, 0.3), (r, 0.2)],
+    );
 }
 
 fn grade(input: [f64; 3]) -> [f64; 3] {
@@ -383,6 +508,11 @@ pub(super) fn street(seed: u64) -> Made {
         "shake = {{ translation = 0.02, roll = 0.4, frequency = 7.0, seed = {seed} }}"
     );
     let _ = writeln!(w, "focus = \"follow\"");
+    let crosswalks: Vec<f64> = crossings
+        .split(", ")
+        .filter_map(|c| c.parse().ok())
+        .collect();
+    cinematic(w, &car, &crosswalks);
     let _ = writeln!(w);
     let low = sun(&route);
     let _ = writeln!(w, "[sun]");
@@ -439,7 +569,7 @@ pub(super) fn street(seed: u64) -> Made {
         let _ = writeln!(w);
     }
     let _ = writeln!(w, "[motion_blur]");
-    let _ = writeln!(w, "shutter = 1.0");
+    let _ = writeln!(w, "shutter = {}", num(SHUTTER));
     let _ = writeln!(w, "max_px = 48.0");
     let _ = writeln!(w, "samples = 12");
     let _ = writeln!(w);
@@ -782,7 +912,7 @@ mod tests {
         ] {
             assert!(doc[table].is_table(), "{table}");
         }
-        assert_eq!(doc["motion_blur"]["shutter"].as_float(), Some(1.0));
+        assert_eq!(doc["motion_blur"]["shutter"].as_float(), Some(SHUTTER));
     }
 
     #[test]
