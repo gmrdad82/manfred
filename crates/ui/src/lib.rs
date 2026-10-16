@@ -1,3 +1,4 @@
+mod animated;
 mod app;
 mod cameras;
 mod document;

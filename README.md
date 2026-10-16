@@ -225,12 +225,12 @@ manfred timeline <recipe> [--json]                           builds the recipe a
 manfred shoot <recipe> --out <dir> [--draft|--final] [--range a..b] [--camera <name>] [--json]
                                                           builds the recipe and renders its timeline with `pfx shot` on the live renderer: frames, the scene's sound as a WAV and shoot.json; resumes where it stopped
 manfred gui [<recipe>|<folder>]                              the window; without a recipe, Manfred's own mark, selected on a floor grid; Ctrl+O, a picker of recipes
-manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--fake] [--fixture <name>] [--start]
-                                                          one frame of the window, offscreen
-manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> [--size WxH] [--fps 30|60|120] [--poster first|last|<seconds>] [--start]
-                                                          the window playing a tape, offscreen: an x264 master, its poster and a manifest
-manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> --frames [--scale F] [--framed [--window WxH]] [--json]
-                                                          the same tape as PNG frames, laid out at a UI scale, framed in a larger frame
+manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--fake] [--fixture <name>] [--start] [--bare]
+                                                          one frame of the window, offscreen; --bare, the viewport alone
+manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> [--size WxH] [--fps 30|60|120] [--poster first|last|<seconds>] [--start] [--bare]
+                                                          the window playing a tape, offscreen: an H.264 master encoded by pcod, its poster and a manifest
+manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> --frames [--scale F] [--framed [--window WxH] | --bare] [--json]
+                                                          the same tape as PNG frames, laid out at a UI scale, framed in a larger frame or the viewport alone
 manfred route <recipe> list|set|add|remove [--route <name>] [--at <i>] [--point x,y,z] [--json]
                                                           list the routes' points and lengths, or move, add or remove a point in the file
 ```

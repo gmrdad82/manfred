@@ -18,6 +18,7 @@ struct Options {
     size: Option<[u32; 2]>,
     input: Option<String>,
     fixture: Option<Fixture>,
+    bare: bool,
 }
 
 fn options(args: &Args) -> Result<Options, String> {
@@ -28,6 +29,7 @@ fn options(args: &Args) -> Result<Options, String> {
         size: args.size,
         input: args.input.clone(),
         fixture: args.fixture,
+        bare: args.bare,
         ..Options::default()
     };
     match &args.target {
@@ -37,6 +39,11 @@ fn options(args: &Args) -> Result<Options, String> {
     }
     if options.fake && options.recipe.is_none() {
         return Err("--fake draws a recipe's viewport, not a folder".into());
+    }
+    if options.bare && options.recipe.is_none() && !options.start {
+        return Err(
+            "--bare draws a recipe's or a scene's viewport alone; name one, or --start".into(),
+        );
     }
     Ok(options)
 }
@@ -90,6 +97,9 @@ pub fn run(args: &Args, registry: &Registry) -> ExitCode {
                     Shell::open(recipe)
                 }
                 .without_recent();
+                if options.bare {
+                    shell = shell.bare();
+                }
                 let size = options.size.unwrap_or(SIZE);
                 manfred_ui::shot(&mut Manfred::lent(&mut shell, &mut viewer), size, &script)
                     .map(|png| (png, size))
@@ -160,8 +170,11 @@ mod tests {
                 size: Some([800, 500]),
                 input: Some("tmp/s.txt".into()),
                 fixture: Some(Fixture::KeyCap),
+                bare: false,
             }
         );
+        assert!(args("a.toml --shot tmp/a.png --bare").unwrap().bare);
+        assert!(args("--shot tmp/a.png --start --bare").unwrap().bare);
     }
 
     #[test]
@@ -199,6 +212,9 @@ mod tests {
             "a.toml --shot a.png --fixture pill",
             "--shot a.png --start a.toml",
             "--shot a.png --start --fixture pill",
+            "--shot a.png --bare",
+            "--shot a.png --fixture pill --bare",
+            "--bare",
         ] {
             assert!(args(text).is_err(), "{text}");
         }

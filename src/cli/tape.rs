@@ -1,4 +1,3 @@
-use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 use std::sync::mpsc::{self, Receiver, TrySendError};
@@ -14,9 +13,8 @@ use super::process::on_path;
 
 pub(super) const FPS: [u32; 3] = [30, 60, 120];
 const SIZE: [u32; 2] = [1586, 992];
-const LIFT: &str = "format=gbrp,zscale,format=gbrp16le";
-const TO_709: &str = "format=rgb48le,zscale=matrix=709:range=limited:filter=bicubic:chromal=left,format=yuv420p,setparams=color_primaries=bt709:color_trc=bt709:colorspace=bt709:range=tv";
-const X264_THREADS: &str = "24";
+const ENCODER: &str = "pcod";
+const CRF: &str = "14";
 const LARGEST_COPY: u64 = 256 * 1024 * 1024;
 const COMMAND: &str = "gui --clip";
 const QUEUED: usize = 4;
@@ -94,77 +92,39 @@ impl Poster {
     }
 }
 
-fn x264(fps: u32) -> Vec<String> {
-    let gop = (2 * fps).to_string();
+fn pcod_args(fps: u32) -> Vec<String> {
     [
-        "-vf",
-        &format!("{LIFT},{TO_709}"),
-        "-c:v",
-        "libx264",
-        "-threads",
-        X264_THREADS,
-        "-preset",
-        "slow",
-        "-profile:v",
-        "high",
-        "-tune",
-        "animation",
-        "-pix_fmt",
-        "yuv420p",
-        "-crf",
-        "14",
-        "-g",
-        &gop,
-        "-keyint_min",
-        &gop,
-        "-sc_threshold",
-        "0",
-        "-color_primaries",
-        "bt709",
-        "-color_trc",
-        "bt709",
-        "-colorspace",
-        "bt709",
-        "-color_range",
-        "tv",
-        "-movflags",
-        "+faststart+write_colr",
-        "-an",
+        "--fps",
+        &fps.to_string(),
+        "--codec",
+        "h264",
+        "--route",
+        "cpu",
+        "--crf",
+        CRF,
     ]
     .map(str::to_string)
     .to_vec()
 }
 
-fn encode_line(size: [u32; 2], fps: u32, out: &Path) -> Vec<String> {
-    let mut line: Vec<String> = [
-        "-hide_banner",
-        "-v",
-        "error",
-        "-y",
-        "-filter_threads",
-        "1",
-        "-filter_complex_threads",
-        "1",
-        "-f",
-        "rawvideo",
-        "-pix_fmt",
-        "rgba",
-        "-s",
-        &format!("{}x{}", size[0], size[1]),
-        "-framerate",
-        &fps.to_string(),
-        "-i",
-        "-",
-    ]
-    .map(str::to_string)
-    .to_vec();
-    line.extend(x264(fps));
-    line.extend([
-        "-f".to_string(),
-        "mp4".to_string(),
-        out.display().to_string(),
-    ]);
+fn encode_line(frames: &Path, fps: u32, out: &Path) -> Vec<String> {
+    let mut line = vec!["frames".to_string(), frames.display().to_string()];
+    line.extend(pcod_args(fps));
+    line.push(out.display().to_string());
     line
+}
+
+fn pcod_version() -> Result<String, String> {
+    let said = Command::new(ENCODER)
+        .arg("--version")
+        .stderr(Stdio::null())
+        .output()
+        .map_err(|error| format!("cannot start pcod: {error}"))?;
+    String::from_utf8_lossy(&said.stdout)
+        .split_whitespace()
+        .nth(1)
+        .map(str::to_string)
+        .ok_or_else(|| "pcod --version named no version".into())
 }
 
 #[derive(Debug, PartialEq)]
@@ -340,6 +300,42 @@ fn png_writers(dir: PathBuf, size: [u32; 2], frames: Receiver<(usize, Vec<u8>)>)
         .collect()
 }
 
+fn encode(frames: &Path, fps: u32, out: &Path, idle: &mut Idle) -> Result<(), String> {
+    let mut child = Command::new(ENCODER)
+        .args(encode_line(frames, fps, out))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|error| format!("cannot start pcod: {error}"))?;
+    let mut stderr = child.stderr.take();
+    let reader = std::thread::spawn(move || {
+        let mut text = String::new();
+        if let Some(stderr) = stderr.as_mut() {
+            let _ = std::io::Read::read_to_string(stderr, &mut text);
+        }
+        text
+    });
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break Ok(status),
+            Ok(None) => {
+                std::thread::sleep(Duration::from_millis(50));
+                idle.beat();
+            }
+            Err(error) => break Err(error),
+        }
+    };
+    let said = reader.join().unwrap_or_default();
+    let status = status.map_err(|error| format!("pcod: {error}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        let line = said.lines().last().unwrap_or("").trim().to_string();
+        Err(format!("pcod frames failed ({status}): {line}"))
+    }
+}
+
 fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, String> {
     let out = args.clip.clone().unwrap_or_default();
     let tape_path = args.tape.clone().unwrap_or_default();
@@ -361,9 +357,27 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
     let frames = steps.len();
     let poster_frame = poster.frame(fps, frames)?;
     let place = place(args)?;
-    if !args.frames && !on_path("ffmpeg") {
-        return Err("no ffmpeg on the PATH; a clip's master is x264, made by ffmpeg".into());
+    if args.bare && matches!(place, Place::Nothing | Place::Folder(_)) {
+        return Err(
+            "--bare films a recipe's or a scene's viewport alone; name one, or --start".into(),
+        );
     }
+    let encoder = if args.frames {
+        None
+    } else {
+        if !on_path(ENCODER) {
+            return Err(
+                "no pcod on the PATH; a clip's master is encoded by pito-codecs' pcod".into(),
+            );
+        }
+        if size.iter().any(|side| side % 2 == 1) {
+            return Err(format!(
+                "pcod encodes even sizes; {}x{} is odd",
+                size[0], size[1]
+            ));
+        }
+        Some(pcod_version()?)
+    };
     if let Some(code) = super::process::requeue("gui", rest, "draws directly") {
         return Ok(code);
     }
@@ -375,7 +389,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
     );
     let stem = format!("{shot}-{}x{}-{fps}fps", size[0], size[1]);
     let master = out.join(format!("{stem}.master.mp4"));
-    let partial = out.join(format!("{stem}.master.mp4.partial"));
+    let partial = out.join(format!("{stem}.partial.mp4"));
     let folder = out.join(&stem);
     let partial_folder = out.join(format!("{stem}.partial"));
     let poster_path = out.join(format!("{stem}.poster.png"));
@@ -390,31 +404,13 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
     let (shell, viewer) = opened(&place, &work, &out, registry)?;
     std::env::set_current_dir(&work).map_err(|error| named(&work, &error))?;
     let mut shell = shell.without_recent().without_showcase();
+    if args.bare {
+        shell = shell.bare();
+    }
     shell.set_registry(registry.clone());
     let (frames_in, frames_out) = mpsc::sync_channel::<(usize, Vec<u8>)>(QUEUED);
-    let mut ffmpeg = None;
-    let writers = if args.frames {
-        std::fs::create_dir_all(&partial_folder).map_err(|error| named(&partial_folder, &error))?;
-        png_writers(partial_folder.clone(), size, frames_out)
-    } else {
-        let mut child = Command::new("ffmpeg")
-            .args(encode_line(size, fps, &partial))
-            .stdin(Stdio::piped())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|error| format!("cannot start ffmpeg: {error}"))?;
-        let mut input = child.stdin.take().ok_or("ffmpeg took no input")?;
-        ffmpeg = Some(child);
-        vec![std::thread::spawn(move || -> Result<(), String> {
-            for (_, frame) in frames_out {
-                input
-                    .write_all(&frame)
-                    .map_err(|error| format!("ffmpeg stopped taking frames: {error}"))?;
-            }
-            Ok(())
-        })]
-    };
+    std::fs::create_dir_all(&partial_folder).map_err(|error| named(&partial_folder, &error))?;
+    let writers = png_writers(partial_folder.clone(), size, frames_out);
     let mut idle = Idle::new();
     let mut kept = None;
     let played = manfred_ui::play(
@@ -460,23 +456,6 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         .collect::<Vec<_>>()
         .into_iter()
         .collect();
-    let mut ended = None;
-    let mut said = String::new();
-    if let Some(mut child) = ffmpeg {
-        ended = Some(loop {
-            match child.try_wait() {
-                Ok(Some(status)) => break Ok(status),
-                Ok(None) => {
-                    std::thread::sleep(Duration::from_millis(50));
-                    idle.beat();
-                }
-                Err(error) => break Err(error),
-            }
-        });
-        if let Some(mut stderr) = child.stderr.take() {
-            let _ = std::io::Read::read_to_string(&mut stderr, &mut said);
-        }
-    }
     let _ = std::env::set_current_dir(&out);
     let fail = |message: String| {
         let _ = std::fs::remove_file(&partial);
@@ -484,13 +463,11 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         message
     };
     let played = played.map_err(|error| fail(error.0))?;
-    if let Some(ended) = ended {
-        let status = ended.map_err(|error| fail(format!("ffmpeg: {error}")))?;
-        if !status.success() {
-            return Err(fail(format!("ffmpeg failed ({status}): {}", said.trim())));
-        }
-    }
     written.map_err(fail)?;
+    if encoder.is_some() {
+        encode(&partial_folder, fps, &partial, &mut idle).map_err(fail)?;
+        let _ = std::fs::remove_dir_all(&partial_folder);
+    }
     let bytes = |path: &Path| std::fs::metadata(path).map_or(0, |meta| meta.len());
     let file = |path: &Path| {
         path.file_name()
@@ -504,6 +481,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         "window": layout.window,
         "pixels_per_point": layout.pixels_per_point(),
         "drawn": layout.drawn(),
+        "bare": args.bare,
     });
     let target = if args.start {
         Some("start".to_string())
@@ -558,6 +536,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         params["poster"] = poster.word().into();
         let value = json!({
             "tool": {"name": "manfred", "version": super::VERSION},
+            "encoder": {"name": ENCODER, "version": encoder},
             "kind": "window-clip",
             "target": target,
             "tape": tape_path.display().to_string(),
@@ -569,7 +548,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
                 "poster": poster_frame,
             },
             "outputs": {
-                "master": "x264 High, CRF 14, 8-bit 4:2:0, BT.709 limited range",
+                "master": "H.264 by pito-codecs' pcod frames on the CPU, CRF 14, 8-bit 4:2:0, BT.709, a silent stereo AAC track",
                 "poster": "8-bit sRGB PNG of the master's frame before encoding",
             },
             "files": [
@@ -577,7 +556,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
                 {"file": file(&poster_path), "role": "poster", "bytes": bytes(&poster_path), "fps": fps, "size": size, "frame": poster_frame},
             ],
             "encodes": [
-                {"file": file(&master), "role": "master", "fps": fps, "size": size, "args": x264(fps)},
+                {"file": file(&master), "role": "master", "fps": fps, "size": size, "encoder": ENCODER, "args": pcod_args(fps)},
             ],
         });
         (value, vec![&master, &poster_path, &manifest])
@@ -648,6 +627,8 @@ mod tests {
             ),
             (Some(2.0), true, Some([1600, 1000]), true, true)
         );
+        let bare = args("a.toml --clip tmp/c --tape t.tape --bare --size 1080x1920").unwrap();
+        assert!(bare.bare && !bare.framed);
         for text in [
             "--clip tmp/c",
             "--tape t.tape",
@@ -663,20 +644,24 @@ mod tests {
             "--clip tmp/c --tape t.tape --frames --poster last",
             "--shot a.png --frames",
             "--shot a.png --json",
+            "--clip tmp/c --tape t.tape --bare --framed",
+            "--bare --tape t.tape",
         ] {
             assert!(args(text).is_err(), "{text}");
         }
     }
 
     #[test]
-    fn the_master_is_x264_high_through_zscale_on_fixed_threads() {
-        let line = encode_line([640, 360], 60, Path::new("out.mp4.partial"));
-        let joined = line.join(" ");
-        assert!(joined.starts_with(
-            "-hide_banner -v error -y -filter_threads 1 -filter_complex_threads 1 -f rawvideo -pix_fmt rgba -s 640x360 -framerate 60 -i - -vf format=gbrp,zscale,format=gbrp16le,format=rgb48le,zscale=matrix=709"
-        ));
-        assert!(joined.contains("-c:v libx264 -threads 24 -preset slow -profile:v high -tune animation -pix_fmt yuv420p -crf 14 -g 120 -keyint_min 120 -sc_threshold 0"));
-        assert!(joined.ends_with("-an -f mp4 out.mp4.partial"));
+    fn the_master_is_pcod_frames_on_the_cpu_at_crf_14() {
+        let line = encode_line(
+            Path::new("out/t.partial"),
+            60,
+            Path::new("out/t.partial.mp4"),
+        );
+        assert_eq!(
+            line.join(" "),
+            "frames out/t.partial --fps 60 --codec h264 --route cpu --crf 14 out/t.partial.mp4"
+        );
     }
 
     #[test]

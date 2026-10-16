@@ -36,7 +36,7 @@ pub(super) struct Args {
         value_name = "dir",
         conflicts_with_all = ["shot", "input", "fake", "fixture"],
         requires = "tape",
-        help = "Film the window playing a tape: an x264 master, its poster and a manifest in this folder"
+        help = "Film the window playing a tape: an H.264 master encoded by pcod, its poster and a manifest in this folder"
     )]
     pub(super) clip: Option<PathBuf>,
     #[arg(
@@ -66,7 +66,7 @@ pub(super) struct Args {
         long,
         requires = "clip",
         conflicts_with = "poster",
-        help = "Write a clip as PNG frames in <dir>/<stem>/ instead of an x264 master; no ffmpeg needed"
+        help = "Write a clip as PNG frames in <dir>/<stem>/ instead of a master; no pcod needed"
     )]
     pub(super) frames: bool,
     #[arg(
@@ -97,6 +97,13 @@ pub(super) struct Args {
         help = "A clip's progress as JSON lines on stderr and one JSON line of the files written on stdout"
     )]
     pub(super) json: bool,
+    #[arg(
+        long,
+        requires = "offscreen",
+        conflicts_with_all = ["framed", "fixture"],
+        help = "Draw the viewport alone, filling the frame: no panels, headers, hints or timeline bar; a tape's points are then the viewport's"
+    )]
+    pub(super) bare: bool,
     #[arg(
         long,
         value_name = "WxH",

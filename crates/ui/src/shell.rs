@@ -62,6 +62,7 @@ const PLAY: &str = "\u{f04b}";
 const PAUSE: &str = "\u{f04c}";
 const STOP: &str = "\u{f04d}";
 
+mod bare;
 mod transport;
 
 pub fn status_version() -> String {
@@ -187,6 +188,7 @@ pub struct Shell {
     clock: Clock,
     chase_eye: Option<Eye>,
     scrubber: Option<Rect>,
+    bare: bool,
 }
 
 impl fmt::Debug for Shell {
@@ -458,6 +460,7 @@ impl Shell {
             clock: Clock::default(),
             chase_eye: None,
             scrubber: None,
+            bare: false,
         }
     }
 
@@ -582,9 +585,7 @@ impl Shell {
     }
 
     pub fn span(&self) -> Option<Span> {
-        self.document
-            .timeline
-            .filter(|_| self.live() && !self.scene)
+        self.document.timeline.filter(|_| self.live())
     }
 
     pub fn time(&self) -> Option<f64> {
@@ -911,13 +912,17 @@ impl Shell {
                 ctx.load_texture("viewport", viewport::checker(), TextureOptions::NEAREST)
             })
             .clone();
-        self.top(ui);
-        self.status(ui);
-        self.hints(ui);
-        self.left(ui);
-        self.right(ui);
-        self.centre(ui, &texture);
-        self.open_layer(ctx);
+        if self.bare {
+            self.bare_view(ui, &texture);
+        } else {
+            self.top(ui);
+            self.status(ui);
+            self.hints(ui);
+            self.left(ui);
+            self.right(ui);
+            self.centre(ui, &texture);
+            self.open_layer(ctx);
+        }
         self.reveal = false;
         self.drain(ctx);
     }

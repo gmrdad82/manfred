@@ -39,7 +39,7 @@ Manfred uses three command-line tools when they are on the `PATH`, and works wit
 - [pconv](https://docs.pitomd.com/pconv/), a video encoder for `manfred clip --video`: without it the frames and their ffconcat list are written, and any encoder makes the video, such as `ffmpeg -f concat -i frames.ffconcat clip.mp4`.
 - [pfx](https://docs.pitomd.com/pfx/), the engine's tool, bakes the light probes from the bake recipe `manfred build` writes.
 
-`manfred gui --clip`, which films the window, needs `ffmpeg` on the `PATH`.
+`manfred gui --clip`, which films the window, needs `pcod`, pito-codecs' CLI, on the `PATH` to encode its master; `--frames` needs nothing.
 
 ## Quick start
 

@@ -5,10 +5,11 @@ use manfred_recipe::Camera as Shot;
 use manfred_scene::Eye;
 use pfx_gpu::{Gpu, wgpu};
 use pfx_live::frame::{Camera, MeshStats, multiply};
-use pfx_live::renderer::{Effects, Exposure, Renderer, Text};
+use pfx_live::renderer::{Exposure, Renderer, Text};
 use pfx_live::scene::{Applied, Staged};
 use pfx_load::scene::{Projection, Reload, Scene, SceneError, SceneWatch};
 
+use crate::animated::Animated;
 use crate::document::{Document, Item, Lamp, tree_of};
 use crate::follow::{Stamp, stamp};
 use crate::pick::{Ray, triangle};
@@ -279,7 +280,7 @@ pub fn document(scene: &Scene, path: &str) -> Document {
         aspect: crate::viewport::ASPECT,
         patch: "none".to_string(),
         source: 0,
-        timeline: None,
+        timeline: crate::animated::span(scene),
     }
 }
 
@@ -348,6 +349,8 @@ pub struct Live {
     size: [u32; 2],
     bounds: [[f64; 3]; 2],
     previous: Option<[[f32; 4]; 4]>,
+    animated: Option<Animated>,
+    time: f32,
 }
 
 impl Live {
@@ -362,6 +365,8 @@ impl Live {
             size,
             bounds: bounds(scene),
             previous: None,
+            animated: Animated::of(scene),
+            time: 0.0,
         })
     }
 
@@ -372,7 +377,19 @@ impl Live {
         if applied.draws {
             self.bounds = bounds(&reload.scene);
         }
+        self.animated = Animated::of(&reload.scene);
         Ok(applied)
+    }
+
+    pub fn set_time(&mut self, time: Option<f64>) -> bool {
+        let time = time.unwrap_or(0.0) as f32;
+        let moved = time != self.time;
+        self.time = time;
+        moved && self.animated.is_some()
+    }
+
+    pub fn chase(&self, time: f64) -> Option<Eye> {
+        self.animated.as_ref()?.chase(time as f32)
     }
 
     pub fn output_format(&self) -> wgpu::TextureFormat {
@@ -445,18 +462,39 @@ impl Live {
         let camera = self.camera(eye);
         let aspect = self.size[0].max(1) as f32 / self.size[1].max(1) as f32;
         let finish = self.staged.finish();
-        let mut frame = self.staged.frame(aspect, 0.0, 0);
+        let time = self.time;
+        if let Some(animated) = self.animated.as_mut() {
+            animated.pose(&self.staged, time);
+        }
+        let mut frame = self.staged.frame(aspect, time, 0);
         frame.scene.camera = camera;
-        let (text, effects) = (Text::default(), Effects::default());
+        if let Some(animated) = &self.animated {
+            frame.scene.instances = &animated.instances;
+            frame.effects.glass = &animated.glass;
+            frame.effects.sprays = &animated.spray_instances;
+            if animated.lights.is_some() {
+                frame.effects.lights = animated.lights.as_deref();
+            }
+        }
         if live {
-            self.renderer
-                .submit(&frame.scene, &text, &effects, finish, output)?;
+            self.renderer.submit(
+                &frame.scene,
+                &Text::default(),
+                &frame.effects,
+                finish,
+                output,
+            )?;
             if self.renderer.frames_in_flight() > IN_FLIGHT {
                 self.renderer.wait_frames(IN_FLIGHT)?;
             }
         } else {
-            self.renderer
-                .render(&frame.scene, &text, &effects, finish, output)?;
+            self.renderer.render(
+                &frame.scene,
+                &Text::default(),
+                &frame.effects,
+                finish,
+                output,
+            )?;
         }
         Ok(())
     }

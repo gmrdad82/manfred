@@ -783,11 +783,17 @@ impl Viewer {
     fn pose(&mut self, shell: &mut Shell) -> bool {
         let at = shell.span().zip(shell.time());
         let built = self.follow.built().filter(|_| self.scene.is_none());
-        let eye = built
-            .zip(at)
-            .and_then(|(built, (span, time))| timeline::chase(built, span.fps, time));
+        let eye = match self.drawing.as_ref() {
+            Some(Drawing::Scene(live)) => at.and_then(|(_, time)| live.chase(time)),
+            _ => built
+                .zip(at)
+                .and_then(|(built, (span, time))| timeline::chase(built, span.fps, time)),
+        };
         let mut moved = shell.chasing() && eye != shell.chase_eye();
         shell.set_chase_eye(eye);
+        if let Some(Drawing::Scene(live)) = self.drawing.as_mut() {
+            moved |= live.set_time(at.map(|(_, time)| time));
+        }
         if let Some(Drawing::Stage(stage)) = self.drawing.as_mut() {
             let posed = match (built, at) {
                 (Some(built), Some((span, time))) => timeline::poses(built, span.fps, time),
