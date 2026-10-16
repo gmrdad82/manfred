@@ -155,11 +155,26 @@ impl Map {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Sheen {
+    pub color: [f32; 3],
+    pub roughness: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Anisotropy {
+    pub strength: f32,
+    pub rotation: f32,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Look {
     pub base_color: Option<[f32; 4]>,
     pub metallic: Option<f32>,
     pub roughness: Option<f32>,
+    pub emission: Option<[f32; 3]>,
+    pub sheen: Option<Sheen>,
+    pub anisotropy: Option<Anisotropy>,
     pub base: Option<Map>,
     pub normal: Option<Map>,
     pub metal_roughness: Option<Map>,
@@ -180,6 +195,10 @@ impl Look {
 
     pub fn has_maps(&self) -> bool {
         self.maps().iter().any(Option::is_some)
+    }
+
+    pub fn carried(&self) -> bool {
+        self.has_maps() || self.sheen.is_some() || self.anisotropy.is_some()
     }
 }
 

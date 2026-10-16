@@ -15,9 +15,9 @@ use pfx_live::frame::{
     multiply,
 };
 use pfx_live::glass;
-use pfx_live::maps::MapImages;
 use pfx_live::renderer::{Effects, Exposure, Finish, Renderer, RendererError, Text};
 use pfx_live::shadow::{Quality, ReceiverBox};
+use pfx_live::textured;
 use pfx_materials::Material;
 use std::collections::BTreeMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -952,29 +952,14 @@ fn show_maps(
     shown: Option<u64>,
     set: Option<maps::Set>,
 ) -> Result<Option<u64>, Error> {
-    match set {
-        Some(set) if shown == Some(set.key) => Ok(shown),
-        Some(set) => {
-            let [base, normal, roughness, metal] = set.images()?;
-            renderer
-                .set_maps(&MapImages {
-                    base: &base,
-                    normal: &normal,
-                    roughness: &roughness,
-                    metal: &metal,
-                })
-                .map_err(|e| Error(format!("texture maps: {e}")))?;
-            Ok(Some(set.key))
-        }
-        None => {
-            if shown.is_some() {
-                renderer
-                    .set_maps(&MapImages::default())
-                    .map_err(|e| Error(format!("texture maps: {e}")))?;
-            }
-            Ok(None)
-        }
+    let key = set.as_ref().map(|set| set.key);
+    if key == shown {
+        return Ok(shown);
     }
+    let images = set.map(|set| set.images()).transpose()?.unwrap_or_default();
+    textured::upload(renderer, &images, shown.is_some())
+        .map_err(|e| Error(format!("texture maps: {e}")))?;
+    Ok(key)
 }
 
 fn paced(size: [u32; 2]) -> bool {

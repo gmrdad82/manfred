@@ -114,8 +114,8 @@ fn a_mesh_keeps_its_texture_maps_and_the_build_embeds_them() {
         .find(|m| m.name() == Some("skin"))
         .unwrap();
     let pbr = skin.pbr_metallic_roughness();
-    assert_eq!(pbr.base_color_factor(), [1.0, 0.9, 0.8, 1.0]);
-    assert_eq!(pbr.roughness_factor(), 0.7);
+    assert_eq!(pbr.base_color_factor(), [1.0, 1.0, 1.0, 1.0]);
+    assert_eq!(pbr.roughness_factor(), 0.5);
     assert_eq!(pbr.metallic_factor(), 0.0);
     let base = pbr.base_color_texture().unwrap();
     assert_eq!(base.tex_coord(), 0);
@@ -185,4 +185,44 @@ fn a_missing_a_foreign_or_an_oversized_map_is_refused() {
         assert_eq!(e.path, format!("materials.skin.{key}"));
         assert!(e.text.contains(said), "{}", e.text);
     }
+}
+
+#[test]
+fn fabric_and_anisotropy_reach_the_glb_as_khr_extensions() {
+    let dir = common::scratch("maps-lobes");
+    let r = parse(
+        "manfred = 1\nname = \"t\"\n\n[[object]]\nname = \"knit\"\nkind = \"box\"\nsize = [1.0, 1.0, 1.0]\nmaterial = \"knit\"\n\n[[object]]\nname = \"hair\"\nkind = \"box\"\nsize = [1.0, 1.0, 1.0]\nmaterial = \"hair\"\n\n[materials.knit]\nbase = [0.25, 0.05, 0.05]\nfabric = { color = [0.8, 0.8, 0.8], roughness = 0.5 }\n\n[materials.hair.anisotropy]\nstrength = 0.8\nrotation = 0.25\n",
+    )
+    .unwrap();
+    let glb = build(&r, &dir).unwrap().glb();
+    let parsed = gltf::Gltf::from_slice(&glb).unwrap();
+    let used: Vec<&str> = parsed.document.extensions_used().collect();
+    assert!(used.contains(&"KHR_materials_sheen"));
+    assert!(used.contains(&"KHR_materials_anisotropy"));
+    let length = u32::from_le_bytes([glb[12], glb[13], glb[14], glb[15]]) as usize;
+    let root: serde_json::Value = serde_json::from_slice(&glb[20..20 + length]).unwrap();
+    let material = |name: &str| {
+        root["materials"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|m| m["name"] == name)
+            .unwrap()
+            .clone()
+    };
+    let knit = material("knit");
+    let sheen = &knit["extensions"]["KHR_materials_sheen"];
+    assert_eq!(
+        sheen["sheenColorFactor"],
+        serde_json::json!([0.8, 0.8, 0.8])
+    );
+    assert_eq!(sheen["sheenRoughnessFactor"], 0.5);
+    assert_eq!(
+        knit["pbrMetallicRoughness"]["baseColorFactor"],
+        serde_json::json!([0.25, 0.05, 0.05, 1.0])
+    );
+    let hair = material("hair");
+    let anisotropy = &hair["extensions"]["KHR_materials_anisotropy"];
+    assert_eq!(anisotropy["anisotropyStrength"], 0.8);
+    assert_eq!(anisotropy["anisotropyRotation"], 0.25);
 }

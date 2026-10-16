@@ -1,6 +1,7 @@
 use crate::Error;
-use manfred_glb::{Image, Look, Looks, Map, Mime, Sampler, UvTransform};
+use manfred_glb::{Anisotropy, Image, Look, Looks, Map, Mime, Sampler, Sheen, UvTransform};
 use manfred_recipe::Recipe;
+use pfx_materials::Material;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
@@ -162,6 +163,9 @@ pub(crate) fn look(
         base_color: Some(pbr.base_color_factor()),
         metallic: Some(pbr.metallic_factor()),
         roughness: Some(pbr.roughness_factor()),
+        emission: Some(material.emissive_factor()).filter(|e| *e != [0.0; 3]),
+        sheen: None,
+        anisotropy: None,
         base: info(pbr.base_color_texture())?,
         metal_roughness: info(pbr.metallic_roughness_texture())?,
         normal: match material.normal_texture() {
@@ -223,7 +227,28 @@ fn set(map: &mut Option<Map>, scale: Option<f64>) {
     }
 }
 
-pub(crate) fn resolve(recipe: &Recipe, base: &Path, imported: Looks) -> Result<Looks, Error> {
+fn factors(look: &mut Look, material: &Material) {
+    let [r, g, b] = material.base;
+    look.base_color = Some([r, g, b, 1.0]);
+    look.metallic = Some(material.metalness);
+    look.roughness = Some(material.roughness);
+    look.emission = (material.emission != [0.0; 3]).then_some(material.emission);
+    look.sheen = (!material.fabric.off()).then_some(Sheen {
+        color: material.fabric.color,
+        roughness: material.fabric.roughness,
+    });
+    look.anisotropy = (!material.anisotropy.off()).then_some(Anisotropy {
+        strength: material.anisotropy.strength,
+        rotation: material.anisotropy.rotation,
+    });
+}
+
+pub(crate) fn resolve(
+    recipe: &Recipe,
+    base: &Path,
+    imported: Looks,
+    materials: &BTreeMap<String, serde_json::Value>,
+) -> Result<Looks, Error> {
     let mut pool = Pool::default();
     let mut looks = imported;
     for look in looks.values_mut() {
@@ -269,6 +294,16 @@ pub(crate) fn resolve(recipe: &Recipe, base: &Path, imported: Looks) -> Result<L
         set(&mut look.occlusion, textures.occlusion_strength);
         set(&mut look.detail_normal, textures.detail_normal_scale);
     }
-    looks.retain(|_, look| look.has_maps());
+    for (name, value) in materials {
+        let Ok(material) = serde_json::from_value::<Material>(value.clone()) else {
+            continue;
+        };
+        let lobed = !material.fabric.off() || !material.anisotropy.off();
+        if !lobed && !looks.get(name).is_some_and(Look::has_maps) {
+            continue;
+        }
+        factors(looks.entry(name.clone()).or_default(), &material);
+    }
+    looks.retain(|_, look| look.carried());
     Ok(looks)
 }

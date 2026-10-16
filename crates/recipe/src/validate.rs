@@ -124,8 +124,12 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
 
 fn materials(out: &mut Out<'_>) {
     for (name, value) in &out.r.materials {
-        let Err(e) = serde_json::from_value::<pfx_materials::Material>(value.clone()) else {
-            continue;
+        let e = match serde_json::from_value::<pfx_materials::Material>(value.clone()) {
+            Ok(material) => {
+                lobes(out, name, &material);
+                continue;
+            }
+            Err(e) => e,
         };
         let text = e.to_string();
         let field = text
@@ -145,6 +149,63 @@ fn materials(out: &mut Out<'_>) {
             None => format!("materials.{name}"),
         };
         out.same(&path, text);
+    }
+}
+
+fn lobes(out: &mut Out<'_>, name: &str, material: &pfx_materials::Material) {
+    let unit = |v: &f32| (0.0..=1.0).contains(v);
+    let colour = "expected a linear RGB colour of three numbers from 0 to 1";
+    let one = "expected a number from 0 to 1";
+    for (key, fine, expected, found) in [
+        (
+            "fabric.color",
+            material.fabric.color.iter().all(unit),
+            colour,
+            format!("{:?}", material.fabric.color),
+        ),
+        (
+            "fabric.roughness",
+            unit(&material.fabric.roughness),
+            one,
+            material.fabric.roughness.to_string(),
+        ),
+        (
+            "anisotropy.strength",
+            unit(&material.anisotropy.strength),
+            one,
+            material.anisotropy.strength.to_string(),
+        ),
+        (
+            "anisotropy.rotation",
+            material.anisotropy.rotation.is_finite(),
+            "expected a finite angle in radians",
+            material.anisotropy.rotation.to_string(),
+        ),
+        (
+            "scatter.color",
+            material.scatter.color.iter().all(unit),
+            colour,
+            format!("{:?}", material.scatter.color),
+        ),
+        (
+            "scatter.radius",
+            material.scatter.radius > 0.0 && material.scatter.radius.is_finite(),
+            "expected a radius above 0, in metres",
+            material.scatter.radius.to_string(),
+        ),
+        (
+            "scatter.amount",
+            unit(&material.scatter.amount),
+            one,
+            material.scatter.amount.to_string(),
+        ),
+    ] {
+        if !fine {
+            out.same(
+                &format!("materials.{name}.{key}"),
+                format!("{expected}, found {found}"),
+            );
+        }
     }
 }
 

@@ -20,6 +20,8 @@ const DEFAULT_MATERIAL: &str = "default";
 const TRANSFORM: &str = "KHR_texture_transform";
 const DETAIL_NORMAL: &str = "detailNormalTexture";
 const MSFT_LOD: &str = "MSFT_lod";
+const SHEEN: &str = "KHR_materials_sheen";
+const ANISOTROPY: &str = "KHR_materials_anisotropy";
 
 struct Builder<'a> {
     root: Root,
@@ -238,9 +240,7 @@ impl Builder<'_> {
     fn info(&mut self, map: &Map) -> json::texture::Info {
         let index = self.texture(map);
         let extensions = map.transform.map(|t| {
-            if !self.root.extensions_used.iter().any(|e| e == TRANSFORM) {
-                self.root.extensions_used.push(TRANSFORM.to_string());
-            }
+            self.uses(TRANSFORM);
             json::extensions::texture::Info {
                 texture_transform: Some(json::extensions::texture::TextureTransform {
                     offset: json::extensions::texture::TextureTransformOffset(t.offset),
@@ -258,6 +258,37 @@ impl Builder<'_> {
             extensions,
             extras: Default::default(),
         }
+    }
+
+    fn uses(&mut self, extension: &str) {
+        if !self.root.extensions_used.iter().any(|e| e == extension) {
+            self.root.extensions_used.push(extension.to_string());
+        }
+    }
+
+    fn lobes(&mut self, look: &Look) -> Option<json::extensions::material::Material> {
+        let mut others = serde_json::Map::new();
+        if let Some(sheen) = look.sheen {
+            self.uses(SHEEN);
+            others.insert(
+                SHEEN.to_string(),
+                serde_json::json!({
+                    "sheenColorFactor": sheen.color.map(short),
+                    "sheenRoughnessFactor": short(sheen.roughness),
+                }),
+            );
+        }
+        if let Some(anisotropy) = look.anisotropy {
+            self.uses(ANISOTROPY);
+            others.insert(
+                ANISOTROPY.to_string(),
+                serde_json::json!({
+                    "anisotropyStrength": short(anisotropy.strength),
+                    "anisotropyRotation": short(anisotropy.rotation),
+                }),
+            );
+        }
+        (!others.is_empty()).then_some(json::extensions::material::Material { others })
     }
 
     fn textured(&mut self, name: &str, look: &Look) -> json::Material {
@@ -308,6 +339,8 @@ impl Builder<'_> {
             },
             normal_texture: normal,
             occlusion_texture: occlusion,
+            emissive_factor: json::material::EmissiveFactor(look.emission.unwrap_or([0.0; 3])),
+            extensions: self.lobes(look),
             extras,
             ..Default::default()
         }
@@ -318,7 +351,7 @@ impl Builder<'_> {
             Some(at) => at,
             None => {
                 self.materials.push(name.to_string());
-                if let Some(look) = self.looks.get(name).filter(|look| look.has_maps()) {
+                if let Some(look) = self.looks.get(name).filter(|look| look.carried()) {
                     let material = self.textured(name, look);
                     self.root.materials.push(material);
                     return Index::new(self.materials.len() as u32 - 1);
@@ -363,7 +396,7 @@ impl Builder<'_> {
         if let Some(at) = self.materials.iter().position(|m| *m == key) {
             return Index::new(at as u32);
         }
-        let mut material = match self.looks.get(name).filter(|look| look.has_maps()) {
+        let mut material = match self.looks.get(name).filter(|look| look.carried()) {
             Some(look) => self.textured(name, look),
             None => plain_material(name),
         };

@@ -1,5 +1,5 @@
 use crate::bake::{Section, absolute, list, number, shade_at, string};
-use crate::{Built, Error, GeneratedLight, Part, local_matrix, world};
+use crate::{Built, Error, GeneratedLight, Look, Part, local_matrix, world};
 use glam::{DMat4, DVec3};
 use manfred_recipe::toml_edit::{DocumentMut, Item, Value};
 use manfred_recipe::{
@@ -186,7 +186,15 @@ pub(crate) fn text(
     effects::particles(&mut out, recipe, built, whole.as_deref())?;
     let glb_name = paths.relative(glb, "output.glb")?;
     match &whole {
-        Some(name) => animated(&mut out, built, recipe, &glb_name, name, paths.pick())?,
+        Some(name) => animated(
+            &mut out,
+            built,
+            recipe,
+            &glb_name,
+            name,
+            paths.pick(),
+            &cards.glb,
+        )?,
         None => objects(&mut out, built, recipe, &glb_name, &cards, paths.pick())?,
     }
     contents(&mut out, &cards, &paths, base)?;
@@ -255,6 +263,7 @@ fn dynamic_key(recipe: &Recipe, index: usize) -> Option<bool> {
 struct Cards {
     slots: Vec<(String, String)>,
     shown: BTreeMap<usize, String>,
+    glb: BTreeSet<String>,
 }
 
 fn library(built: &Built, recipe: &Recipe, base: &Path) -> Result<(Option<String>, Cards), Error> {
@@ -263,9 +272,14 @@ fn library(built: &Built, recipe: &Recipe, base: &Path) -> Result<(Option<String
     let mut cards = Cards {
         slots: Vec::new(),
         shown: BTreeMap::new(),
+        glb: BTreeSet::new(),
     };
     let add = |library: &mut Library, name: &str, layer: Option<usize>| {
+        let carried = layer.is_none() && built.looks.get(name).is_some_and(Look::carried);
         let Some(value) = merged.materials.get(name) else {
+            if carried {
+                return Ok(true);
+            }
             return Err(Error::new(
                 format!("materials.{name}"),
                 format!(
@@ -275,6 +289,9 @@ fn library(built: &Built, recipe: &Recipe, base: &Path) -> Result<(Option<String
         };
         let material = serde_json::from_value::<Material>(value.clone())
             .map_err(|e| Error::new(format!("materials.{name}"), e.to_string()))?;
+        if carried && in_glb(&material) && !recipe.effects.wet.contains_key(name) {
+            return Ok(true);
+        }
         let (name, material) = match layer {
             None => (name.to_string(), material),
             Some(slot) => (
@@ -294,13 +311,15 @@ fn library(built: &Built, recipe: &Recipe, base: &Path) -> Result<(Option<String
                 .insert(&name, material)
                 .map_err(|e| Error::new(format!("materials.{name}"), e))?;
         }
-        Ok(())
+        Ok(false)
     };
     for part in built.parts.iter().filter(|part| shown(part)) {
         let object = &recipe.objects[part.object];
         let layer = card(&mut cards, object, part.object, base)?;
         for slot in &part.node.mesh.slots {
-            add(&mut library, &slot.material, layer)?;
+            if add(&mut library, &slot.material, layer)? {
+                cards.glb.insert(slot.material.clone());
+            }
         }
     }
     if library.names().next().is_none() {
@@ -308,6 +327,20 @@ fn library(built: &Built, recipe: &Recipe, base: &Path) -> Result<(Option<String
     }
     let text = library.to_toml().map_err(|e| Error::new("materials", e))?;
     Ok((Some(text), cards))
+}
+
+fn in_glb(material: &Material) -> bool {
+    let plain = Material::default();
+    let rest = Material {
+        base: plain.base,
+        roughness: plain.roughness,
+        metalness: plain.metalness,
+        emission: plain.emission,
+        fabric: plain.fabric,
+        anisotropy: plain.anisotropy,
+        ..*material
+    };
+    rest == plain && material.emission.iter().all(|v| (0.0..=1.0).contains(v))
 }
 
 fn layered(material: &str, slot: usize) -> String {
@@ -1157,11 +1190,11 @@ fn objects(
             .collect();
         let content = cards.shown.get(&part.object);
         if let (1, Some(one)) = (names.len(), names.first()) {
-            let material = match cards.slots.iter().position(|(n, _)| Some(n) == content) {
-                Some(slot) => layered(one, slot),
-                None => (*one).to_string(),
-            };
-            s.put("material", &string(&material));
+            match cards.slots.iter().position(|(n, _)| Some(n) == content) {
+                Some(slot) => s.put("material", &string(&layered(one, slot))),
+                None if cards.glb.contains(*one) => {}
+                None => s.put("material", &string(one)),
+            }
         }
         match part.shadow {
             Shadow::Cast => {}
@@ -1210,6 +1243,7 @@ fn animated(
     glb: &str,
     name: &str,
     pick: &str,
+    carried: &BTreeSet<String>,
 ) -> Result<(), Error> {
     let ip = format!("object[{name}]");
     let mesh = format!("mesh.{}", key(name));
@@ -1224,7 +1258,7 @@ fn animated(
             .map(|slot| slot.material.as_str())
             .collect();
         let material = match (names.len(), names.first()) {
-            (1, Some(one)) => Some(*one),
+            (1, Some(one)) if !carried.contains(*one) => Some(*one),
             _ => None,
         };
         let shadow = match part.shadow {

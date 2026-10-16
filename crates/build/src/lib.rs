@@ -1085,10 +1085,6 @@ fn assemble(
             });
         }
     }
-    let looks = Arc::new(maps::resolve(recipe, base, imported)?);
-    for part in &mut parts {
-        part.looks = looks.clone();
-    }
     let facts = facts::facts(recipe, &generated);
     let sidecar = sidecar(recipe, registry, &facts)?;
     let mut materials = BTreeMap::new();
@@ -1105,6 +1101,15 @@ fn assemble(
         }
     }
     let catalogue = catalogue(&parts, registry, recipe, &mut notes);
+    let mut merged = recipe.materials.clone();
+    for (name, value) in &materials {
+        merged.entry(name.clone()).or_insert_with(|| value.clone());
+    }
+    merged.extend(catalogue.iter().map(|(k, v)| (k.clone(), v.clone())));
+    let looks = Arc::new(maps::resolve(recipe, base, imported, &merged)?);
+    for part in &mut parts {
+        part.looks = looks.clone();
+    }
     notes.extend(scene::left_out(recipe));
     notes.extend(scene::lights_left_out(recipe, &lights));
     Ok(Built {
