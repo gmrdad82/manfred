@@ -220,7 +220,7 @@ manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples
 manfred clip <recipe> --camera <name> (--frames N --fps F | --timeline) --size WxH --out <dir> [--trace [--spp N]] [--variant V] [--set key=value]... [--video <file.mp4|file.webm>]
                                                           a camera moving along the recipe's path, as frames and a video
 manfred new street [--seed N] [--out <file.toml>] [--json]
-                                                          writes a starter chase shot: a 9:16 timeline, a route, a street, a hero car, traffic and a chase camera
+                                                          writes a starter chase shot: a 9:16 timeline, a route, a street, a hero car, traffic, a chase camera, and road spray on the hero's body behind each rear wheel
 manfred timeline <recipe> [--json]                           builds the recipe and reports its frames, keyed nodes, camera node and each followed object's distance and top speed
 manfred shoot <recipe> --out <dir> [--draft|--final] [--range a..b] [--camera <name>] [--json]
                                                           builds the recipe and renders its timeline with `pfx shot` on the live renderer: frames, the scene's sound as a WAV and shoot.json; resumes where it stopped

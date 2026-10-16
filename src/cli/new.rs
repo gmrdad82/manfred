@@ -168,12 +168,9 @@ pub(super) fn street(seed: u64) -> Made {
             seed.wrapping_add(2)
         ),
     );
-    object(
-        w,
-        "hero",
-        "manfred/car",
-        format!("style = \"sports\", paint = \"{paint}\", seed = {seed}"),
-    );
+    let hero = format!("style = \"sports\", paint = \"{paint}\", seed = {seed}");
+    let (half_track, rear) = rear_axle(&hero);
+    object(w, "hero", "manfred/car", hero);
     let mut traffic = Vec::new();
     for (index, style) in TRAFFIC.iter().enumerate() {
         let name = format!("traffic{}", index + 1);
@@ -260,11 +257,15 @@ pub(super) fn street(seed: u64) -> Made {
         "grade = {{ vignette = 0.25, saturation = 1.05, warmth = 0.15, bloom = 0.15, haze = 0.0 }}"
     );
     let _ = writeln!(w);
-    for wheel in ["rl", "rr"] {
+    for (wheel, side) in [("rl", 1.0), ("rr", -1.0)] {
         let _ = writeln!(w, "[[particles]]");
         let _ = writeln!(w, "name = \"spray_{wheel}\"");
-        let _ = writeln!(w, "parent = \"hero.wheel_{wheel}\"");
-        let _ = writeln!(w, "at = [0.0, 0.0, 0.0]");
+        let _ = writeln!(w, "parent = \"hero.body\"");
+        let _ = writeln!(
+            w,
+            "at = {}",
+            point([round(side * half_track, 3), 0.05, round(rear - 0.3, 3)])
+        );
         let _ = writeln!(w, "rate = 0.0");
         let _ = writeln!(w, "rate_keys = [[0.0, 0.0], [4.0, 400.0]]");
         let _ = writeln!(w, "max = 2000");
@@ -309,6 +310,26 @@ pub(super) fn street(seed: u64) -> Made {
         route,
         objects,
     }
+}
+
+fn rear_axle(params: &str) -> (f64, f64) {
+    let text = format!(
+        "manfred = 1\nname = \"hero\"\n\n[[object]]\nname = \"hero\"\nkind = \"generator\"\ngenerator = \"manfred/car\"\nparams = {{ {params} }}\n"
+    );
+    let built = manfred_recipe::parse(&text)
+        .ok()
+        .and_then(|recipe| manfred_build::build(&recipe, Path::new(".")).ok());
+    let car = built.as_ref().map(|built| &built.facts.extra);
+    let track = car
+        .and_then(|car| car.get("track"))
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(1.6);
+    let rear = car
+        .and_then(|car| car.get("wheels"))
+        .and_then(|wheels| wheels.pointer("/rl/centre/2"))
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(-1.3);
+    (track * 0.5, rear)
 }
 
 fn length(route: &[[f64; 3]]) -> f64 {
@@ -410,6 +431,27 @@ mod tests {
         let span = one.route[POINTS - 1][2] - one.route[0][2];
         assert!((560.0..=640.0).contains(&span), "{span}");
         assert!(one.route.iter().all(|p| p[1] == 0.0));
+    }
+
+    #[test]
+    fn the_street_loads_checks_clean_and_sprays_from_the_body_behind_the_rear_wheels() {
+        let recipe = manfred_recipe::parse(&street(1).text).unwrap();
+        assert_eq!(manfred_recipe::validate(&recipe), []);
+        let (half, rear) = rear_axle("style = \"sports\", seed = 1");
+        assert!(half > 0.5 && rear < 0.0, "{half} {rear}");
+        let doc: DocumentMut = street(1).text.parse().unwrap();
+        let sprays = doc["particles"].as_array_of_tables().unwrap();
+        for (spray, side) in sprays.iter().zip([1.0, -1.0]) {
+            assert_eq!(spray["parent"].as_str(), Some("hero.body"));
+            let at: Vec<f64> = spray["at"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_float().unwrap())
+                .collect();
+            assert_eq!(at[0].signum(), side);
+            assert!(at[2] < rear, "{at:?}");
+        }
     }
 
     #[test]
