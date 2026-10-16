@@ -31,7 +31,7 @@ pub use manfred_motion::{Route, Timeline, Trs, matrix, sample, trs_from_matrix};
 pub use manfred_recipe::NO_SIDECAR;
 pub use maps::{LARGEST_IMAGE, image, image_fits};
 pub use scene::object_ids;
-pub use timeline::{Animates, Bake, Baker, camera_track, lens, pose, time_refusal};
+pub use timeline::{Animates, Bake, Baker, camera_track, lens, pose, pose_cameras, time_refusal};
 
 pub const GENERATOR: &str = concat!("manfred ", env!("CARGO_PKG_VERSION"));
 

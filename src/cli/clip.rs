@@ -365,9 +365,11 @@ impl Renderer {
     fn pose(&mut self, time: f64, name: &str) -> Result<Camera, String> {
         match self {
             Renderer::Live(reel, base) => {
-                let (recipe, built) =
-                    manfred_scene::posed(&base.0, &base.1, time).map_err(|e| e.0)?;
-                reel.pose(&recipe, &built.parts).map_err(|e| e.0)?;
+                let (recipe, built) = (&base.0, &base.1);
+                let fps = recipe.timeline.map_or(1, |t| t.fps);
+                reel.set_poses(manfred_scene::poses(built, fps, time));
+                let recipe =
+                    manfred_build::pose_cameras(recipe, built, time).map_err(|e| e.to_string())?;
                 manfred_scene::camera(&recipe, name)
                     .cloned()
                     .map_err(|e| e.0)

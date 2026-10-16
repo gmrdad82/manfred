@@ -86,6 +86,32 @@ pub fn load(
     load_at(path, variant, set, registry, None)
 }
 
+pub fn poses(built: &Built, fps: u32, time: f64) -> std::collections::BTreeMap<String, Matrix> {
+    let mut posed = std::collections::BTreeMap::new();
+    for track in built.tracks.iter().filter(|track| track.camera.is_none()) {
+        if track.keys.is_empty() {
+            continue;
+        }
+        let world = manfred_build::matrix(&manfred_build::sample(&track.keys, fps, time));
+        for part in built
+            .parts
+            .iter()
+            .filter(|part| part.node.name == track.node)
+        {
+            let model = if part.node.keep_transform {
+                world * part.node.transform.inverse()
+            } else {
+                world
+            };
+            let model = model
+                .to_cols_array_2d()
+                .map(|column| column.map(|v| v as f32));
+            posed.insert(part.node.name.clone(), model);
+        }
+    }
+    posed
+}
+
 pub fn posed(recipe: &Recipe, built: &Built, time: f64) -> Result<(Recipe, Built), Error> {
     manfred_build::pose(recipe, built, time).map_err(|e| Error(e.to_string()))
 }
@@ -183,6 +209,10 @@ impl Reel {
 
     pub fn preview(&mut self, object: usize, motion: Matrix) -> Result<(), Error> {
         self.stage.preview(object, motion)
+    }
+
+    pub fn set_poses(&mut self, posed: std::collections::BTreeMap<String, Matrix>) -> bool {
+        self.stage.set_poses(posed)
     }
 
     pub fn eye(&self, camera: &Camera) -> Eye {

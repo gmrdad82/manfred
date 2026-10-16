@@ -155,30 +155,35 @@ fn posed_camera(camera: &mut Camera, trs: &Trs) {
     camera.path = None;
 }
 
-pub fn pose(recipe: &Recipe, built: &Built, time: f64) -> Result<(Recipe, Built), Error> {
+pub fn pose_cameras(recipe: &Recipe, built: &Built, time: f64) -> Result<Recipe, Error> {
     if let Some(text) = time_refusal(recipe, time) {
         return Err(Error::new("timeline", text));
     }
     let fps = recipe.timeline.map_or(1, |t| t.fps);
     let mut recipe = recipe.clone();
-    let mut built = built.clone();
     for track in &built.tracks {
+        let Some(name) = track.camera_name() else {
+            continue;
+        };
+        if let Some(camera) = recipe.cameras.iter_mut().find(|c| c.name == name) {
+            posed_camera(camera, &sample(&track.keys, fps, time));
+            if let Some(focus) = track.focus.as_deref().and_then(|f| lerp(f, fps, time)) {
+                camera.focus_m = Some(focus);
+            }
+        }
+    }
+    Ok(recipe)
+}
+
+pub fn pose(recipe: &Recipe, built: &Built, time: f64) -> Result<(Recipe, Built), Error> {
+    let recipe = pose_cameras(recipe, built, time)?;
+    let fps = recipe.timeline.map_or(1, |t| t.fps);
+    let mut built = built.clone();
+    for track in built.tracks.iter().filter(|t| t.camera_name().is_none()) {
         let trs = sample(&track.keys, fps, time);
-        match track.camera_name() {
-            Some(name) => {
-                if let Some(camera) = recipe.cameras.iter_mut().find(|c| c.name == name) {
-                    posed_camera(camera, &trs);
-                    if let Some(focus) = track.focus.as_deref().and_then(|f| lerp(f, fps, time)) {
-                        camera.focus_m = Some(focus);
-                    }
-                }
-            }
-            None => {
-                for part in built.parts.iter_mut().filter(|p| p.node.name == track.node) {
-                    part.node.transform = matrix(&trs);
-                    part.node.keep_transform = true;
-                }
-            }
+        for part in built.parts.iter_mut().filter(|p| p.node.name == track.node) {
+            part.node.transform = matrix(&trs);
+            part.node.keep_transform = true;
         }
     }
     Ok((recipe, built))

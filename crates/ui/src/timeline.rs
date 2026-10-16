@@ -1,10 +1,8 @@
-use std::collections::BTreeMap;
-
 use glam::{DMat4, DVec3};
 use manfred_build::{Built, Track};
 use manfred_recipe::Recipe;
 use manfred_scene::Eye;
-use pfx_live::frame::Matrix;
+pub use manfred_scene::poses;
 
 const LONGEST_STEP: f64 = 0.25;
 
@@ -128,37 +126,9 @@ impl Clock {
     }
 }
 
-fn narrow(matrix: DMat4) -> Matrix {
-    matrix
-        .to_cols_array_2d()
-        .map(|column| column.map(|v| v as f32))
-}
-
 fn at(track: &Track, fps: u32, time: f64) -> Option<DMat4> {
     (!track.keys.is_empty())
         .then(|| manfred_build::matrix(&manfred_build::sample(&track.keys, fps, time)))
-}
-
-pub fn poses(built: &Built, fps: u32, time: f64) -> BTreeMap<String, Matrix> {
-    let mut posed = BTreeMap::new();
-    for track in built.tracks.iter().filter(|track| track.camera.is_none()) {
-        let Some(world) = at(track, fps, time) else {
-            continue;
-        };
-        for part in built
-            .parts
-            .iter()
-            .filter(|part| part.node.name == track.node)
-        {
-            let rest = if part.node.keep_transform {
-                part.node.transform
-            } else {
-                DMat4::IDENTITY
-            };
-            posed.insert(part.node.name.clone(), narrow(world * rest.inverse()));
-        }
-    }
-    posed
 }
 
 pub fn chase(built: &Built, fps: u32, time: f64) -> Option<Eye> {
