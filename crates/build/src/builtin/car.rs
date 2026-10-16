@@ -39,8 +39,8 @@ const TRAFFIC_PAINT: [&str; 8] = [
 
 const HALF: usize = 17;
 const RING: usize = 2 * HALF - 2;
-const SHOULDER: f64 = 0.06;
 const ROCKER: f64 = 0.03;
+const DISC: f64 = 0.058;
 
 #[derive(Clone, Copy, PartialEq)]
 enum Band {
@@ -93,35 +93,43 @@ struct Design {
     nose: f64,
     tail: f64,
     rim: f64,
+    shoulder: f64,
+    edge: f64,
+    crown: [f64; 2],
 }
 
 const SPORTS: Design = Design {
-    size: [4.4, 1.9, 1.2],
+    size: [4.4, 1.9, 1.1],
     radius: 0.34,
     wheelbase: 0.6,
     front: 0.52,
     clearance: 0.11,
     tyre: 0.255,
-    flare: 0.035,
-    tumble: 0.7,
+    flare: 0.045,
+    tumble: 0.68,
     deck: &[
-        (0.0, 0.66),
-        (0.16, 0.74),
-        (0.66, 0.71),
-        (0.88, 0.6),
-        (1.0, 0.5),
+        (0.0, 0.6),
+        (0.07, 0.7),
+        (0.22, 0.75),
+        (0.42, 0.74),
+        (0.66, 0.66),
+        (0.87, 0.53),
+        (1.0, 0.43),
     ],
     roof: &[
-        (0.15, 0.0),
-        (0.36, 0.985),
-        (0.46, 1.0),
-        (0.53, 0.99),
-        (0.67, 0.0),
+        (0.2, 0.0),
+        (0.41, 0.965),
+        (0.53, 1.0),
+        (0.6, 0.985),
+        (0.75, 0.0),
     ],
-    pillar: 0.4,
-    nose: 0.16,
-    tail: 0.12,
+    pillar: 0.45,
+    nose: 0.2,
+    tail: 0.21,
     rim: 0.7,
+    shoulder: 0.11,
+    edge: 0.075,
+    crown: [0.03, 0.025],
 };
 
 const SEDAN: Design = Design {
@@ -152,6 +160,9 @@ const SEDAN: Design = Design {
     nose: 0.14,
     tail: 0.12,
     rim: 0.62,
+    shoulder: 0.06,
+    edge: 0.041,
+    crown: [0.02, 0.015],
 };
 
 const HATCH: Design = Design {
@@ -181,6 +192,9 @@ const HATCH: Design = Design {
     nose: 0.14,
     tail: 0.1,
     rim: 0.6,
+    shoulder: 0.06,
+    edge: 0.041,
+    crown: [0.02, 0.015],
 };
 
 const VAN: Design = Design {
@@ -210,6 +224,9 @@ const VAN: Design = Design {
     nose: 0.16,
     tail: 0.08,
     rim: 0.58,
+    shoulder: 0.06,
+    edge: 0.041,
+    crown: [0.02, 0.015],
 };
 
 impl Style {
@@ -673,12 +690,12 @@ impl Car {
         } else {
             ys
         };
-        yw = yw.min(ysh - SHOULDER - ROCKER - 0.01).max(ys);
+        yw = yw.min(ysh - self.d.shoulder - ROCKER - 0.01).max(ys);
         let base = self.width * 0.5 - self.d.flare;
         let plan = (1.0 - 0.07 * smoothstep(0.8, 1.0, s)) * (1.0 - 0.03 * smoothstep(0.2, 0.0, s));
         let hw = (base + self.d.flare * smoothstep(1.5 * ra, 0.9 * ra, dz)) * plan;
         let hwr = (base * self.d.tumble * (1.0 - 0.05 * smoothstep(0.75, 1.0, s)))
-            .min(hw - SHOULDER - 0.02);
+            .min(hw - self.d.shoulder - 0.02);
         Station {
             ys,
             yw,
@@ -692,6 +709,7 @@ impl Car {
 
     fn section(&self, z: f64) -> Vec<DVec2> {
         let t = self.station(z);
+        let sh = self.d.shoulder;
         let xi = (self.track - self.d.tyre) * 0.5 - 0.04;
         let mut p = vec![
             DVec2::new(0.0, t.ys),
@@ -706,18 +724,18 @@ impl Car {
             0.0,
             2,
         );
-        let mid = (t.yw + ROCKER + t.ysh - SHOULDER) * 0.5;
+        let mid = (t.yw + ROCKER + t.ysh - sh) * 0.5;
         p.push(DVec2::new(t.hw + 0.006, mid));
         arc(
             &mut p,
-            DVec2::new(t.hw - SHOULDER, t.ysh - SHOULDER),
-            SHOULDER,
+            DVec2::new(t.hw - sh, t.ysh - sh),
+            sh,
             0.0,
             FRAC_PI_2,
             3,
         );
-        let rr = 0.004 + 0.041 * t.open;
-        let belt = DVec2::new(t.hw - SHOULDER, t.ysh);
+        let rr = 0.004 + self.d.edge * t.open;
+        let belt = DVec2::new(t.hw - sh, t.ysh);
         let edge = DVec2::new(t.hwr, t.yr - rr);
         p.push((belt + edge) * 0.5 + DVec2::new(0.01 * t.open, 0.0));
         arc(
@@ -728,7 +746,7 @@ impl Car {
             FRAC_PI_2,
             2,
         );
-        let crown = 0.02 + 0.015 * t.open;
+        let crown = self.d.crown[0] + self.d.crown[1] * t.open;
         p.push(DVec2::new((t.hwr - rr) * 0.5, t.yr + crown * 0.75));
         p.push(DVec2::new(0.0, t.yr + crown));
         debug_assert_eq!(p.len(), HALF);
@@ -941,10 +959,22 @@ impl Car {
         m
     }
 
+    fn discs(&self) -> [DVec3; 4] {
+        let (hw, lo, hi) = self.cap(-1.0);
+        let y = lo + (hi - lo) * 0.7;
+        let z = -(self.length * 0.5 + 0.004);
+        let at = |x: f64| DVec3::new(x, y, z);
+        let (outer, inner) = (hw - 0.1, hw - 0.1 - 2.6 * DISC);
+        [at(-outer), at(-inner), at(inner), at(outer)]
+    }
+
     fn tails(&self) -> ([f64; 2], [DVec3; 2]) {
         let (hw, lo, hi) = self.cap(-1.0);
         let (size, x, y) = match self.style {
-            Style::Sports => ([0.24, 0.08], hw - 0.16, 0.8),
+            Style::Sports => {
+                let d = self.discs();
+                return ([2.0 * DISC; 2], [(d[2] + d[3]) * 0.5, (d[0] + d[1]) * 0.5]);
+            }
             Style::Sedan | Style::Hatch => ([0.34, 0.11], hw - 0.19, 0.72),
             Style::Van => ([0.13, 0.42], hw - 0.08, 0.42),
         };
@@ -955,17 +985,28 @@ impl Car {
 
     fn taillights(&self, material: &str) -> Mesh {
         let (hw, _, _) = self.cap(-1.0);
+        let mut m = Mesh::default();
+        if self.style == Style::Sports {
+            for at in self.discs() {
+                m.append(&placed(
+                    mesh::cylinder(DISC, 0.03, 24, true),
+                    material,
+                    at,
+                    DQuat::from_rotation_x(FRAC_PI_2),
+                ));
+                m.append(&placed(
+                    mesh::cylinder(DISC + 0.012, 0.02, 24, false),
+                    TRIM,
+                    at + DVec3::Z * 0.006,
+                    DQuat::from_rotation_x(FRAC_PI_2),
+                ));
+            }
+            return m;
+        }
         let ([w, h], lamps) = self.tails();
         let y = lamps[0].y;
-        let mut m = Mesh::default();
-        match self.style {
-            Style::Sports => {
-                m.append(&self.lamp(-1.0, [2.0 * hw - 0.08, 0.035, 0.016], 0.0, y, material));
-            }
-            Style::Sedan | Style::Hatch => {
-                m.append(&self.lamp(-1.0, [2.0 * hw - 0.6, 0.02, 0.016], 0.0, y, material));
-            }
-            Style::Van => {}
+        if matches!(self.style, Style::Sedan | Style::Hatch) {
+            m.append(&self.lamp(-1.0, [2.0 * hw - 0.6, 0.02, 0.016], 0.0, y, material));
         }
         for at in [lamps[1], lamps[0]] {
             m.append(&self.lamp(-1.0, [w, h, 0.02], at.x, y, material));
@@ -1049,23 +1090,6 @@ impl Car {
                     DQuat::from_rotation_x(FRAC_PI_2),
                 ));
             }
-            let top = rhi + 0.6 * self.d.tail;
-            let span = 2.0 * (self.station(-half + self.d.tail).hwr + 0.1);
-            let z = -half + self.d.tail + 0.1;
-            body.append(&placed(
-                mesh::rounded_box([span, 0.022, 0.24], 0.008, 2),
-                paint,
-                DVec3::new(0.0, top + 0.07, z),
-                DQuat::from_rotation_x(-0.1),
-            ));
-            for side in [-1.0, 1.0] {
-                body.append(&placed(
-                    mesh::rounded_box([0.03, 0.08, 0.08], 0.006, 1),
-                    TRIM,
-                    DVec3::new(side * span * 0.3, top + 0.03, z),
-                    DQuat::IDENTITY,
-                ));
-            }
         } else {
             body.append(&placed(
                 mesh::rounded_box([2.0 * rw * 0.96, (rhi - rlo) * 0.14, 0.05], 0.015, 2),
@@ -1080,7 +1104,7 @@ impl Car {
             body.append(&placed(
                 mesh::rounded_box([0.13, 0.08, 0.05], 0.015, 2),
                 paint,
-                DVec3::new(side * (t.hw - SHOULDER + 0.06), t.ysh + 0.07, zw),
+                DVec3::new(side * (t.hw - self.d.shoulder + 0.06), t.ysh + 0.07, zw),
                 DQuat::from_rotation_y(side * 0.15),
             ));
         }
