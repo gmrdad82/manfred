@@ -65,7 +65,14 @@ pub(super) fn thumbnail(
     registry: &Registry,
 ) -> Result<(), String> {
     let shot = || -> Result<(), Error> {
-        let (recipe, built) = manfred_scene::load_at(recipe, None, &[], registry, None)?;
+        let (recipe, built) = manfred_scene::load_at(
+            recipe,
+            None,
+            &[],
+            &manfred_recipe::Pick::default(),
+            registry,
+            None,
+        )?;
         let camera = recipe
             .cameras
             .first()

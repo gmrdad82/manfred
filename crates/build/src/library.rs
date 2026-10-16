@@ -147,7 +147,7 @@ impl Sidecar {
     }
 
     pub fn read(path: &Path) -> Result<Sidecar, String> {
-        let text = std::fs::read_to_string(path)
+        let text = manfred_recipe::files::read_to_string(path)
             .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
         Sidecar::parse(&text).map_err(|e| format!("{}: {e}", path.display()))
     }
@@ -804,7 +804,9 @@ fn material_of(m: &Value) -> Value {
 }
 
 fn has_index(dir: &Path) -> bool {
-    dir.join(INDEX).is_file()
+    let index = dir.join(INDEX);
+    manfred_recipe::files::mounted(&index)
+        || (index.is_file() && manfred_recipe::files::read(&index).is_ok())
 }
 
 pub fn find_root(from: &Path) -> Option<PathBuf> {
@@ -1092,7 +1094,7 @@ pub(crate) fn import(recipe: &Recipe, object: &Object, base: &Path) -> Result<Im
     let sidecar = Sidecar::read(&dir.join(SIDECAR))
         .map_err(|t| fail(object, "object", format!("{reference}: {t}")))?;
     let model = dir.join(MODEL);
-    let bytes = std::fs::read(&model).map_err(|e| {
+    let bytes = manfred_recipe::files::read(&model).map_err(|e| {
         fail(
             object,
             "object",

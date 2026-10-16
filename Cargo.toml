@@ -51,7 +51,6 @@ manfred-generators = { path = "crates/generators" }
 manfred-render = { path = "crates/render" }
 manfred-runtime = { path = "crates/runtime" }
 manfred-motion = { path = "crates/motion" }
-manf = { git = "https://github.com/gmrdad82/pfx-scene", tag = "v1.5.0" }
 
 [package]
 name = "manfred"

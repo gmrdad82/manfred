@@ -127,13 +127,18 @@ fn document(args: &Args, registry: &Registry, out: &mut dyn Write, err: &mut dyn
         Ok(opened) => opened,
         Err(e) => return fail(err, &e),
     };
-    if args.variant.is_some() || args.all_variants || !args.set.is_empty() {
+    if args.variant.is_some()
+        || args.all_variants
+        || !args.set.is_empty()
+        || args.pick != super::Picks::default()
+    {
         let inner = Args {
             recipe: opened.recipe.display().to_string(),
             variant: args.variant.clone(),
             all_variants: args.all_variants,
             set: args.set.clone(),
             out: args.out.clone(),
+            pick: args.pick.clone(),
         };
         return run_with(&inner, registry, true, out, err);
     }
