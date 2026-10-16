@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use crate::variant::{apply_variant, glob_matches};
 use crate::{
     Bake, Camera, CameraPath, Casters, Kind, PathKind, PlateView, Plates, Problem, Projection,
-    Recipe, SCENE_SUFFIX, SkyKind, Trace, Uv, View,
+    Recipe, Rig, RigFocus, SCENE_SUFFIX, SkyKind, Trace, Uv, View,
 };
 
 struct Out<'a> {
@@ -757,6 +757,68 @@ fn cameras(out: &mut Out<'_>) {
         if let Some(path) = &c.path {
             camera_path(out, &at.child("path", "path"), c, path);
         }
+        if let Some(rig) = &c.rig {
+            camera_rig(out, &at, c, rig);
+        }
+    }
+}
+
+fn camera_rig(out: &mut Out<'_>, camera: &At, c: &Camera, rig: &Rig) {
+    let at = camera.child("rig", "rig");
+    if c.path.is_some() {
+        out.near(
+            camera,
+            "rig",
+            "a camera takes `path` or `rig`, expected only one",
+        );
+    }
+    if c.kind != Projection::Perspective {
+        out.near(camera, "rig", "a rig is for perspective cameras");
+    }
+    if !out.r.objects.iter().any(|o| o.name == rig.follow) {
+        out.missing(
+            &at,
+            "follow",
+            "object",
+            &rig.follow,
+            "the name of an object of the recipe",
+        );
+    }
+    if rig.offset == rig.look {
+        out.at(
+            &at,
+            "look",
+            "the aim point is the camera's own offset, expected a point to look at",
+        );
+    }
+    if !(rig.lag >= 0.0 && rig.lag.is_finite()) {
+        out.at(&at, "lag", "expected seconds of 0 or more");
+    }
+    if !(rig.look_ahead >= 0.0 && rig.look_ahead.is_finite()) {
+        out.at(&at, "look_ahead", "expected seconds of 0 or more");
+    }
+    if let Some(shake) = &rig.shake {
+        let at = at.child("shake", "shake");
+        if !(shake.translation >= 0.0 && shake.translation.is_finite()) {
+            out.at(&at, "translation", "expected metres of 0 or more");
+        }
+        if !(shake.roll >= 0.0 && shake.roll < 90.0) {
+            out.at(&at, "roll", "expected degrees from 0 to below 90");
+        }
+        if !(shake.frequency > 0.0 && shake.frequency.is_finite()) {
+            out.at(&at, "frequency", "expected hertz above 0");
+        }
+    }
+    match rig.focus {
+        Some(RigFocus::Distance(metres)) if !(metres > 0.0 && metres.is_finite()) => {
+            out.at(&at, "focus", "expected \"follow\" or metres above 0")
+        }
+        Some(_) if !(c.fstop > 0.0 && c.fstop.is_finite()) => out.at(
+            &at,
+            "focus",
+            "a rig's focus needs depth of field, expected an `fstop` above 0 on the camera",
+        ),
+        _ => {}
     }
 }
 

@@ -11,8 +11,8 @@ use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
     Casters, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind, Lines, Loaded, Look, Mover,
     NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey, PathKind,
-    Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy, REFERENCE_HOUR,
-    Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun,
+    Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy, REFERENCE_HOUR, RIG_LOOK, RIG_OFFSET,
+    Recipe, Rig, RigFocus, RigShake, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun,
     TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use, Uv, Variant, VariantOutput, View,
     Volume,
 };
@@ -1931,8 +1931,14 @@ fn read_camera(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
             ("orthographic", Projection::Orthographic),
         ],
     )?;
-    let position = tab.req(cx, "position", V3)?;
-    let target = tab.req(cx, "target", V3)?;
+    let rig = read_rig(cx, &mut tab)?;
+    let (position, target) = match &rig {
+        Some(rig) => (
+            tab.or(cx, "position", rig.offset, V3)?,
+            tab.or(cx, "target", rig.look, V3)?,
+        ),
+        None => (tab.req(cx, "position", V3)?, tab.req(cx, "target", V3)?),
+    };
     let up = tab.or(cx, "up", [0.0, 1.0, 0.0], V3)?;
     let fov_y_deg = tab.opt(cx, "fov_y_deg", NUM)?;
     let focal_mm = tab.opt(cx, "focal_mm", NUM)?;
@@ -1957,7 +1963,63 @@ fn read_camera(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
         fstop,
         ortho_height,
         path,
+        rig,
     })
+}
+
+const U64: Rd<u64> = Rd("a whole number", as_u64);
+
+fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
+    let Some(mut sub) = tab.sub(cx, "rig")? else {
+        return Ok(None);
+    };
+    let follow = sub.req(cx, "follow", STR)?;
+    let offset = sub.or(cx, "offset", RIG_OFFSET, V3)?;
+    let look = sub.or(cx, "look", RIG_LOOK, V3)?;
+    let lag = sub.or(cx, "lag", 0.0, NUM)?;
+    let look_ahead = sub.or(cx, "look_ahead", 0.0, NUM)?;
+    let shake = match sub.sub(cx, "shake")? {
+        Some(mut shake) => {
+            let read = RigShake {
+                translation: shake.or(cx, "translation", 0.0, NUM)?,
+                roll: shake.or(cx, "roll", 0.0, NUM)?,
+                frequency: shake.or(cx, "frequency", 2.0, NUM)?,
+                seed: shake.opt(cx, "seed", U64)?,
+            };
+            shake.finish(cx)?;
+            Some(read)
+        }
+        None => None,
+    };
+    let path = sub.kpath("focus");
+    let focus = match sub.peek(cx, "focus") {
+        None => None,
+        Some(item) if item.as_str() == Some("follow") => Some(RigFocus::Follow),
+        Some(item) => match item
+            .as_float()
+            .or_else(|| item.as_integer().map(|i| i as f64))
+        {
+            Some(metres) => Some(RigFocus::Distance(metres)),
+            None => {
+                return Err(bad_item(
+                    cx,
+                    &path,
+                    item,
+                    "\"follow\" or a distance in metres",
+                ));
+            }
+        },
+    };
+    sub.finish(cx)?;
+    Ok(Some(Rig {
+        follow,
+        offset,
+        look,
+        lag,
+        look_ahead,
+        shake,
+        focus,
+    }))
 }
 
 fn read_path(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<CameraPath>, Error> {

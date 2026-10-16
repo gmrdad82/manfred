@@ -463,6 +463,34 @@ target = [0.0, 0.0, -0.05]
 - Time runs from 0 to 1 over the clip whatever its length. An orbit's frames share the loop, frame `i` of `N` at `i / N`, so a whole number of turns loops without a repeated frame; keys end on their last key, frame `i` at `i / (N − 1)`.
 - `--set` reaches the path's values: `camera.main.path.turns=2`.
 
+### Camera rig
+
+A camera may instead carry a rig that chases an animated object over the `[timeline]`: `[camera.rig]` under its `[[camera]]`. The build bakes it into the GLB's top-level node `camera.<name>` (a glTF perspective camera looking down its local −Z, `aspectRatio` from `[timeline] size`, `znear` 0.05), keyed once a frame, which `pfx render --camera <name>` and Manfred's own shots at `--time` look through.
+
+```toml
+[[camera]]
+name = "chase"
+fov_y_deg = 38.0
+fstop = 2.8
+
+[camera.rig]
+follow = "hero"
+offset = [0.0, 1.1, -5.5]
+look = [0.0, 0.6, 0.0]
+lag = 0.25
+look_ahead = 0.3
+shake = { translation = 0.03, roll = 0.4, frequency = 2.5, seed = 9 }
+focus = "follow"
+```
+
+- `follow` (required) names the object the rig chases, one with a `[[follow]]` (an object that doesn't move is followed where it stands). Its frame has +Z forward and +Y up.
+- `offset` (`[0, 1.1, -5.5]`, behind and above) is where the camera wants to sit and `look` (`[0, 0.6, 0]`) the point it aims at, both in the followed object's frame, so the camera turns with it. They must differ.
+- `lag` (0, seconds) damps the camera's position toward the offset, so it trails on speed-ups and swings wide on turns; 0 holds it exactly at the offset. `look_ahead` (0, seconds) leads the aim by the object's velocity times that many seconds, eased in over a quarter second. Both are pfx's `rig::Follow`, stepped at the timeline's fixed step `1 / fps`.
+- `shake` is pfx's `fx::Shake` at full trauma: `translation` (0, metres, across the frame's right and up), `roll` (0, degrees, below 90), `frequency` (2, hertz, above 0) and `seed` (the timeline's seed). The same seed gives the same shake.
+- `focus` sets depth of field and needs the camera's `fstop` above 0: `"follow"` keeps the focus on the aim point, written into the scene's `[camera]` as `focus_keys = [[t, metres], ...]` one key a frame; a number is a fixed focus distance in metres, written as `focus`.
+- The camera's `position` and `target` are optional with a rig (they default to `offset` and `look`) and serve only where there is no timeline. A rig is for a perspective camera, and a camera takes `path` or `rig`, not both.
+- `--set` and variants reach every key: `camera.chase.rig.lag=0.4`, `camera.chase.rig.shake.seed=3`, `camera.chase.rig.offset=[0, 1.4, -7]`. `--set` keeps a value's kind, so it changes a numeric `focus` but can't turn `"follow"` into a number; a variant or the file can.
+
 ```toml
 [sun]
 model = "authored"

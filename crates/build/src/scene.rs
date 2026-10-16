@@ -4,7 +4,7 @@ use glam::{DMat4, DVec3};
 use manfred_recipe::toml_edit::{DocumentMut, Item, Value};
 use manfred_recipe::{
     CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, Casters, Kind, LightKind, MONO, Object, Projection,
-    Recipe, Room, SCENE_SUFFIX, Shadow, SkyAmbient, SkyKind, TextSpace, Trace, View,
+    Recipe, RigFocus, Room, SCENE_SUFFIX, Shadow, SkyAmbient, SkyKind, TextSpace, Trace, View,
 };
 use pfx_core::daylight::{Authored, Daylight};
 use pfx_load::{RoomLamp, RoomSky, Sky};
@@ -749,7 +749,14 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
                 s.num("focal", focal)?;
                 s.num("sensor", 2.0 * focal * tan_y)?;
                 s.num("fstop", camera.fstop)?;
-                if let Some(focus) = camera.focus_m {
+                let fixed = match camera.rig.as_ref().and_then(|rig| rig.focus) {
+                    Some(RigFocus::Distance(metres)) => Some(metres),
+                    _ => camera.focus_m,
+                };
+                if let Some(keys) = focus_keys(recipe, built, camera) {
+                    s.put("focus_keys", &keys?);
+                }
+                if let Some(focus) = fixed {
                     if focus <= focal / 1000.0 {
                         return Err(Error::new(
                             format!("{}.focus_m", s.at),
@@ -773,6 +780,24 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
         s.list("shift", &camera.shift)?;
     }
     Ok(())
+}
+
+fn focus_keys(recipe: &Recipe, built: &Built, camera: &Camera) -> Option<Result<String, Error>> {
+    let node = format!("camera.{}", camera.name);
+    let focus = built
+        .tracks
+        .iter()
+        .find(|t| t.node == node)?
+        .focus
+        .as_ref()?;
+    let fps = f64::from(recipe.timeline.map_or(1, |t| t.fps).max(1));
+    let at = format!("camera[{}].rig.focus", camera.name);
+    let keys: Result<Vec<String>, Error> = focus
+        .iter()
+        .enumerate()
+        .map(|(n, metres)| list(&[n as f64 / fps, *metres], &at))
+        .collect();
+    Some(keys.map(|keys| format!("[{}]", keys.join(", "))))
 }
 
 fn haze(out: &mut String, recipe: &Recipe) -> Result<(), Error> {

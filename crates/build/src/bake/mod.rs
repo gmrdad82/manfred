@@ -9,8 +9,9 @@ use std::fmt::Write;
 use std::path::{Component, Path, PathBuf};
 
 pub(crate) mod follow;
+pub(crate) mod rig;
 
-pub(crate) const BAKERS: &[(&str, crate::Baker)] = &[("follow", follow::bake)];
+pub(crate) const BAKERS: &[(&str, crate::Baker)] = &[("follow", follow::bake), ("rig", rig::bake)];
 
 pub(crate) const ANIMATES: &[crate::Animates] = &[follow::animates];
 

@@ -178,6 +178,7 @@ pub fn shot(scene: &Scene) -> Shot {
         fstop: 0.0,
         ortho_height: height,
         path: None,
+        rig: None,
     }
 }
 

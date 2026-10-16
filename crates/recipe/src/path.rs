@@ -164,6 +164,7 @@ mod tests {
             fstop: 0.0,
             ortho_height: None,
             path,
+            rig: None,
         }
     }
 

@@ -414,6 +414,35 @@ pub struct Camera {
     pub fstop: f64,
     pub ortho_height: Option<f64>,
     pub path: Option<CameraPath>,
+    pub rig: Option<Rig>,
+}
+
+pub const RIG_OFFSET: [f64; 3] = [0.0, 1.1, -5.5];
+pub const RIG_LOOK: [f64; 3] = [0.0, 0.6, 0.0];
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Rig {
+    pub follow: String,
+    pub offset: [f64; 3],
+    pub look: [f64; 3],
+    pub lag: f64,
+    pub look_ahead: f64,
+    pub shake: Option<RigShake>,
+    pub focus: Option<RigFocus>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RigShake {
+    pub translation: f64,
+    pub roll: f64,
+    pub frequency: f64,
+    pub seed: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum RigFocus {
+    Follow,
+    Distance(f64),
 }
 
 #[derive(Clone, Debug, PartialEq)]
