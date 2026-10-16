@@ -43,6 +43,7 @@ enum Beat {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Tape {
     beats: Vec<Beat>,
+    lines: Vec<usize>,
 }
 
 fn seconds(number: usize, text: &str) -> Result<f32, Error> {
@@ -69,7 +70,7 @@ impl Tape {
                 .split_once(char::is_whitespace)
                 .unwrap_or((trimmed, ""));
             if command == "wait" {
-                order.push(Some(seconds(number, rest.trim())?));
+                order.push((number, Some(seconds(number, rest.trim())?)));
                 script.push('\n');
                 continue;
             }
@@ -78,14 +79,15 @@ impl Tape {
                     "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame and wait"
                 )));
             }
-            order.push(None);
+            order.push((number, None));
             script.push_str(line);
             script.push('\n');
         }
         let mut steps = Script::parse(&script)?.steps.into_iter();
+        let lines = order.iter().map(|(number, _)| *number).collect();
         let beats = order
             .into_iter()
-            .map(|wait| match wait {
+            .map(|(_, wait)| match wait {
                 Some(seconds) => Ok(Beat::Wait(seconds)),
                 None => steps
                     .next()
@@ -93,12 +95,74 @@ impl Tape {
                     .ok_or_else(|| Error("the tape lost a step".into())),
             })
             .collect::<Result<_, _>>()?;
-        Ok(Tape { beats })
+        Ok(Tape { beats, lines })
     }
+
+    pub fn line(&self, step: usize) -> Option<usize> {
+        self.lines.get(step).copied()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Layout {
+    pub size: [u32; 2],
+    pub scale: f32,
+    pub window: Option<[u32; 2]>,
+}
+
+impl Layout {
+    pub fn plain(size: [u32; 2]) -> Layout {
+        Layout {
+            size,
+            scale: 1.0,
+            window: None,
+        }
+    }
+
+    pub fn points(&self) -> [f32; 2] {
+        match self.window {
+            Some(window) => window.map(|side| side as f32),
+            None => self.size.map(|side| side as f32 / self.scale),
+        }
+    }
+
+    pub fn pixels_per_point(&self) -> f32 {
+        match self.window {
+            Some(window) => self
+                .scale
+                .min(self.size[0] as f32 / window[0] as f32)
+                .min(self.size[1] as f32 / window[1] as f32),
+            None => self.scale,
+        }
+    }
+
+    pub fn drawn(&self) -> [u32; 2] {
+        let ppp = self.pixels_per_point();
+        let points = self.points();
+        [0, 1].map(|axis| ((points[axis] * ppp).round() as u32).clamp(1, self.size[axis]))
+    }
+}
+
+fn centred(size: [u32; 2], drawn: [u32; 2], ground: Color32, rgba: Vec<u8>) -> Vec<u8> {
+    if drawn == size {
+        return rgba;
+    }
+    let mut frame = ground
+        .to_array()
+        .repeat(size[0] as usize * size[1] as usize);
+    let left = ((size[0] - drawn[0]) / 2) as usize;
+    let top = ((size[1] - drawn[1]) / 2) as usize;
+    let row = drawn[0] as usize * 4;
+    for (y, line) in rgba.chunks_exact(row).enumerate() {
+        let start = ((top + y) * size[0] as usize + left) * 4;
+        frame[start..start + row].copy_from_slice(line);
+    }
+    frame
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Frame {
+    step: Option<usize>,
     events: Vec<Event>,
     modifiers: Modifiers,
     pointer: Option<Pos2>,
@@ -136,6 +200,7 @@ struct Plan {
     pointer: Option<Pos2>,
     down: Option<PointerButton>,
     held: Modifiers,
+    step: Option<usize>,
 }
 
 impl Plan {
@@ -148,6 +213,7 @@ impl Plan {
             return;
         }
         self.frames.push(Frame {
+            step: self.step,
             events,
             modifiers,
             pointer: self.pointer,
@@ -274,19 +340,21 @@ impl Plan {
     }
 }
 
-fn plan(tape: &Tape, fps: u32, size: [u32; 2]) -> Result<Vec<Frame>, Error> {
+fn plan(tape: &Tape, fps: u32, points: [f32; 2]) -> Result<Vec<Frame>, Error> {
     if fps == 0 {
         return Err(Error("a clip has at least one frame a second".into()));
     }
     let mut plan = Plan {
         fps: fps as f32,
-        home: Pos2::new(size[0] as f32 / 2.0, size[1] as f32 / 2.0),
+        home: Pos2::new(points[0] / 2.0, points[1] / 2.0),
         frames: vec![Frame::default()],
         pointer: None,
         down: None,
         held: Modifiers::NONE,
+        step: None,
     };
-    for beat in &tape.beats {
+    for (index, beat) in tape.beats.iter().enumerate() {
+        plan.step = Some(index);
         match beat {
             Beat::Step(step) => plan.step(step),
             Beat::Wait(seconds) => {
@@ -304,8 +372,8 @@ fn plan(tape: &Tape, fps: u32, size: [u32; 2]) -> Result<Vec<Frame>, Error> {
     Ok(plan.frames)
 }
 
-pub fn frames(tape: &Tape, fps: u32, size: [u32; 2]) -> Result<usize, Error> {
-    plan(tape, fps, size).map(|frames| frames.len())
+pub fn steps(tape: &Tape, fps: u32, points: [f32; 2]) -> Result<Vec<Option<usize>>, Error> {
+    plan(tape, fps, points).map(|frames| frames.iter().map(|frame| frame.step).collect())
 }
 
 fn pointer(ctx: &Context, at: Pos2, down: bool) {
@@ -363,7 +431,7 @@ struct Player<'p, 'a> {
     painter: Painter,
     target: pfx_gpu::OffscreenTarget,
     theme: Theme,
-    size: [u32; 2],
+    layout: Layout,
     fps: u32,
     textures: TexturesDelta,
     watching: Watching,
@@ -375,7 +443,7 @@ impl Player<'_, '_> {
         let mut input = RawInput {
             screen_rect: Some(Rect::from_min_size(
                 Pos2::ZERO,
-                Vec2::new(self.size[0] as f32, self.size[1] as f32),
+                Vec2::from(self.layout.points()),
             )),
             max_texture_side: Some(MAX_SIDE as usize),
             time: Some(time),
@@ -389,7 +457,7 @@ impl Player<'_, '_> {
         input.viewports.insert(
             ViewportId::ROOT,
             ViewportInfo {
-                native_pixels_per_point: Some(1.0),
+                native_pixels_per_point: Some(self.layout.pixels_per_point()),
                 focused: Some(true),
                 ..ViewportInfo::default()
             },
@@ -477,7 +545,7 @@ impl Player<'_, '_> {
     fn paint(&mut self, output: FullOutput) -> Result<Vec<u8>, Error> {
         let primitives = self.ctx.tessellate(output.shapes, output.pixels_per_point);
         let screen = ScreenDescriptor {
-            size_in_pixels: self.size,
+            size_in_pixels: self.layout.drawn(),
             pixels_per_point: output.pixels_per_point,
         };
         let mut textures = std::mem::take(&mut self.textures);
@@ -487,6 +555,7 @@ impl Player<'_, '_> {
             target,
             theme,
             turns,
+            layout,
             ..
         } = self;
         let rgba = turns.time(|| {
@@ -494,7 +563,9 @@ impl Player<'_, '_> {
             gpu.readback_rgba8(target)
         });
         textures.clear();
-        rgba.map_err(Error)
+        let ground = theme.bg;
+        rgba.map(|rgba| centred(layout.size, layout.drawn(), ground, rgba))
+            .map_err(Error)
     }
 }
 
@@ -507,20 +578,22 @@ impl Drop for Player<'_, '_> {
 pub fn play(
     app: &mut Manfred<'_>,
     tape: &Tape,
-    size: [u32; 2],
+    layout: Layout,
     fps: u32,
     mut sink: impl FnMut(usize, &[u8]) -> Result<(), String>,
 ) -> Result<usize, Error> {
     let mut turns = Turns::default();
     turns.turn();
-    check(size)?;
-    let frames = plan(tape, fps, size)?;
+    check(layout.size)?;
+    check(layout.drawn())?;
+    let frames = plan(tape, fps, layout.points())?;
     let theme = app.theme();
     let gpu = block_on(Gpu::headless()).map_err(Error)?;
     turns.turn();
     let format = wgpu::TextureFormat::Rgba8UnormSrgb;
     let painter = Painter::new(&gpu, format, RendererOptions::PREDICTABLE);
-    let target = gpu.offscreen(size[0], size[1], format).map_err(Error)?;
+    let drawn = layout.drawn();
+    let target = gpu.offscreen(drawn[0], drawn[1], format).map_err(Error)?;
     turns.turn();
     let ctx = context(&theme);
     app.steady();
@@ -534,7 +607,7 @@ pub fn play(
         painter,
         target,
         theme,
-        size,
+        layout,
         fps,
         textures: TexturesDelta::default(),
         watching,
@@ -551,6 +624,14 @@ pub fn play(
 }
 
 pub fn poster_png(size: [u32; 2], rgba: &[u8]) -> Result<Vec<u8>, Error> {
+    rgb_png(size, rgba, png::Compression::Balanced)
+}
+
+pub fn frame_png(size: [u32; 2], rgba: &[u8]) -> Result<Vec<u8>, Error> {
+    rgb_png(size, rgba, png::Compression::Fast)
+}
+
+fn rgb_png(size: [u32; 2], rgba: &[u8], compression: png::Compression) -> Result<Vec<u8>, Error> {
     let rgb: Vec<u8> = rgba
         .chunks_exact(4)
         .flat_map(|pixel| [pixel[0], pixel[1], pixel[2]])
@@ -559,6 +640,7 @@ pub fn poster_png(size: [u32; 2], rgba: &[u8]) -> Result<Vec<u8>, Error> {
     let mut encoder = png::Encoder::new(&mut bytes, size[0], size[1]);
     encoder.set_color(png::ColorType::Rgb);
     encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_compression(compression);
     encoder.set_source_srgb(png::SrgbRenderingIntent::Perceptual);
     let mut writer = encoder
         .write_header()
@@ -622,7 +704,7 @@ mod tests {
     #[test]
     fn the_plan_is_the_tape_in_frames_at_the_clips_rate() {
         let tape = Tape::parse("wait 1\nclick 100 100\nwait 0.5\ntext ab\nkey Enter\n").unwrap();
-        let frames = plan(&tape, 30, [200, 100]).unwrap();
+        let frames = plan(&tape, 30, [200.0, 100.0]).unwrap();
         let glide = (Pos2::new(100.0, 50.0).distance(Pos2::new(100.0, 100.0)) / GLIDE_SPEED)
             .clamp(GLIDE_SHORTEST, GLIDE_LONGEST);
         let glide = (glide * 30.0).round() as usize;
@@ -632,17 +714,50 @@ mod tests {
         assert!(frames[pressed].down);
         assert!(!frames[pressed + 1].down);
         let second = Tape::parse("wait 1\n").unwrap();
-        assert_eq!(plan(&second, 60, [200, 100]).unwrap().len(), 61);
+        assert_eq!(plan(&second, 60, [200.0, 100.0]).unwrap().len(), 61);
     }
 
     #[test]
     fn a_drag_holds_the_button_and_its_modifiers_until_it_lets_go() {
         let tape = Tape::parse("drag 10 10 310 10 shift\nmove 10 10\n").unwrap();
-        let frames = plan(&tape, 30, [400, 200]).unwrap();
+        let frames = plan(&tape, 30, [400.0, 200.0]).unwrap();
         let held: Vec<&Frame> = frames.iter().filter(|frame| frame.down).collect();
         assert!(held.len() > 2);
         assert!(held.iter().all(|frame| frame.modifiers.shift));
         assert_eq!(frames.last().unwrap().modifiers, Modifiers::NONE);
         assert!(!frames.last().unwrap().down);
+    }
+
+    #[test]
+    fn each_frame_knows_its_tape_step_and_a_framed_window_fits_the_frame() {
+        let tape = Tape::parse("# wait\nwait 0.1\n\nframe\n").unwrap();
+        assert_eq!(
+            steps(&tape, 30, [200.0, 100.0]).unwrap(),
+            [None, Some(0), Some(0), Some(0), Some(1)]
+        );
+        assert_eq!(
+            (tape.line(0), tape.line(1), tape.line(2)),
+            (Some(2), Some(4), None)
+        );
+        let tall = Layout {
+            size: [2160, 3840],
+            scale: 2.0,
+            window: None,
+        };
+        assert_eq!(
+            (tall.points(), tall.drawn()),
+            ([1080.0, 1920.0], [2160, 3840])
+        );
+        let framed = Layout {
+            window: Some([1586, 992]),
+            ..tall
+        };
+        assert_eq!(framed.points(), [1586.0, 992.0]);
+        assert_eq!(framed.drawn(), [2160, 1351]);
+        let ground = Color32::from_rgb(1, 2, 3);
+        let frame = centred([4, 3], [2, 1], ground, vec![9; 8]);
+        assert_eq!(&frame[..4], &[1, 2, 3, 255]);
+        assert_eq!(&frame[20..28], &[9; 8]);
+        assert_eq!(&frame[28..32], &[1, 2, 3, 255]);
     }
 }

@@ -70,6 +70,17 @@ It writes three files into `clips/`, each named `<tape>-<W>x<H>-<fps>fps`: an x2
 - **It plays on a copy:** the recipe's folder is copied into the clip folder and played there, so the tape's edits never reach your files, and the copy is removed at the end.
 - **It is deterministic:** between frames it waits for every build, pick and render the window started, so the same tape gives the same master byte for byte.
 
+### Frames, scale and a framed window
+
+- `--frames` writes PNG frames instead of the master: `clips/<tape>-<W>x<H>-<fps>fps/frame-00000.png` on, and the `.json` manifest beside the folder, with each frame's tape step and line. It needs no `ffmpeg`, takes no `--poster`, and the same tape gives the same PNG bytes.
+- `--scale <factor>` lays the window out at that many pixels a point, from 1 to 4: `--size 2160x3840 --scale 2` reads like the window at 1080x1920, text, panels and the pointer twice as large. The tape's coordinates stay in points.
+- `--framed` lays the window out at `--window` (1586x992 points by default) and centres it in the `--size` frame on the editor's ground, so a 9:16 film shows the real landscape window. The window is drawn at `--scale`, or at the largest scale that fits the frame when that one doesn't: with `--size 2160x3840 --scale 2` it is drawn 2160x1351, at 1.36 pixels a point, sharp, never scaled down after drawing.
+- `--json` writes one JSON line a frame on stderr, `{"stage":"frame","frame":n,"done":n+1,"total":N}`, and one line on stdout at the end, `{"stage":"done","kind":…,"frames":N,"seconds":…,"manifest":…,"files":[…]}`, with the folder (or the master and poster) and the manifest. A refusal stays one line on stderr, `manfred gui --clip: …`, exit 1.
+
+```sh
+manfred gui showcase/workshop.toml --clip film --tape tweak.tape --frames --size 2160x3840 --scale 2 --framed --fps 60 --json
+```
+
 To make a GIF of it, [pconv](https://docs.pitomd.com/pconv/) converts the master:
 
 ```sh

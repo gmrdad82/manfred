@@ -29,7 +29,7 @@ pub use follow::{Follow, Mode};
 pub use pfx_editor_shell::{Error, Pulse, Script, shot, window};
 pub use shell::Shell;
 pub use start::{start_recipe, start_recipe_here};
-pub use tape::{MAX_FRAMES, Tape, frames as tape_frames, play, poster_png};
+pub use tape::{Layout, MAX_FRAMES, Tape, frame_png, play, poster_png, steps as tape_steps};
 pub use viewer::Viewer;
 pub use watched::is_scene;
 

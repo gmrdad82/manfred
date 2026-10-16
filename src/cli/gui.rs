@@ -64,6 +64,41 @@ pub(super) struct Args {
     pub(super) poster: Option<super::tape::Poster>,
     #[arg(
         long,
+        requires = "clip",
+        conflicts_with = "poster",
+        help = "Write a clip as PNG frames in <dir>/<stem>/ instead of an x264 master; no ffmpeg needed"
+    )]
+    pub(super) frames: bool,
+    #[arg(
+        long,
+        value_name = "factor",
+        requires = "clip",
+        value_parser = super::tape::scale,
+        help = "A clip's pixels per point, from 1 to 4: --size 2160x3840 --scale 2 lays the window out at 1080x1920 [default: 1]"
+    )]
+    pub(super) scale: Option<f32>,
+    #[arg(
+        long,
+        requires = "clip",
+        help = "Lay a clip's window out at --window and centre it in the --size frame on the editor's ground, fitted to the frame"
+    )]
+    pub(super) framed: bool,
+    #[arg(
+        long,
+        value_name = "WxH",
+        requires = "framed",
+        value_parser = size,
+        help = "A framed clip's window in points [default: 1586x992]"
+    )]
+    pub(super) window: Option<[u32; 2]>,
+    #[arg(
+        long,
+        requires = "clip",
+        help = "A clip's progress as JSON lines on stderr and one JSON line of the files written on stdout"
+    )]
+    pub(super) json: bool,
+    #[arg(
+        long,
         value_name = "WxH",
         requires = "offscreen",
         value_parser = size,
