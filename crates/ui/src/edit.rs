@@ -160,10 +160,9 @@ impl Editor {
             .clone()
             .or_else(|| self.path.parent().map(PathBuf::from))
             .unwrap_or_default();
-        let generated = recipe
-            .objects
-            .iter()
-            .any(|o| o.id.is_none() && matches!(o.kind, Kind::Generator { .. }));
+        let generated = recipe.objects.iter().any(|o| {
+            o.id.is_none() && matches!(o.kind, Kind::Generator { .. } | Kind::Library { .. })
+        });
         let built = if generated {
             let registry = self.registry.clone().unwrap_or_default();
             build_with(recipe, &base, &registry).ok()

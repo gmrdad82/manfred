@@ -255,6 +255,91 @@ fn join(
     }
 }
 
+pub(crate) struct Source<'a> {
+    pub object: &'a Object,
+    pub path: &'a str,
+    pub folder: &'a Path,
+    pub buffers: &'a [gltf::buffer::Data],
+}
+
+pub(crate) fn read_mesh(
+    source: &Source,
+    m: &gltf::Mesh,
+    matrix: DMat4,
+    out: &mut Mesh,
+    morph: &mut Morph,
+    looks: &mut manfred_glb::Looks,
+) -> Result<(), Error> {
+    let Source {
+        object,
+        path,
+        folder,
+        buffers,
+    } = *source;
+    let names = target_names(m);
+    for primitive in m.primitives() {
+        if primitive.mode() != gltf::mesh::Mode::Triangles {
+            continue;
+        }
+        let reader = primitive.reader(|b| buffers.get(b.index()).map(|d| &d.0[..]));
+        let Some(positions) = reader.read_positions() else {
+            continue;
+        };
+        let positions: Vec<[f32; 3]> = positions.collect();
+        let count = positions.len();
+        let indices: Vec<u32> = match reader.read_indices() {
+            Some(i) => i
+                .into_u32()
+                .collect::<Vec<u32>>()
+                .chunks_exact(3)
+                .filter(|t| t.iter().all(|&v| (v as usize) < count))
+                .flatten()
+                .copied()
+                .collect(),
+            None => (0..count as u32).collect(),
+        };
+        if indices.is_empty() {
+            continue;
+        }
+        let uvs = reader
+            .read_tex_coords(0)
+            .map(|t| t.into_f32().collect::<Vec<[f32; 2]>>())
+            .filter(|uvs| uvs.len() == count);
+        let targets: Vec<Vec<[f32; 3]>> = reader
+            .read_morph_targets()
+            .map(|(deltas, _, _)| {
+                deltas
+                    .map(|d| d.collect::<Vec<[f32; 3]>>())
+                    .filter(|d| d.len() == count)
+                    .unwrap_or_else(|| vec![[0.0; 3]; count])
+            })
+            .collect();
+        let mut part = Mesh {
+            normals: vec![[0.0; 3]; positions.len()],
+            positions,
+            uvs,
+            uvs1: None,
+            indices,
+            slots: Vec::new(),
+        };
+        let material = primitive.material();
+        let name = material.name().unwrap_or("");
+        if material.index().is_some() && !looks.contains_key(name) {
+            let look = maps::look(&material, buffers, folder)
+                .map_err(|e| fail(object, "path", format!("{path}: material `{name}`: {e}")))?;
+            looks.insert(name.to_string(), look);
+        }
+        part.set_material(name);
+        mesh::transform(&mut part, matrix);
+        let before = out.positions.len();
+        out.append(&part);
+        if !targets.is_empty() || !morph.is_empty() {
+            join(morph, &names, m.weights(), targets, matrix, before, count);
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn imported(
     object: &Object,
     base: &Path,
@@ -303,76 +388,13 @@ pub(crate) fn imported(
         };
         if chosen && let Some(m) = n.mesh() {
             found = true;
-            let names = target_names(&m);
-            for primitive in m.primitives() {
-                if primitive.mode() != gltf::mesh::Mode::Triangles {
-                    continue;
-                }
-                let reader = primitive.reader(|b| buffers.get(b.index()).map(|d| &d.0[..]));
-                let Some(positions) = reader.read_positions() else {
-                    continue;
-                };
-                let positions: Vec<[f32; 3]> = positions.collect();
-                let count = positions.len();
-                let indices: Vec<u32> = match reader.read_indices() {
-                    Some(i) => i
-                        .into_u32()
-                        .collect::<Vec<u32>>()
-                        .chunks_exact(3)
-                        .filter(|t| t.iter().all(|&v| (v as usize) < count))
-                        .flatten()
-                        .copied()
-                        .collect(),
-                    None => (0..count as u32).collect(),
-                };
-                if indices.is_empty() {
-                    continue;
-                }
-                let uvs = reader
-                    .read_tex_coords(0)
-                    .map(|t| t.into_f32().collect::<Vec<[f32; 2]>>())
-                    .filter(|uvs| uvs.len() == count);
-                let targets: Vec<Vec<[f32; 3]>> = reader
-                    .read_morph_targets()
-                    .map(|(deltas, _, _)| {
-                        deltas
-                            .map(|d| d.collect::<Vec<[f32; 3]>>())
-                            .filter(|d| d.len() == count)
-                            .unwrap_or_else(|| vec![[0.0; 3]; count])
-                    })
-                    .collect();
-                let mut part = Mesh {
-                    normals: vec![[0.0; 3]; positions.len()],
-                    positions,
-                    uvs,
-                    uvs1: None,
-                    indices,
-                    slots: Vec::new(),
-                };
-                let material = primitive.material();
-                let name = material.name().unwrap_or("");
-                if material.index().is_some() && !looks.contains_key(name) {
-                    let look = maps::look(&material, &buffers, folder).map_err(|e| {
-                        fail(object, "path", format!("{path}: material `{name}`: {e}"))
-                    })?;
-                    looks.insert(name.to_string(), look);
-                }
-                part.set_material(name);
-                mesh::transform(&mut part, matrix);
-                let before = out.positions.len();
-                out.append(&part);
-                if !targets.is_empty() || !morph.is_empty() {
-                    join(
-                        &mut morph,
-                        &names,
-                        m.weights(),
-                        targets,
-                        matrix,
-                        before,
-                        count,
-                    );
-                }
-            }
+            let source = Source {
+                object,
+                path,
+                folder,
+                buffers: &buffers,
+            };
+            read_mesh(&source, &m, matrix, &mut out, &mut morph, &mut looks)?;
         }
         for child in n.children().collect::<Vec<_>>().into_iter().rev() {
             stack.push((child, matrix, chosen));
@@ -552,6 +574,13 @@ pub(crate) fn local(object: &Object, pockets: &[&Object], base: &Path) -> Result
                 ),
             ));
         }
+        Kind::Library { object: name, .. } => {
+            return Err(fail(
+                object,
+                "object",
+                format!("`{name}` is a library object, imported with its own pieces"),
+            ));
+        }
         Kind::Card { size, .. } => card(*size),
         Kind::Text { .. } => Mesh::default(),
     })
@@ -656,7 +685,7 @@ fn cylinder_slots(m: &mut Mesh, names: &[String]) {
 }
 
 fn generated(object: &Object) -> bool {
-    matches!(object.kind, Kind::Generator { .. })
+    matches!(object.kind, Kind::Generator { .. } | Kind::Library { .. })
 }
 
 pub(crate) fn materials(object: &Object, m: &mut Mesh) -> Result<(), Error> {

@@ -13,6 +13,7 @@ pub mod detail_uv;
 mod extras;
 mod facts;
 mod holes;
+pub mod library;
 mod lod;
 mod maps;
 mod normal_map;
@@ -251,6 +252,8 @@ pub struct Built {
     pub timeline: Option<Timeline>,
     pub tracks: Vec<Track>,
     facts_by_object: serde_json::Map<String, serde_json::Value>,
+    trees: BTreeMap<String, library::Tree>,
+    clips: Vec<(String, Vec<manfred_motion::Trs>)>,
     pub lights: Vec<GeneratedLight>,
     pub looks: Arc<Looks>,
     pub lods: Vec<Lod>,
@@ -629,6 +632,7 @@ pub fn missing_materials(
         .collect();
     let generated = recipe.objects.iter().any(|object| {
         matches!(&object.kind, Kind::Generator { generator, .. } if registry.generators.contains_key(generator))
+            || matches!(object.kind, Kind::Library { .. })
     });
     if generated && let Ok(built) = build_with(recipe, base, registry) {
         defined.extend(built.materials.keys().cloned());
@@ -643,7 +647,13 @@ pub fn missing_materials(
             None if !object.materials.is_empty() => {
                 object.materials.iter().map(String::as_str).collect()
             }
-            None if matches!(object.kind, Kind::Mesh { .. } | Kind::Generator { .. }) => continue,
+            None if matches!(
+                object.kind,
+                Kind::Mesh { .. } | Kind::Generator { .. } | Kind::Library { .. }
+            ) =>
+            {
+                continue;
+            }
             None => vec!["default"],
         };
         let mut seen: Vec<&str> = Vec::new();
@@ -793,6 +803,8 @@ struct Made {
     materials: BTreeMap<String, serde_json::Value>,
     lights: Vec<GeneratedLight>,
     looks: Looks,
+    tree: Option<library::Tree>,
+    clips: Vec<(String, Vec<manfred_motion::Trs>)>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -825,7 +837,7 @@ fn key(
 ) -> Option<String> {
     let object = &recipe.objects[index];
     let entry = match &object.kind {
-        Kind::Mesh { .. } => return None,
+        Kind::Mesh { .. } | Kind::Library { .. } => return None,
         Kind::Generator { generator, .. } => Some((
             registry.generators.get(generator),
             seed(recipe.seed, index),
@@ -864,16 +876,25 @@ fn make(
     taken: impl FnOnce(Vec<&str>, &Made) -> Result<(), Error>,
 ) -> Result<Made, Error> {
     let object = &recipe.objects[index];
-    let mut morph: Option<Morph> = None;
+    let mut morphs: Vec<Option<Morph>> = Vec::new();
     let mut looks = Looks::new();
+    let mut tree = None;
+    let mut clips = Vec::new();
     let generated = if matches!(object.kind, Kind::Generator { .. }) {
         generate(recipe, index, base, registry, routes)?
+    } else if matches!(object.kind, Kind::Library { .. }) {
+        let imported = library::import(recipe, object, base)?;
+        looks = imported.looks;
+        morphs = imported.morphs;
+        tree = Some(imported.tree);
+        clips = imported.clips;
+        imported.generated
     } else {
         let mesh = match &object.kind {
             Kind::Mesh { path, node, .. } => {
                 let (mesh, mut found, kept) = shape::imported(object, base, path, node.as_deref())?;
                 shape::weights(object, &mut found)?;
-                morph = (!found.is_empty()).then_some(found);
+                morphs = vec![(!found.is_empty()).then_some(found)];
                 looks = kept;
                 mesh
             }
@@ -900,18 +921,37 @@ fn make(
         materials,
         lights: Vec::new(),
         looks,
+        tree,
+        clips: Vec::new(),
     };
     taken(
         pieces.iter().map(|piece| piece.name.as_str()).collect(),
         &made,
     )?;
     let matrix = matrix?;
+    let inverse = matrix.inverse();
+    made.clips = clips
+        .into_iter()
+        .map(|(name, deltas)| {
+            let keys = deltas
+                .into_iter()
+                .map(|d| {
+                    if object.keep_transform {
+                        trs_from_matrix(matrix * d)
+                    } else {
+                        trs_from_matrix(matrix * d * inverse)
+                    }
+                })
+                .collect();
+            (name, keys)
+        })
+        .collect();
     made.lights = lights
         .into_iter()
         .map(|light| placed(light, matrix, object.keep_transform))
         .collect();
-    for Piece { name, mut mesh } in pieces {
-        let mut morph = morph.take();
+    for (at, Piece { name, mut mesh }) in pieces.into_iter().enumerate() {
+        let mut morph = morphs.get_mut(at).and_then(Option::take);
         let follow = |morph: &mut Option<Morph>, sources: Option<Vec<u32>>| {
             if let (Some(morph), Some(sources)) = (morph.as_mut(), sources) {
                 morph.remap(&sources);
@@ -1001,6 +1041,8 @@ fn assemble(
     let mut lights = Vec::new();
     let mut imported = Looks::new();
     let mut lods = Vec::new();
+    let mut trees = BTreeMap::new();
+    let mut clips = Vec::new();
     for (index, object) in recipe.objects.iter().enumerate() {
         if matches!(object.kind, Kind::Pocket { .. }) {
             continue;
@@ -1011,7 +1053,7 @@ fn assemble(
         let matrix = world(recipe, index);
         let key = key(recipe, index, base, registry, cuts, &matrix);
         let mut take = |names: Vec<&str>, made: &Made| -> Result<(), Error> {
-            if matches!(object.kind, Kind::Generator { .. }) {
+            if matches!(object.kind, Kind::Generator { .. } | Kind::Library { .. }) {
                 for name in names {
                     claim(&mut claimed, &names_of, object, name)?;
                 }
@@ -1048,6 +1090,12 @@ fn assemble(
         }
         if !object.hidden {
             lights.extend(made.lights);
+        }
+        if let Some(tree) = made.tree {
+            trees.insert(object.name.clone(), tree);
+        }
+        if !object.hidden {
+            clips.extend(made.clips);
         }
         for (name, look) in made.looks {
             imported.entry(name).or_insert(look);
@@ -1124,6 +1172,8 @@ fn assemble(
         timeline: recipe.timeline,
         tracks: Vec::new(),
         facts_by_object: by_object,
+        trees,
+        clips,
         parts,
         order: glb_order(recipe.output.order),
         sidecar,

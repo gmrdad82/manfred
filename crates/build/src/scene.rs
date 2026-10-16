@@ -1622,7 +1622,7 @@ fn bases(
             .filter(|(_, (owner, _))| *owner == index)
             .min_by_key(|(_, (_, ordinal))| *ordinal)
             .map(|(name, (_, ordinal))| ((*name).to_string(), *ordinal));
-        let generator = matches!(object.kind, Kind::Generator { .. });
+        let generator = matches!(object.kind, Kind::Generator { .. } | Kind::Library { .. });
         let (name, ordinal) = match first {
             Some(first) => first,
             None if generator && !built => continue,

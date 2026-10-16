@@ -1655,6 +1655,7 @@ dependencies = [
  "pfx-trace",
  "png",
  "serde_json",
+ "sha2",
  "toml 1.1.6+spec-1.1.0",
 ]
 

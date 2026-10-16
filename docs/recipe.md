@@ -39,6 +39,7 @@ scene_format = 1
 
 - `include`: other files whose cameras, lights, sky, look, materials, routes, particles, flare, motion blur, haze and objects merge into this recipe, under "Includes and uses" below.
 - `sound`: an optional `*.sound.toml` file, relative to the recipe, which the scene names as its top-level `sound` (format 1 only; see "Shot effects").
+- `library`: the object library's folder, relative to the recipe, for `kind = "library"` objects; see "Library" below.
 - `params`: an optional JSON or TOML file whose values can be substituted into numeric fields as `"${params.camera.focal_mm}"`. An app's own solver writes the file; the recipe consumes it.
 - `[plate]`: declares plate pixels, and fixes the `plate` UV projection. `camera` names the camera that projection looks through; without it, the first `[[camera]]`.
   - **Twins:** with a plate, these keys have a `_px` twin read in pixels: `at_px`, `size_px`, `rect_px`, `radius_px`, `circle_px`, `points_px`, and a mover's `pivot_px`, `travel_px`, `clip_px` and `clip2_px`. A key and its twin together are an error, and a twin without a `[plate]` is a problem.
@@ -813,6 +814,52 @@ A `[[stage]]` is one step of building the scene up, for a breakdown: `manfred bu
 - **What is dropped** goes as a variant's `drop` takes it, and with it what can't stand without it: an object whose `parent`, `on` or `into` is dropped, the `[[follow]]` of a dropped object (and so its tracks), a camera whose `rig` follows one, an `output.scene_camera` that names such a camera, and the `[[light]]` and `[[particles]]` parented to a dropped object or one of its pieces. The built recipe carries no `[[stage]]` or `[variant]` tables.
 - **`--only <glob>[,<glob>]`** builds only these objects or pieces, with the same rules, on `build`, `shot` and `render`; after `--stage` when both are given.
 - **Order:** the variant, then each `--set` (so `--set stage.<name>.objects=[...]` and a variant's `set` reach a stage), then `--stage`, then `--only`. In Rust: `manfred_recipe::apply_stage(&recipe, "3")`, `apply_only(&recipe, &globs)` and `Pick { stage, only }.apply(&recipe)`; `manfred_build::staged` and `manfred_build::only` are the same functions.
+
+## Library
+
+An object library is a folder of finished objects a recipe places by name, each a standard glTF 2.0 model with a small sidecar beside it. A recipe reads one with `kind = "library"`:
+
+```toml
+library = "library"
+
+[[object]]
+name = "hero"
+kind = "library"
+object = "car/sports"
+at = [0.0, 0.0, 4.0]
+```
+
+- **Where the library is:** the recipe's top-level `library = "<path>"`, relative to the recipe; without it, the nearest folder named `library` holding an `index.json`, from the recipe's folder up (the folder itself when it is called `library`, else its `library/`).
+- **The layout:** `library/<kind>/<name>/` holds `model.glb`, `object.toml` and an optional `thumb.png`, and `library/index.json` lists them. Kinds and names are lowercase letters, digits, `_` and `-`.
+- **`object`** (required) is `"<kind>/<name>"`. **`clip`** names the model's glTF animation the timeline plays, the first one when absent; **`loop`** (`true` by default) repeats it over the timeline, `false` holds its last pose. Every common key (`at`, `rotate`, `scale`, `material`, `hidden`, `shadow` and the rest) works as on any object; `material` replaces every slot.
+- **Pieces:** every node of the model with a mesh is a piece named `<object>.<node>`, in the object's own frame with the node's whole transform applied (the hierarchy and each node's translation, rotation and scale). The model's first root, when it is the only root or has a mesh, is `<object>.body`, so a car from the library has the same pieces as `manfred/car` builds (`hero.body`, `hero.wheel_rl`, …), and `[[follow]]`, lights and particles name them alike. Two nodes of one name get the second's index after a dot.
+- **Materials:** each glTF material becomes a material of its own name, offered as a generator's are (a recipe's own `[materials.<name>]` replaces it): `base` from `baseColorFactor`, `roughness`, `metalness`, `emission` (the emissive factor times `KHR_materials_emissive_strength`), `transmission` (`KHR_materials_transmission`), `ior` (`KHR_materials_ior`) and `clearcoat` and `clearcoat_roughness` (`KHR_materials_clearcoat`), with the family `emissive`, `glass`, `lacquer` or `metal` that follows from them. Embedded maps (base colour, metal-roughness, normal, occlusion) are kept as under "Texture maps".
+- **Morph targets** of a node's mesh are kept, with their names from the mesh's `extras.targetNames` and the file's default weights.
+- **Animations:** with a `[timeline]`, the chosen clip is sampled once a frame (LINEAR and STEP keys, a CUBICSPLINE key's value, rotations by slerp) through the hierarchy, and each piece it moves is keyed in the GLB's `timeline` animation like any animated node. A followed object is keyed by its `[[follow]]` alone. Morph weight channels are kept on export, not played.
+- **Facts:** the sidecar's `[facts]` are the object's facts, as a generator's are: `wheels = { fl = { centre, radius, axle }, … }` is what `[[follow]]` spins and steers each wheel about. A `wheel_<corner>` node missing from them takes its own node's origin as centre, half its height as radius and +X as axle. `lights = [{ name, node, position, direction, cone, range, color, intensity, shadow }]` become spot lights riding `<object>.<node>`, as a car's lights are.
+- **The sidecar,** `object.toml`:
+
+```toml
+[object]
+kind = "car"
+name = "sports"
+tags = ["vehicle", "hero"]
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+
+[source]
+generator = "manfred/car"
+manfred = "1.3.0"
+params = { style = "sports", paint = "#c8102e" }
+
+[facts]
+size = [2.04, 1.1, 4.4]
+wheels = { fl = { centre = [0.79, 0.34, 1.39], radius = 0.34, axle = [1.0, 0.0, 0.0] } }
+```
+
+  `[object]` needs `kind` and `name` (its folder's), `licence` and optionally `tags`; `[source]` needs `manfred`, the version that wrote it, and has the `generator` and `params` it came from; `[facts]` is free-form. Any other table or key is refused.
+- **The model:** glTF 2.0, metallic-roughness PBR, metres, +Y up, a named node hierarchy with real pivots: a car's root node `<name>` holds the body, with child nodes `glass`, `wheel_fl`, `wheel_fr`, `wheel_rl`, `wheel_rr` (each translated to its axle centre, its mesh centred on it), `headlights` and `taillights`. Only standard data: KHR extensions where used, `extras.targetNames` on a mesh with morph targets, animations only as glTF animations; none of Manfred's own extras (facts, ids, plates).
+- **`index.json`** is written by `manfred library index`: an array sorted by kind and name, each `{ kind, name, tags, size_m: [x, y, z], triangles, files: { model, sidecar, thumb }, sha256: { model, sidecar, thumb } }`, paths relative to the library, `thumb` only when there is one, the same bytes for the same folders.
+- **Exporting:** `manfred_build::library::export(recipe, built, object, "<kind>/<name>")` writes a built object (a generator's output included) as that model and sidecar: in the object's own frame (its `at`, `rotate`, `scale` and parent undone), a library object with its own hierarchy, transforms and animations, anything else as a root and one child a piece, each child's pivot its wheel's centre from the facts or its bounds' centre. The facts gain `size`, and `lights` for the lights the object returned.
 
 ## Variants, look and bake
 

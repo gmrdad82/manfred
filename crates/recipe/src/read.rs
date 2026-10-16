@@ -1324,6 +1324,7 @@ const KINDS: &[&str] = &[
     "sweep",
     "mesh",
     "generator",
+    "library",
     "card",
     "text",
 ];
@@ -1516,6 +1517,11 @@ fn read_kind(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Kind, Error> 
             };
             Kind::Generator { generator, params }
         }
+        "library" => Kind::Library {
+            object: tab.req(cx, "object", STR)?,
+            clip: tab.opt(cx, "clip", STR)?,
+            looped: tab.or(cx, "loop", true, BOOL)?,
+        },
         "card" => Kind::Card {
             size: size2_or_px(tab, cx)?,
             image: tab.opt(cx, "image", STR)?,
@@ -3148,6 +3154,7 @@ fn read_root(
         None => 0,
     };
     let params = root.opt(cx, "params", STR)?;
+    let library = root.opt(cx, "library", STR)?;
     cx.params = match (&params, base) {
         (None, _) => ParamsState::Absent,
         (Some(file), Some(base)) => {
@@ -3229,6 +3236,7 @@ fn read_root(
         name,
         seed,
         params,
+        library,
         plate,
         output,
         objects,
