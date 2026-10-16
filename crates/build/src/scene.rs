@@ -979,7 +979,8 @@ fn lights(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
         ));
     }
     let room = MAX_LIGHTS.saturating_sub(recipe.lights.len());
-    let generated: Vec<manfred_recipe::Light> = built.lights.iter().take(room).map(generated).collect();
+    let generated: Vec<manfred_recipe::Light> =
+        built.lights.iter().take(room).map(generated).collect();
     for light in recipe.lights.iter().chain(&generated) {
         let at = format!("light[{}]", light.name);
         let parent = match &light.parent {

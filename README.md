@@ -224,6 +224,8 @@ manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--
                                                           one frame of the window, offscreen
 manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> [--size WxH] [--fps 30|60|120] [--poster first|last|<seconds>] [--start]
                                                           the window playing a tape, offscreen: an x264 master, its poster and a manifest
+manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> --frames [--scale F] [--framed [--window WxH]] [--json]
+                                                          the same tape as PNG frames, laid out at a UI scale, framed in a larger frame
 manfred route <recipe> list|set|add|remove [--route <name>] [--at <i>] [--point x,y,z] [--json]
                                                           list the routes' points and lengths, or move, add or remove a point in the file
 ```

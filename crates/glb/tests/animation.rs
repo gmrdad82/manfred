@@ -145,7 +145,16 @@ fn a_track_writes_the_timeline_animation_and_a_camera_track_its_camera_node() {
 fn no_tracks_write_the_same_bytes_as_before() {
     let nodes = vec![node("a"), node("b")];
     let plain = write_tree(&nodes, &[], &[], Order::File, "manfred test").unwrap();
-    let none = write_animated(&nodes, &[], &[], &Looks::new(), Order::File, "manfred test", None).unwrap();
+    let none = write_animated(
+        &nodes,
+        &[],
+        &[],
+        &Looks::new(),
+        Order::File,
+        "manfred test",
+        None,
+    )
+    .unwrap();
     let empty = write_animated(
         &nodes,
         &[],

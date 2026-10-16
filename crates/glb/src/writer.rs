@@ -514,7 +514,15 @@ pub fn write_tree(
     order: Order,
     generator: &str,
 ) -> Result<Vec<u8>, Error> {
-    write_animated(nodes, parents, extras, &Looks::new(), order, generator, None)
+    write_animated(
+        nodes,
+        parents,
+        extras,
+        &Looks::new(),
+        order,
+        generator,
+        None,
+    )
 }
 
 pub fn write_looks(

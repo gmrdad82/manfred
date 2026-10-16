@@ -23,9 +23,9 @@ pub use manfred_glb::{
     CameraFacts, DaylightFacts, FACTS, GradeFacts, LampFacts, LookFacts, MoverFacts, RoomFacts,
     SceneFacts, SidecarWriter, SkyFacts, SunFacts, facts as facts_sidecar, merge, mover_json,
 };
+pub use manfred_glb::{Image, Look, Looks, Map, Mime};
 pub use manfred_glb::{Lens, Track};
 pub use manfred_motion::{Route, Timeline, Trs, matrix, sample, trs_from_matrix};
-pub use manfred_glb::{Image, Look, Looks, Map, Mime};
 pub use manfred_recipe::NO_SIDECAR;
 pub use maps::{LARGEST_IMAGE, image, image_fits};
 pub use scene::object_ids;
@@ -343,7 +343,7 @@ impl Built {
             GENERATOR,
             animation,
         )
-            .map_err(|e| Error::new("", e.0))
+        .map_err(|e| Error::new("", e.0))
     }
 
     pub fn sidecar(&self) -> Option<String> {

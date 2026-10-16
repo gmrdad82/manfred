@@ -95,7 +95,11 @@ mod tests {
     #[test]
     fn the_app_registers_its_generator_writer_and_materials() {
         let app = registry();
-        assert_eq!(app.names().collect::<Vec<_>>(), ["app/cube"]);
+        let names: Vec<&str> = app
+            .names()
+            .filter(|name| !name.starts_with(manfred::build::BUILTIN))
+            .collect();
+        assert_eq!(names, ["app/cube"]);
         let writers: Vec<&str> = app.sidecar_names().collect();
         assert!(writers.contains(&"app") && writers.contains(&manfred::build::FACTS));
         assert_eq!(app.material_names().collect::<Vec<_>>(), ["cube"]);
