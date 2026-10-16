@@ -105,10 +105,10 @@ A recipe with a `[timeline]` (the recipe guide's "Timeline") films with `--timel
 manfred clip showcase/workshop.toml --camera orbit --frames 120 --fps 30 --size 1280x800 --out orbit --video orbit.mp4
 ```
 
-With [pconv](https://docs.pitomd.com/pconv/) on the `PATH`, `--video` encodes the frames into an `.mp4` (H.264) or a `.webm` (VP9). Opaque frames are written as RGB PNGs, which both take; a frame with transparent pixels keeps its alpha, which only `.webm` carries. Without pconv, the frames and a `frames.ffconcat` list stay in the folder and the command exits 1; any encoder makes the video from the list:
+With [pcod](https://github.com/gmrdad82/pito-codecs) on the `PATH`, `--video` encodes the frames into an `.mp4` (H.264) or a `.webm` (VP9). Opaque frames are written as RGB PNGs, which both take; a frame with transparent pixels keeps its alpha, which only `.webm` carries. Without pcod, the frames stay in the folder and the command exits 1; any encoder makes the video from them:
 
 ```sh
-ffmpeg -f concat -i orbit/frames.ffconcat -r 30 -pix_fmt yuv420p orbit.mp4
+ffmpeg -framerate 30 -i orbit/frame-%04d.png -pix_fmt yuv420p orbit.mp4
 ```
 
 The list holds each frame for exactly its share of a second, so the video has every frame once.

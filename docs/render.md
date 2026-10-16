@@ -183,7 +183,7 @@ manfred clip <recipe> --camera <name> --frames N --fps F [--spin <object> [--tur
 | `--trace` | | the tracer instead of the live renderer |
 | `--spp` | 64 | the tracer's samples a frame; only with `--trace` |
 | `--variant`, `--set` | | as `manfred shot` and `manfred render` take them |
-| `--video` | | encode the frames to this `.mp4` (H.264) or `.webm` (VP9) with `pconv`, an optional encoder command |
+| `--video` | | encode the frames to this `.mp4` (H.264) or `.webm` (VP9) with `pcod`, an optional encoder command |
 
 Frame `i` of `N` shows the camera at the path's time for it: `i / N` on an orbit, so a whole number of turns loops without a repeated frame, and `i / (N − 1)` on keys, so the last frame lands on the last key. It prints each finished frame on stdout, and on stderr its GPU time (traced: also the submissions and the longest), then the video. A line it cannot parse exits 2; a camera without a path or a failure exits 1.
 
@@ -194,13 +194,13 @@ Frame `i` of `N` shows the camera at the path's time for it: `i / N` on an orbit
 - **Resuming:** a frame is written as `.frame-0000.partial.png` and renamed into place once the PNG is whole, so a frame under its own name was finished. A run skips every frame whose PNG decodes in full (every chunk's CRC through `IEND`) as 8-bit RGB or RGBA of the asked size, and makes the others; a frame cut short by a crash, a stray partial, or a frame of another size is made again. `<dir>/clip.txt` keeps the line that made the frames (recipe, camera, frames, size, timeline, spin and its turns, renderer and samples, variant, sets); a run with a different line into the same folder is refused rather than mixing frames. `--fps` and `--video` are not in it: changing them re-encodes the same frames.
 - **Colour:** a frame whose every pixel is opaque, as every frame of a recipe drawn over its sky is, is written as an 8-bit RGB PNG, live and traced alike, so H.264 takes it; a frame with any transparent pixel keeps its alpha as 8-bit RGBA, and then only `.webm` keeps it.
 - **Deterministic:** each frame depends on its pose, the recipe and the flags only, never on the frames made before it, so a resumed clip has the bytes of an unbroken one.
-- **Video:** after the frames, `manfred clip` writes `<dir>/frames.ffconcat`, which holds each frame for its share of a second to the microsecond (frame `i` from `round(i·10⁶/F)` µs), and runs
+- **Video:** after the frames, `manfred clip` hands pcod the frames folder, whose PNG frames it reads in name order at `--fps`:
 
   ```
-  pconv <dir>/frames.ffconcat <video> --fps F --profile best --force
+  pcod <dir> <video> --fps F --profile best --force
   ```
 
-  pconv's own `--fps` alone would read a PNG pattern at ffmpeg's 25 and drop or repeat frames to reach F; through the list the video has exactly N frames over N/F seconds. Without pconv on the PATH it says so, keeps the frames and the list, and exits 1; the video then needs an encoder of your own, such as `ffmpeg -f concat -i <dir>/frames.ffconcat -r F <video>`. Under `--trace` the encode runs inside the same pgpu job; `--profile best` encodes on the CPU.
+  so the video has exactly N frames over N/F seconds. Without pcod on the PATH it says so, keeps the frames, and exits 1; the video then needs an encoder of your own, such as `ffmpeg -framerate F -i <dir>/frame-%04d.png <video>` (the digits as the frames' names have them). Under `--trace` the encode runs inside the same pgpu job; `--profile best` encodes on the CPU.
 
 **Measured** (RX 9060 XT, RADV, release, under pgpu), a 24-frame orbit at 1920×1080 of the twelve-object table scene Manfred then tested on, the one `tests/golden/table/table.toml` replaces (`[camera.path] kind = "orbit"` about the camera's target, one turn):
 
@@ -211,7 +211,7 @@ Frame `i` of `N` shows the camera at the path's time for it: `i / N` on an orbit
 ## Tests
 
 - **Spin:** `src/cli/clip.rs` checks the angle a frame turns (0 at frame 0, `turns × 360°` at frame `N`, whole turns back to the identity), that the turn of a hidden root about its origin equals adding to its `rotate` y for the root, its child and its grandchild, that a child's spin turns its own children about the child's origin, the family a spin moves, the still camera it needs, and the spin in `clip.txt`.
-- **Clips:** the recipe crate reads and refuses camera paths and places the camera at a time (`crates/recipe/src/path.rs`, `crates/recipe/tests/path.rs`): frame 0, a quarter turn, the last frame of a 24-frame orbit, rising, scaling and easing, keys with and without a key at 0. `src/cli/clip.rs` covers the flags, frame names, the concat list and pconv's line, the process line, the folder's line, and resuming past finished, missing, cut, partial and wrong-size frames. On the GPU (`#[ignore]`): three live frames of an orbit of the table at 320×200, frame 0 byte for byte `manfred shot` of the camera, and frames 1 and 2 made again after deleting them come out byte for byte as before; three traced frames at 160×100 and 4 samples, frame 0 byte for byte `manfred render` of the camera.
+- **Clips:** the recipe crate reads and refuses camera paths and places the camera at a time (`crates/recipe/src/path.rs`, `crates/recipe/tests/path.rs`): frame 0, a quarter turn, the last frame of a 24-frame orbit, rising, scaling and easing, keys with and without a key at 0. `src/cli/clip.rs` covers the flags, frame names, the concat list and pcod's line, the process line, the folder's line, and resuming past finished, missing, cut, partial and wrong-size frames. On the GPU (`#[ignore]`): three live frames of an orbit of the table at 320×200, frame 0 byte for byte `manfred shot` of the camera, and frames 1 and 2 made again after deleting them come out byte for byte as before; three traced frames at 160×100 and 4 samples, frame 0 byte for byte `manfred render` of the camera.
 - **CPU:** argument parsing and the process line (`src/cli/render.rs`); the staging of three boxes, two materials, a shadow-only part, a point light and a sun against hand-built expectations, and the perspective, orthographic and equirect cameras (`crates/render/src/staging.rs`); RGBE against the engine's own HDR reader, flat and run-length, and EXR round trips of known pixels (`crates/render/src/picture.rs`).
 - **GPU** (`#[ignore]`d; run with `cargo test -- --ignored` on a machine with a Vulkan GPU, optionally under `pgpu run`, one at a time with a turn after each), in `crates/render/tests/trace.rs`:
   - a box under a sun renders, two renders with one seed are byte-identical and another seed differs;

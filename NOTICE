@@ -18,14 +18,14 @@ licence like the code, except the Manfred mark docs/images/start.png shows,
 which stays reserved as above:
 - docs/images/hero.png: manfred render of showcase/hero.toml
 - docs/images/start.png: manfred gui --shot --start, the start scene of brand/start.toml
-- docs/images/tour.gif: manfred gui --clip of showcase/tour.tape on showcase/, made a GIF by pconv
-- docs/images/edit.gif: manfred gui --clip of showcase/edit.tape on showcase/workshop.toml, made a GIF by pconv
-- docs/images/render.gif: manfred gui --clip of showcase/render.tape on showcase/hero.toml, made a GIF by pconv
+- docs/images/tour.gif: manfred gui --clip of showcase/tour.tape on showcase/, made a GIF from its master with pito-codecs' converter (https://github.com/gmrdad82/pito-codecs)
+- docs/images/edit.gif: manfred gui --clip of showcase/edit.tape on showcase/workshop.toml, made a GIF from its master with pito-codecs' converter (https://github.com/gmrdad82/pito-codecs)
+- docs/images/render.gif: manfred gui --clip of showcase/render.tape on showcase/hero.toml, made a GIF from its master with pito-codecs' converter (https://github.com/gmrdad82/pito-codecs)
 - docs/images/orbit.png: four frames of manfred clip --trace of showcase/workshop.toml's orbit camera
 
 Pictures of Manfred's own commands and numbers, under the MIT licence like
 the code:
-- docs/images/build.gif: prec clip of the build shot in render/terminal.toml, on render/terminal/desk.toml, made a GIF by pconv
+- docs/images/build.gif: prec clip of the build shot in render/terminal.toml, on render/terminal/desk.toml, made a GIF from its master with pito-codecs' converter (https://github.com/gmrdad82/pito-codecs)
 - docs/images/speed.png: pcmp (pito-compare) of docs/charts/speed.toml
 - docs/images/size.png: pcmp (pito-compare) of docs/charts/size.toml
 

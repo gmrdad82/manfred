@@ -45,7 +45,7 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 
 <p align="center"><img src="docs/images/orbit.png" width="800" alt="Four path-traced frames of an orbit around showcase/workshop.toml, a quarter turn apart: the teal case, the vase, the glass jar, the mirror ball and the cable on the oak workbench seen from the front, the right, the back and the left."></p>
 
-A camera with a path (an orbit, or keyframes) turns into frames with `manfred clip`, live or path-traced, and `--video clip.mp4` encodes them through pconv. Above are four frames, a quarter turn apart, of a 180-frame orbit of the workshop traced at 32 samples a pixel. `manfred gui --clip` films the window itself playing a tape of clicks, keys and waits, frame by frame and byte for byte the same on every run: every window clip on this page is one of [showcase/](showcase/)'s tapes.
+A camera with a path (an orbit, or keyframes) turns into frames with `manfred clip`, live or path-traced, and `--video clip.mp4` encodes them through pcod. Above are four frames, a quarter turn apart, of a 180-frame orbit of the workshop traced at 32 samples a pixel. `manfred gui --clip` films the window itself playing a tape of clicks, keys and waits, frame by frame and byte for byte the same on every run: every window clip on this page is one of [showcase/](showcase/)'s tapes.
 
 ### Your app's own generators
 
@@ -119,7 +119,7 @@ Replace `vX.Y.Z` with a [release](https://github.com/gmrdad82/manfred/releases) 
 Manfred can use three optional command-line tools when they are on the `PATH`, and works without them:
 
 - `pgpu`, a GPU queue: when it is there, renders and clips wait their turn on it; without it they run at once, paced the same way.
-- `pconv`, a video encoder for `manfred clip --video`: without it the frames and their ffconcat list are written, and any encoder, such as `ffmpeg -f concat -i frames.ffconcat clip.mp4`, makes the video.
+- [`pcod`](https://github.com/gmrdad82/pito-codecs) (pito-codecs), a video encoder for `manfred clip --video`: without it the frames are written, and any encoder, such as `ffmpeg -framerate 30 -i frame-%04d.png clip.mp4`, makes the video.
 - `pfx`, the engine's tool, bakes the light probes from the bake recipe `manfred build` writes.
 
 ## A first scene
@@ -253,7 +253,7 @@ Manfred is one of [PITO MD](https://pitomd.com)'s open tools, and works with its
 - [pfx](https://github.com/gmrdad82/pfx), the game and render engine Manfred is built on: its live renderer draws the window, its tracer renders the stills, and a game loads the GLBs Manfred builds.
 - [pfx-scene](https://github.com/gmrdad82/pfx-scene), the engine's scene format, which the window opens and reloads as it is saved.
 - [pgpu](https://github.com/gmrdad82/pgpu), the GPU queue renders and clips wait their turn on.
-- [pconv](https://github.com/gmrdad82/pconv), which encodes `manfred clip`'s videos and made this page's GIFs.
+- [pcod](https://github.com/gmrdad82/pito-codecs) (pito-codecs), which encodes `manfred clip`'s videos and made this page's GIFs.
 - [prec](https://github.com/gmrdad82/prec), which recorded the terminal clip, and [pito-compare](https://github.com/gmrdad82/pito-compare), which drew the charts.
 
 ## Build and test

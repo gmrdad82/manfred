@@ -93,8 +93,8 @@ manfred gui showcase/workshop.toml --clip film --tape tweak.tape --frames --size
 manfred gui out/street.scene.toml --clip film --tape chase.tape --bare --size 2160x3840 --scale 2 --fps 60
 ```
 
-To make a GIF of it, [pconv](https://docs.pitomd.com/pconv/) converts the master:
+To make a GIF of it, [pcod](https://github.com/gmrdad82/pito-codecs) converts the master:
 
 ```sh
-pconv clips/move-1586x992-30fps.master.mp4 move.gif --size 1280 --fps 15
+pcod clips/move-1586x992-30fps.master.mp4 move.gif --size 1280 --fps 15
 ```

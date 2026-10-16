@@ -12,7 +12,6 @@ use super::{pair, refuse, size};
 const SAMPLES: u32 = 64;
 const MAX_FPS: i64 = 240;
 const MANIFEST: &str = "clip.txt";
-const LIST: &str = "frames.ffconcat";
 
 type Matrix = [[f32; 4]; 4];
 
@@ -115,7 +114,7 @@ pub(super) struct Args {
         long = "video",
         value_name = "file",
         value_parser = video,
-        help = "Encode the frames into this .mp4 or .webm with pconv"
+        help = "Encode the frames into this .mp4 or .webm with pcod"
     )]
     film: Option<PathBuf>,
 }
@@ -283,29 +282,14 @@ fn pending(dir: &Path, frames: u32, size: [u32; 2]) -> Vec<u32> {
         .collect()
 }
 
-fn concat(frames: u32, fps: u32) -> String {
-    let at = |frame: u32| (u64::from(frame) * 1_000_000 + u64::from(fps) / 2) / u64::from(fps);
-    let mut text = String::from("ffconcat version 1.0\n");
-    for frame in 0..frames {
-        let micros = at(frame + 1) - at(frame);
-        text.push_str(&format!(
-            "file {}\nduration {}.{:06}\n",
-            name(frame, frames),
-            micros / 1_000_000,
-            micros % 1_000_000
-        ));
-    }
-    text
-}
-
-fn encode_line(list: &Path, video: &Path, fps: u32) -> Result<Vec<String>, String> {
+fn encode_line(frames: &Path, video: &Path, fps: u32) -> Result<Vec<String>, String> {
     let absolute = |path: &Path| {
         std::path::absolute(path)
             .map(|path| path.display().to_string())
             .map_err(|e| format!("{}: {e}", path.display()))
     };
     Ok(vec![
-        absolute(list)?,
+        absolute(frames)?,
         absolute(video)?,
         "--fps".into(),
         fps.to_string(),
@@ -496,36 +480,31 @@ fn frames(args: &Args, registry: &Registry, progress: &mut dyn FnMut(u32)) -> Re
     Ok(())
 }
 
-fn unencoded(out: &Path, list: &Path, video: &Path) -> String {
+fn unencoded(args: &Args, video: &Path) -> String {
+    let digits = args.count().saturating_sub(1).to_string().len().max(4);
     format!(
-        "no video encoder (pconv) on the PATH, so {} was not made; the frames are in {} and {} lists them, so any encoder can make it, for example `ffmpeg -f concat -i {} {}`",
+        "no video encoder (pcod) on the PATH, so {} was not made; the frames are in {}, so any encoder can make it, for example `ffmpeg -framerate {} -i {}/frame-%0{digits}d.png {}`",
         video.display(),
-        out.display(),
-        list.display(),
-        list.display(),
+        args.out.display(),
+        args.rate(),
+        args.out.display(),
         video.display()
     )
 }
 
-fn encode(args: &Args, video: &Path, pconv: bool) -> Result<(), String> {
-    let list = args.out.join(LIST);
-    std::fs::write(&list, concat(args.count(), args.rate()))
-        .map_err(|e| format!("{}: {e}", list.display()))?;
-    if !pconv {
-        return Err(unencoded(&args.out, &list, video));
+fn encode(args: &Args, video: &Path, pcod: bool) -> Result<(), String> {
+    if !pcod {
+        return Err(unencoded(args, video));
     }
-    let line = encode_line(&list, video, args.rate())?;
-    eprintln!("manfred clip: pconv {}", line.join(" "));
-    let status = Command::new("pconv")
+    let line = encode_line(&args.out, video, args.rate())?;
+    eprintln!("manfred clip: pcod {}", line.join(" "));
+    let status = Command::new("pcod")
         .args(&line)
         .stdout(std::process::Stdio::null())
         .status()
-        .map_err(|e| format!("cannot start pconv: {e}"))?;
+        .map_err(|e| format!("cannot start pcod: {e}"))?;
     if !status.success() {
-        return Err(format!(
-            "pconv failed ({status}) making {}",
-            video.display()
-        ));
+        return Err(format!("pcod failed ({status}) making {}", video.display()));
     }
     println!("{}", video.display());
     Ok(())
@@ -545,7 +524,7 @@ pub fn run(parsed: &Args, args: &[String], registry: &Registry) -> ExitCode {
         }
     }
     let made = frames(parsed, registry, &mut |_| {}).and_then(|()| match &parsed.film {
-        Some(video) => encode(parsed, video, on_path("pconv")),
+        Some(video) => encode(parsed, video, on_path("pcod")),
         None => Ok(()),
     });
     match made {
@@ -587,7 +566,7 @@ mod tests {
     }
 
     #[test]
-    fn without_an_encoder_the_frames_and_their_list_stay_and_the_way_on_is_named() {
+    fn without_an_encoder_the_frames_stay_and_the_way_on_is_named() {
         let dir = scratch("no-encoder");
         let mut args = parse(&strings(
             "a.toml --camera main --frames 2 --fps 24 --size 8x8 --out d",
@@ -596,11 +575,12 @@ mod tests {
         args.out = dir.clone();
         let video = dir.join("c.mp4");
         let error = encode(&args, &video, false).unwrap_err();
-        let list = dir.join(LIST);
-        assert_eq!(error, unencoded(&dir, &list, &video));
-        assert!(error.starts_with("no video encoder (pconv) on the PATH"));
-        assert!(error.contains(&format!("ffmpeg -f concat -i {}", list.display())));
-        assert_eq!(std::fs::read_to_string(&list).unwrap(), concat(2, 24));
+        assert_eq!(error, unencoded(&args, &video));
+        assert!(error.starts_with("no video encoder (pcod) on the PATH"));
+        assert!(error.contains(&format!(
+            "-framerate 24 -i {}/frame-%04d.png",
+            dir.display()
+        )));
         assert!(!video.exists());
     }
 
@@ -767,24 +747,13 @@ mod tests {
     }
 
     #[test]
-    fn the_concat_list_holds_each_frame_for_its_share_of_a_second() {
-        let list = concat(3, 24);
-        assert_eq!(
-            list,
-            "ffconcat version 1.0\nfile frame-0000.png\nduration 0.041667\nfile frame-0001.png\nduration 0.041666\nfile frame-0002.png\nduration 0.041667\n"
-        );
-        let total: u64 = concat(24, 24)
-            .lines()
-            .filter_map(|l| l.strip_prefix("duration 0."))
-            .map(|d| d.parse::<u64>().unwrap())
-            .sum();
-        assert_eq!(total, 1_000_000);
-        let line = encode_line(Path::new("-d/frames.ffconcat"), Path::new("-c.webm"), 24).unwrap();
+    fn pcod_reads_the_frames_folder_at_the_clips_rate() {
+        let line = encode_line(Path::new("-d"), Path::new("-c.webm"), 24).unwrap();
         let here = std::env::current_dir().unwrap();
         assert_eq!(
             line,
             [
-                here.join("-d/frames.ffconcat").display().to_string(),
+                here.join("-d").display().to_string(),
                 here.join("-c.webm").display().to_string(),
                 "--fps".into(),
                 "24".into(),
