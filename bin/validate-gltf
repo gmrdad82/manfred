@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+usage() {
+  echo "usage: bin/validate-gltf [<file.glb>...]" >&2
+  exit 2
+}
+version=2.0.0-dev.3.10
+url=https://github.com/KhronosGroup/glTF-Validator/releases/download/$version/gltf_validator-$version-linux64.tar.xz
+sha256=168eba887964125abe17ae97899b38d0b3cfd73c266c78424c194929ddcbc522
+fail() {
+  echo "bin/validate-gltf: $*" >&2
+  exit 1
+}
+case "${1:-}" in
+  -h | --help) usage ;;
+  -*) usage ;;
+esac
+
+dir=tmp/gltf-validator/$version
+bin=$dir/gltf_validator
+if [ ! -x "$bin" ]; then
+  [ "$(uname -s)-$(uname -m)" = "Linux-x86_64" ] || fail "the pinned validator is the linux x86_64 build"
+  rm -rf "$dir"
+  mkdir -p "$dir/unpack"
+  curl -fsSL --retry 3 -o "$dir/validator.tar.xz" "$url"
+  echo "$sha256  $dir/validator.tar.xz" | sha256sum -c --status - || {
+    rm -rf "$dir"
+    fail "sha256 of $url does not match the pin"
+  }
+  tar -xJf "$dir/validator.tar.xz" -C "$dir/unpack"
+  mv "$dir/unpack/gltf_validator" "$bin"
+  rm -rf "$dir/unpack" "$dir/validator.tar.xz"
+fi
+
+files=()
+if [ $# -gt 0 ]; then
+  files=("$@")
+else
+  while IFS= read -r f; do
+    files+=("$f")
+  done < <(
+    {
+      find library -name model.glb 2> /dev/null || true
+      find tests/golden crates/glb/tests/golden brand/start -name '*.glb' 2> /dev/null || true
+    } | LC_ALL=C sort
+  )
+fi
+[ ${#files[@]} -gt 0 ] || {
+  echo "bin/validate-gltf: no GLB files to validate"
+  exit 0
+}
+
+reports=tmp/gltf-validator/reports
+rm -rf "$reports"
+mkdir -p "$reports"
+bad=0
+n=0
+for f in "${files[@]}"; do
+  n=$((n + 1))
+  echo "== $f"
+  if ! "$bin" --messages --stdout "$f" > "$reports/$n.json"; then
+    bad=$((bad + 1))
+    echo "bin/validate-gltf: errors in $f" >&2
+  fi
+done
+echo "validated ${#files[@]} files, $bad with errors"
+[ "$bad" -eq 0 ]

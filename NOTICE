@@ -35,6 +35,10 @@ Test data written by Manfred's own code for its tests, under the MIT licence:
 - crates/ui/fixtures/scene/ball.gltf
 - crates/ui/fixtures/scene/block.gltf
 
+CI tool that does not ship: the Khronos glTF-Validator 2.0.0-dev.3.10 (Apache-2.0,
+https://github.com/KhronosGroup/glTF-Validator), downloaded by bin/validate-gltf at
+a pinned sha256 to check every GLB Manfred writes.
+
 The bundled JetBrains Mono Nerd Font is under the SIL Open Font License
 (assets/fonts/OFL.txt).
 

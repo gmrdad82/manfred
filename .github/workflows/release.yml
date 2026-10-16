@@ -44,12 +44,21 @@ jobs:
           tar -czf "dist/$NAME" -C dist/pack manfred LICENSE NOTICE README.md licenses
       - name: docs bundle
         run: bin/docs-bundle --bin target/release/manfred --out dist
+      - name: object library
+        run: |
+          if [ ! -f library/index.json ]; then
+            echo "no library/ yet; skipping library-$TAG.zip"
+            exit 0
+          fi
+          find library -exec touch -h -d '2026-01-01 00:00:00 UTC' {} +
+          find library -type f | LC_ALL=C sort | zip -X -q -@ "dist/library-$TAG.zip"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: linux-x86_64
           path: |
             dist/${{ env.NAME }}
             dist/docs-${{ env.TAG }}.tar.gz
+            dist/library-${{ env.TAG }}.zip
           if-no-files-found: error
           retention-days: 1
 
@@ -74,7 +83,9 @@ jobs:
           merge-multiple: true
       - name: checksums
         working-directory: dist
-        run: sha256sum manfred-* docs-* > SHA256SUMS && cat SHA256SUMS
+        run: |
+          shopt -s nullglob
+          sha256sum manfred-* docs-* library-* > SHA256SUMS && cat SHA256SUMS
       - name: notes from the changelog
         run: |
           awk -v version="${TAG#v}" '
