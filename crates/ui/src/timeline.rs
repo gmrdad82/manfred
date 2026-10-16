@@ -216,6 +216,7 @@ mod tests {
                 keys: vec![trs(1.0, 0.0), trs(3.0, 0.0)],
                 camera: None,
                 focus: None,
+                fov: None,
             },
             Track {
                 node: "camera.chase".into(),
@@ -226,6 +227,7 @@ mod tests {
                     znear: 0.05,
                 }),
                 focus: None,
+                fov: None,
             },
         ];
         let posed = poses(&built, 1, 0.5);

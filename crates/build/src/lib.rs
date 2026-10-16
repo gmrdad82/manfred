@@ -340,7 +340,11 @@ impl Built {
         let tracks: Vec<Track> = self
             .tracks
             .iter()
-            .filter(|t| t.camera.is_some() || nodes.iter().any(|n| n.name == t.node))
+            .filter(|t| {
+                t.camera.is_some()
+                    || t.light_name().is_some()
+                    || nodes.iter().any(|n| n.name == t.node)
+            })
             .cloned()
             .collect();
         let animation = self

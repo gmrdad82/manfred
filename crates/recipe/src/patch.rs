@@ -394,6 +394,7 @@ fn step<'a>(at: At<'a>, key: &Key) -> Option<At<'a>> {
         (At::Tables(a), Key::Object(n) | Key::Table(n)) => a
             .iter()
             .find(|t| label_of(t) == Some(n.as_str()))
+            .or_else(|| n.parse::<usize>().ok().and_then(|i| a.get(i)))
             .map(At::Table),
         (At::Tables(a), Key::Index(i)) => a.get(*i).map(At::Table),
         (At::Value(Value::Array(a)), Key::Index(i)) => a.get(*i).map(At::Value),
@@ -628,6 +629,7 @@ pub(crate) fn edit_root(t: &mut Table, path: &[Key], value: Option<Item>) -> Res
 fn find(a: &ArrayOfTables, name: &str) -> Result<usize, String> {
     a.iter()
         .position(|t| label_of(t) == Some(name))
+        .or_else(|| name.parse::<usize>().ok().filter(|i| *i < a.len()))
         .ok_or_else(|| format!("no entry named `{name}`"))
 }
 

@@ -6,18 +6,19 @@ use toml_edit::{Document, DocumentMut, Item, Table, TableLike, Value};
 use crate::include::{self, Assembly, Edit, File, Files, Role, Sources};
 use crate::keyframes::Context;
 
+pub(crate) mod constraint;
 pub(crate) mod effects;
 mod keys;
 
 use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
-    Casters, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind, Lines, Loaded,
-    Lod, LodTarget, Look, Marker, Mover, NO_SIDECAR, NORMAL_SIZE, OLD_HEADER, Object, Orbit, Order,
-    Origin, Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile,
-    ProfileKind, Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE, RIG_LOOK, RIG_OFFSET, Recipe,
-    Rig, RigFocus, RigShake, RigTracks, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind,
-    SkyLight, Span, Spring, Stage, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use,
-    Uv, Variant, VariantOutput, View, Volume,
+    Casters, Constrained, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind,
+    Lines, Loaded, Lod, LodTarget, Look, Marker, Mover, NO_SIDECAR, NORMAL_SIZE, OLD_HEADER,
+    Object, Orbit, Order, Origin, Outline, Output, Owner, PathKey, PathKind, Plate, PlateView,
+    Plates, Problem, Profile, ProfileKind, Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE,
+    RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus, RigFrame, RigShake, RigTracks, Room, RouteSpec,
+    SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Spring, Stage, Sun, TEXTURE_KEYS,
+    TextSpace, Textures, Timeline, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -54,6 +55,7 @@ pub(crate) struct Cx {
     plate: Option<Plate>,
     copies: BTreeMap<String, Vec<(Table, bool)>>,
     keyed: BTreeMap<String, crate::Keyed>,
+    constraints: Vec<Constrained>,
 }
 
 impl Cx {
@@ -1691,6 +1693,8 @@ fn read_object(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
         Some(name.as_str()),
         Context::default(),
     )?;
+    let list = constraint::list(cx, &mut tab, &Owner::Object(name.clone()))?;
+    constraint::keep(cx, Owner::Object(name.clone()), list);
     tab.finish(cx)?;
     Ok(Object {
         name,
@@ -2029,13 +2033,23 @@ fn read_camera(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
         ],
     )?;
     let rig = read_rig(cx, &mut tab)?;
-    let (position, target) = match &rig {
-        Some(rig) => (
+    let list = constraint::list(cx, &mut tab, &Owner::Camera(name.clone()))?;
+    let first = list.iter().find_map(|c| match &c.kind {
+        crate::ConstraintKind::Rig(rig) => Some(&**rig),
+        _ => None,
+    });
+    let (position, target) = match (&rig, first) {
+        (Some(rig), _) | (None, Some(rig)) => (
             tab.or(cx, "position", rig.offset, V3)?,
             tab.or(cx, "target", rig.look, V3)?,
         ),
-        None => (tab.req(cx, "position", V3)?, tab.req(cx, "target", V3)?),
+        (None, None) if !list.is_empty() => (
+            tab.or(cx, "position", [0.0; 3], V3)?,
+            tab.or(cx, "target", [0.0, 0.0, -1.0], V3)?,
+        ),
+        (None, None) => (tab.req(cx, "position", V3)?, tab.req(cx, "target", V3)?),
     };
+    constraint::keep(cx, Owner::Camera(name.clone()), list);
     let up = tab.or(cx, "up", [0.0, 1.0, 0.0], V3)?;
     let fov_y_deg = tab.opt(cx, "fov_y_deg", NUM)?;
     let focal_mm = tab.opt(cx, "focal_mm", NUM)?;
@@ -2093,6 +2107,12 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
     let Some(mut sub) = tab.sub(cx, "rig")? else {
         return Ok(None);
     };
+    let rig = rig_keys(cx, &mut sub)?;
+    sub.finish(cx)?;
+    Ok(Some(rig))
+}
+
+fn rig_keys(cx: &mut Cx, sub: &mut Tab<'_>) -> Result<Rig, Error> {
     let follow = sub.req(cx, "follow", STR)?;
     let offset = sub.or(cx, "offset", RIG_OFFSET, V3)?;
     let look = sub.or(cx, "look", RIG_LOOK, V3)?;
@@ -2143,12 +2163,29 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
                 lag: read("lag")?,
                 shake: read("shake")?,
                 look_ahead: read("look_ahead")?,
+                orbit: read("orbit")?,
+                pitch: read("pitch")?,
+                roll: read("roll")?,
+                focal: read("focal")?,
+                fov: read("fov")?,
+                look_offset: keyed.opt(cx, RigTracks::LOOK_OFFSET, POINT_KEYS)?,
             };
             keyed.finish(cx)?;
             tracks
         }
         None => RigTracks::default(),
     };
+    let smooth = match sub.peek(cx, "smooth") {
+        Some(item) => read_smooth(cx, &sub.kpath("smooth"), item)?,
+        None => BTreeMap::new(),
+    };
+    let frame = pick(
+        sub,
+        cx,
+        "frame",
+        RigFrame::Target,
+        &[("target", RigFrame::Target), ("world", RigFrame::World)],
+    )?;
     let bank_spring = match sub.sub(cx, "bank_spring")? {
         Some(mut spring) => {
             let read = Spring {
@@ -2162,8 +2199,7 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
     };
     let release = sub.opt(cx, "release", NUM)?;
     let release_ease = sub.or(cx, "release_ease", RELEASE_EASE, NUM)?;
-    sub.finish(cx)?;
-    Ok(Some(Rig {
+    Ok(Rig {
         follow,
         offset,
         look,
@@ -2177,7 +2213,58 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
         bank_spring,
         release,
         release_ease,
-    }))
+        smooth,
+        frame,
+    })
+}
+
+const POINT_KEYS: Rd<Vec<(f64, [f64; 3])>> = Rd("an array of [t, [x, y, z]] keys", as_point_keys);
+
+fn as_point_keys(cx: &mut Cx, path: &str, item: &Item) -> Result<Vec<(f64, [f64; 3])>, Error> {
+    let what = "an array of [t, [x, y, z]] keys";
+    let Some(list) = item.as_array() else {
+        return Err(bad_item(cx, path, item, what));
+    };
+    list.iter()
+        .enumerate()
+        .map(|(i, key)| {
+            let at = format!("{path}[{i}]");
+            match key.as_array().map(|pair| pair.iter().collect::<Vec<_>>()) {
+                Some(pair) if pair.len() == 2 => Ok((
+                    num_value(cx, &format!("{at}[0]"), pair[0])?,
+                    nums_value::<3>(cx, &format!("{at}[1]"), pair[1], "an array of 3 numbers")?,
+                )),
+                _ => Err(bad_value(cx, &at, key, "a [t, [x, y, z]] key")),
+            }
+        })
+        .collect()
+}
+
+fn read_smooth(cx: &mut Cx, path: &str, item: &Item) -> Result<BTreeMap<String, f64>, Error> {
+    let Some(table) = item.as_table_like() else {
+        return Err(bad_item(cx, path, item, "a table of track = seconds"));
+    };
+    let mut out = BTreeMap::new();
+    for (name, value) in table.iter() {
+        let at = format!("{path}.{name}");
+        if !RigTracks::NAMES.contains(&name) && name != RigTracks::LOOK_OFFSET {
+            return Err(Error::new(
+                at,
+                Some(cx.item_line(value)),
+                format!(
+                    "no track named `{name}`, expected one of: {}, {}",
+                    RigTracks::NAMES.join(", "),
+                    RigTracks::LOOK_OFFSET
+                ),
+            ));
+        }
+        let seconds = match value.as_value() {
+            Some(v) => num_value(cx, &at, v)?,
+            None => return Err(bad_item(cx, &at, value, "seconds")),
+        };
+        out.insert(name.to_string(), seconds);
+    }
+    Ok(out)
 }
 
 fn read_path(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<CameraPath>, Error> {
@@ -2617,6 +2704,12 @@ fn read_follow(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
     let path = format!("follow[{}]", label(t, "object", index));
     let mut tab = Tab::new(cx, t, path, format!("follow#{index}"), line);
     let object = tab.req(cx, "object", STR)?;
+    let follow = follow_keys(cx, &mut tab, object)?;
+    tab.finish(cx)?;
+    Ok(follow)
+}
+
+fn follow_keys(cx: &mut Cx, tab: &mut Tab<'_>, object: String) -> Result<Follow, Error> {
     let route = tab.req(cx, "route", STR)?;
     let lane = tab.or(cx, "lane", 0.0, NUM)?;
     let start = tab.or(cx, "start", 0.0, NUM)?;
@@ -2634,7 +2727,6 @@ fn read_follow(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
         None => None,
     };
     let ride = tab.or(cx, "ride", 0.0, NUM)?;
-    tab.finish(cx)?;
     Ok(Follow {
         object,
         route,
@@ -3174,6 +3266,7 @@ fn read_recipe(
         plate: None,
         copies: asm.copies,
         keyed: BTreeMap::new(),
+        constraints: Vec::new(),
     };
     match read_root(&mut cx, &asm.table, text, base) {
         Ok(mut recipe) => {
@@ -3357,6 +3450,7 @@ fn read_root(
         stages,
         keep: Vec::new(),
         markers,
+        constraints: std::mem::take(&mut cx.constraints),
         variants,
         sidecar,
         look,

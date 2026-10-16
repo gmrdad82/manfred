@@ -2,8 +2,9 @@ use std::collections::BTreeMap;
 
 use crate::variant::{apply_variant, glob_matches};
 use crate::{
-    Bake, Camera, CameraPath, Casters, Kind, PathKind, PlateView, Plates, Problem, Projection,
-    Recipe, Rig, RigFocus, RigTracks, SCENE_SUFFIX, SkyKind, Trace, Uv, View,
+    Bake, Camera, CameraPath, Casters, ConstraintKind, Follow, Kind, Owner, PathKind, PlateView,
+    Plates, Problem, Projection, Recipe, Rig, RigFocus, RigTracks, SCENE_SUFFIX, SkyKind, Trace,
+    Uv, View,
 };
 
 struct Out<'a> {
@@ -91,6 +92,7 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     follows(&mut out);
     stages(&mut out);
     markers(&mut out);
+    constraints(&mut out);
     output(&mut out);
     sky(&mut out);
     look(&mut out);
@@ -901,34 +903,51 @@ fn camera_rig(out: &mut Out<'_>, camera: &At, c: &Camera, rig: &Rig) {
     if c.kind != Projection::Perspective {
         out.near(camera, "rig", "a rig is for perspective cameras");
     }
-    if !out.r.objects.iter().any(|o| o.name == rig.follow) {
-        out.missing(
-            &at,
-            "follow",
-            "object",
-            &rig.follow,
-            "the name of an object of the recipe",
-        );
+    rig_fstop(out, &at, c, rig);
+}
+
+fn rig_fstop(out: &mut Out<'_>, at: &At, c: &Camera, rig: &Rig) {
+    match rig.focus {
+        Some(RigFocus::Distance(metres)) if !(metres > 0.0 && metres.is_finite()) => {}
+        Some(_) if !(c.fstop > 0.0 && c.fstop.is_finite()) => out.at(
+            at,
+            "focus",
+            "a rig's focus needs depth of field, expected an `fstop` above 0 on the camera",
+        ),
+        _ => {}
     }
+}
+
+const TARGET: &str =
+    "an object, one of its pieces' nodes (`<object>.<piece>`), `camera.<name>` or `light.<name>`";
+
+fn target(out: &mut Out<'_>, at: &At, key: &str, name: &str) {
+    if out.r.target_owner(name).is_none() {
+        out.missing(at, key, "object, camera or light", name, TARGET);
+    }
+}
+
+fn rig_keys(out: &mut Out<'_>, at: &At, rig: &Rig, camera: bool) {
+    target(out, at, "follow", &rig.follow);
     if rig.offset == rig.look {
         out.at(
-            &at,
+            at,
             "look",
             "the aim point is the camera's own offset, expected a point to look at",
         );
     }
     if !(rig.lag >= 0.0 && rig.lag.is_finite()) {
-        out.at(&at, "lag", "expected seconds of 0 or more");
+        out.at(at, "lag", "expected seconds of 0 or more");
     }
     if !(rig.look_ahead >= 0.0 && rig.look_ahead.is_finite()) {
-        out.at(&at, "look_ahead", "expected seconds of 0 or more");
+        out.at(at, "look_ahead", "expected seconds of 0 or more");
     }
     if !(rig.yaw_lag >= 0.0 && rig.yaw_lag.is_finite()) {
-        out.at(&at, "yaw_lag", "expected seconds of 0 or more");
+        out.at(at, "yaw_lag", "expected seconds of 0 or more");
     }
     if !rig.bank.is_finite() {
         out.at(
-            &at,
+            at,
             "bank",
             "expected degrees per m/s² of sideways acceleration",
         );
@@ -963,6 +982,51 @@ fn camera_rig(out: &mut Out<'_>, camera: &At, c: &Camera, rig: &Rig) {
         } else if matches!(name, "lag" | "shake" | "look_ahead") && keys.iter().any(|k| k[1] < 0.0)
         {
             out.at(&keyed, name, "expected values of 0 or more");
+        } else if name == "focal" && keys.iter().any(|k| k[1] <= 0.0) {
+            out.at(&keyed, name, "expected millimetres above 0");
+        } else if name == "fov" && keys.iter().any(|k| k[1] <= 0.0 || k[1] >= 180.0) {
+            out.at(&keyed, name, "expected degrees above 0 and below 180");
+        } else if name == "pitch" && keys.iter().any(|k| k[1].abs() > 90.0) {
+            out.at(&keyed, name, "expected degrees from -90 to 90");
+        }
+    }
+    if let Some(keys) = &rig.tracks.look_offset {
+        let name = RigTracks::LOOK_OFFSET;
+        if keys.is_empty() {
+            out.at(&keyed, name, "expected one [t, [x, y, z]] key at least");
+        } else if keys
+            .iter()
+            .any(|(t, v)| !t.is_finite() || v.iter().any(|c| !c.is_finite()))
+        {
+            out.at(&keyed, name, "expected finite times and values");
+        } else if keys.windows(2).any(|w| w[1].0 <= w[0].0) {
+            out.at(&keyed, name, "expected the keys' times to rise");
+        } else if keys[0].0 < 0.0 {
+            out.at(&keyed, name, "expected times from 0 up");
+        }
+    }
+    if rig.tracks.focal.is_some() && rig.tracks.fov.is_some() {
+        out.at(
+            &keyed,
+            "fov",
+            "a lens is keyed by `focal` or `fov`, expected only one",
+        );
+    }
+    if !camera && (rig.tracks.focal.is_some() || rig.tracks.fov.is_some()) {
+        out.at(
+            &keyed,
+            if rig.tracks.fov.is_some() {
+                "fov"
+            } else {
+                "focal"
+            },
+            "a lens is a camera's, expected the track removed on a rig of an object or a light",
+        );
+    }
+    let smooth = at.child("smooth", "smooth");
+    for (name, seconds) in &rig.smooth {
+        if !(*seconds > 0.0 && seconds.is_finite()) {
+            out.at(&smooth, name, "expected seconds above 0");
         }
     }
     if let Some(spring) = &rig.bank_spring {
@@ -977,20 +1041,20 @@ fn camera_rig(out: &mut Out<'_>, camera: &At, c: &Camera, rig: &Rig) {
     if let Some(release) = rig.release
         && !(release >= 0.0 && release.is_finite())
     {
-        out.at(&at, "release", "expected seconds of 0 or more");
+        out.at(at, "release", "expected seconds of 0 or more");
     }
     if !(rig.release_ease > 0.0 && rig.release_ease.is_finite()) {
-        out.at(&at, "release_ease", "expected seconds above 0");
+        out.at(at, "release_ease", "expected seconds above 0");
     }
     match rig.focus {
-        Some(RigFocus::Distance(metres)) if !(metres > 0.0 && metres.is_finite()) => {
-            out.at(&at, "focus", "expected \"follow\" or metres above 0")
-        }
-        Some(_) if !(c.fstop > 0.0 && c.fstop.is_finite()) => out.at(
-            &at,
+        Some(_) if !camera => out.at(
+            at,
             "focus",
-            "a rig's focus needs depth of field, expected an `fstop` above 0 on the camera",
+            "focus is a camera's, expected the key removed on a rig of an object or a light",
         ),
+        Some(RigFocus::Distance(metres)) if !(metres > 0.0 && metres.is_finite()) => {
+            out.at(at, "focus", "expected \"follow\" or metres above 0")
+        }
         _ => {}
     }
 }
@@ -1193,9 +1257,6 @@ fn follows(out: &mut Out<'_>) {
         if !r.objects.iter().any(|o| o.name == f.object) {
             out.missing(&at, "object", "object", &f.object, "the name of an object");
         }
-        if !r.routes.iter().any(|route| route.name == f.route) {
-            out.missing(&at, "route", "route", &f.route, "the name of a [[route]]");
-        }
         if r.timeline.is_none() {
             out.at(
                 &at,
@@ -1203,31 +1264,112 @@ fn follows(out: &mut Out<'_>) {
                 "a follow moves its object along the timeline, expected a [timeline]",
             );
         }
-        if f.start < 0.0 {
-            out.at(&at, "start", "expected metres along the route from 0 up");
+        follow_keys(out, &at, f);
+    }
+}
+
+fn follow_keys(out: &mut Out<'_>, at: &At, f: &Follow) {
+    if !out.r.routes.iter().any(|route| route.name == f.route) {
+        out.missing(at, "route", "route", &f.route, "the name of a [[route]]");
+    }
+    if f.start < 0.0 {
+        out.at(at, "start", "expected metres along the route from 0 up");
+    }
+    if f.speed.is_empty() {
+        out.at(at, "speed", "expected one [t, m/s] key at least");
+    }
+    if f.speed.windows(2).any(|w| w[1][0] <= w[0][0]) {
+        out.at(
+            at,
+            "speed",
+            "expected keys in rising time, each t after the last",
+        );
+    }
+    if f.speed.iter().any(|k| k[0] < 0.0 || k[1] < 0.0) {
+        out.at(at, "speed", "expected times and speeds from 0 up");
+    }
+    if let Some(d) = &f.drift {
+        let at = at.child("drift", "drift");
+        if d.amount < 0.0 {
+            out.at(&at, "amount", "expected metres from 0 up");
         }
-        if f.speed.is_empty() {
-            out.at(&at, "speed", "expected one [t, m/s] key at least");
+        if d.period <= 0.0 {
+            out.at(&at, "period", "expected seconds above 0");
         }
-        if f.speed.windows(2).any(|w| w[1][0] <= w[0][0]) {
-            out.at(
-                &at,
-                "speed",
-                "expected keys in rising time, each t after the last",
-            );
-        }
-        if f.speed.iter().any(|k| k[0] < 0.0 || k[1] < 0.0) {
-            out.at(&at, "speed", "expected times and speeds from 0 up");
-        }
-        if let Some(d) = &f.drift {
-            let at = at.child("drift", "drift");
-            if d.amount < 0.0 {
-                out.at(&at, "amount", "expected metres from 0 up");
+    }
+}
+
+fn constraints(out: &mut Out<'_>) {
+    let r = out.r;
+    let all = r.constrained();
+    for entry in &all {
+        for c in &entry.list {
+            let at = At::new(c.path.clone(), c.ipath.clone());
+            let explicit = c.ipath.contains(".constraint#");
+            let camera = match &entry.owner {
+                Owner::Camera(name) => r.cameras.iter().find(|camera| camera.name == *name),
+                _ => None,
+            };
+            if explicit {
+                if r.timeline.is_none() {
+                    out.at(
+                        &at,
+                        "type",
+                        "a constraint moves its owner along the timeline, expected a [timeline]",
+                    );
+                }
+                if let Some(camera) = camera {
+                    if camera.path.is_some() {
+                        out.at(
+                            &at,
+                            "type",
+                            "a camera takes `path` or constraints, expected only one",
+                        );
+                    }
+                    if camera.kind != Projection::Perspective {
+                        out.at(&at, "type", "a constrained camera is a perspective camera");
+                    }
+                }
+                if let Owner::Light(name) = &entry.owner
+                    && r.lights
+                        .iter()
+                        .any(|l| l.name == *name && l.parent.is_some())
+                {
+                    out.at(
+                        &at,
+                        "type",
+                        "a constrained light starts from its `position` and rides its own node, expected `position` in place of `parent`",
+                    );
+                }
             }
-            if d.period <= 0.0 {
-                out.at(&at, "period", "expected seconds above 0");
+            match &c.kind {
+                ConstraintKind::FollowPath(f) => {
+                    if explicit {
+                        follow_keys(out, &at, f);
+                    }
+                }
+                ConstraintKind::LookAt(l) => {
+                    target(out, &at, "target", &l.target);
+                    if l.up.iter().all(|v| *v == 0.0) || l.up.iter().any(|v| !v.is_finite()) {
+                        out.at(
+                            &at,
+                            "up",
+                            "expected a finite direction that is not [0, 0, 0]",
+                        );
+                    }
+                }
+                ConstraintKind::Copy(copy) => target(out, &at, "target", &copy.target),
+                ConstraintKind::Rig(rig) => {
+                    rig_keys(out, &at, rig, camera.is_some());
+                    if explicit && let Some(camera) = camera {
+                        rig_fstop(out, &at, camera, rig);
+                    }
+                }
             }
         }
+    }
+    if let Err(cycle) = r.constraint_order(&all) {
+        out.add(cycle.path, &cycle.ipath, cycle.text);
     }
 }
 

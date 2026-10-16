@@ -52,6 +52,13 @@ impl Parent {
     }
 }
 
+pub(super) fn riding(whole: &str, node: String) -> Parent {
+    Parent {
+        object: whole.to_string(),
+        node: Some(node),
+    }
+}
+
 pub(super) fn whole(recipe: &Recipe, built: &Built, format: u32, glb: &Path) -> Option<String> {
     if format != 1 || recipe.timeline.is_none() || built.tracks.is_empty() {
         return None;
@@ -194,6 +201,10 @@ pub(super) fn wet(settings: &Settings) -> Wet {
 pub(super) fn unplaced(text: String, recipe: &Recipe, built: &Built) -> String {
     if recipe.lights.iter().all(|light| light.parent.is_none())
         && built.lights.iter().all(|light| light.parent.is_none())
+        && built
+            .tracks
+            .iter()
+            .all(|track| track.light_name().is_none())
     {
         return text;
     }

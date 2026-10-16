@@ -1,6 +1,7 @@
 use crate::bake::{Section, absolute, list, number, shade_at, string};
 use crate::{Built, Error, GeneratedLight, Look, Part, local_matrix, world};
 use glam::{DMat4, DVec3};
+use manfred_glb::LIGHT_PREFIX;
 use manfred_recipe::toml_edit::{DocumentMut, Item, Value};
 use manfred_recipe::{
     CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, Casters, Kind, LightKind, MONO, Object, Projection,
@@ -844,7 +845,7 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
                     s.num("sensor", 2.0 * focal * tan_y)?;
                 }
                 s.num("fstop", camera.fstop)?;
-                let fixed = match camera.rig.as_ref().and_then(|rig| rig.focus) {
+                let fixed = match recipe.rig_of(camera).and_then(|rig| rig.focus) {
                     Some(RigFocus::Distance(metres)) => Some(metres),
                     _ => camera.focus_m,
                 };
@@ -1146,12 +1147,25 @@ fn lights(
         } else {
             Vec::new()
         };
-        let parent = match &light.parent {
-            Some((name, place)) => Some((
+        let node = format!("{LIGHT_PREFIX}{}", light.name);
+        let riding = whole.filter(|_| {
+            light.parent.is_none()
+                && built
+                    .tracks
+                    .iter()
+                    .any(|t| t.node == node && t.light_name().is_some())
+        });
+        let parent = match (&light.parent, riding) {
+            (_, Some(whole)) => Some((effects::riding(whole, node), &[0.0; 3])),
+            (Some((name, place)), None) => Some((
                 effects::parent(built, recipe, whole, name, &format!("{at}.parent"))?,
                 place,
             )),
-            None => None,
+            (None, None) => None,
+        };
+        let direction = match (riding, light.kind) {
+            (Some(_), LightKind::Spot) => Some(light.direction.unwrap_or([0.0, 0.0, -1.0])),
+            _ => light.direction,
         };
         let mut s = Section::new(out, "[[light]]", at);
         s.put("name", &string(&light.name));
@@ -1165,7 +1179,7 @@ fn lights(
             }
             None => s.list("position", &light.position)?,
         }
-        if let Some(direction) = &light.direction {
+        if let Some(direction) = &direction {
             s.list("direction", direction)?;
         }
         if let Some(cone) = &light.cone {

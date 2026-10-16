@@ -570,6 +570,12 @@ focus = "follow"
 - `shake` is pfx's `fx::Shake` at full trauma: `translation` (0, metres, across the frame's right and up), `roll` (0, degrees, below 90), `frequency` (2, hertz, above 0) and `seed` (the timeline's seed). The same seed gives the same shake.
 - `focus` sets depth of field and needs the camera's `fstop` above 0: `"follow"` keeps the focus on the followed object, the distance from the camera to its origin (a car's centre on the ground under it) at every frame, written into the scene's `[camera]` as `focus_keys = [[t, metres], ...]` one key a frame; a number is a fixed focus distance in metres, written as `focus`.
 - `[camera.rig.tracks]` directs the rig over time: each track is optional, an array of `[t, value]` keys in seconds with rising times from 0, passing through every key on a Hermite curve (Catmull-Rom tangents, flat at the first and last key) and held past the ends. A track overrides its static key: `distance` (metres behind the object along its −Z, above 0; overrides `-offset[2]`), `lateral` (metres to the right of travel; overrides `-offset[0]`, and moves the aim sideways with the camera so the object crosses the frame), `height` (metres; overrides `offset[1]`), `bank` (the bank gain), `lag` (seconds), `shake` (a scale of the `shake` table, 0 and up; 1 is the table as written) and `look_ahead` (seconds). `lag`, `shake` and `look_ahead` take values of 0 or more. A rig without tracks bakes as before, byte for byte.
+- **Replay moves**, more `[camera.rig.tracks]`, each optional and keyed the same way: `orbit` (degrees of azimuth around the target: 0 behind, 90 its right side, 180 in front, 270 its left, so a rising key swings the camera behind, side, front and back), `pitch` (degrees of elevation around the target, -90 to 90: 0 level with its origin, 90 straight above it, for crane moves), `roll` (degrees, added to the bank), `focal` (the lens in millimetres) or `fov` (the vertical field of view in degrees, above 0 and below 180), not both, and `look_offset` (`[[t, [x, y, z]], ...]`, the aim point in the target's frame, keyed; it overrides `look`, so the camera aims above or ahead of the target).
+  - **Precedence:** with `orbit` or `pitch`, the camera sits on a sphere around the target, at `distance` metres (the track, else the length of `offset`), `orbit` degrees around and `pitch` degrees up (each the track, else the angle of `offset`, so the sphere starts where the offset is); that spherical offset replaces `offset` and the `lateral` and `height` tracks, which are then ignored. Without both, the cartesian offset, `distance`, `lateral` and `height` place it as above.
+  - **The lens:** `focal` or `fov` keys the camera's lens over the timeline: the GLB's camera node carries the lens at frame 0 (glTF's `yfov` is not animated), and Manfred's own shots and clips at `--time` zoom with the keys. The scene file's keyed `[camera] keys = { fov = ... }` waits for pfx-scene's next minor (pfx 1813), as the pinned v1.1.0 refuses the key. `focal` and `fov` are a camera's, refused on a rig of an object or a light.
+  - **`smooth = { <track> = seconds }`** under `[camera.rig]` eases a track through a critically damped spring (Game Programming Gems 4's smooth damp, exact) on top of its Hermite curve, so a keyed move settles like an operator's, without overshoot; seconds above 0, any track name above, `look_offset` included. A track without an entry follows its curve exactly.
+  - **`frame`**: `"target"` (the default) turns the offsets, the aim and an orbit with the target's heading (smoothed by `yaw_lag`); `"world"` keeps them in world axes, a free orbit not tied to the car's heading (`yaw_lag` is then unused).
+  - A camera straight above its aim (pitch 90) keeps the target's forward as the top of the frame.
 - `bank_spring = { frequency = 1.5, damping = 0.5 }` makes the bank roll a second-order spring toward the wanted roll (hertz above 0, a damping ratio above 0): below 1 it overshoots the turn and settles, in place of the half-second ease.
 - `release = <seconds>`: from that time the camera eases to a stop over `release_ease` (1.5, seconds above 0), its velocity falling smoothly to 0, and holds there, still looking at the object as it drives away, so the focus distance grows and the bank fades to level.
 - The camera's `position` and `target` are optional with a rig (they default to `offset` and `look`) and serve only where there is no timeline. A rig is for a perspective camera, and a camera takes `path` or `rig`, not both.
@@ -875,6 +881,67 @@ A `keys` table keys the properties of its table over the recipe's `[timeline]`: 
 - **Order:** keys are the base. Manfred's keys baker runs first, and the bakers after it (follow, the rig, constraints) read its tracks.
 - **Manfred's own views:** `manfred shot` and `manfred render --time`, `manfred clip --timeline` and the window's timeline pose the keyed objects and cameras and light the keyed lights at `t`; `shot` and `render` also take the keyed lens, exposure, LUT amount and sun hour.
 - **Editing:** `manfred key <recipe> <path> <t> <value> [--interp linear|smooth|step]` sets the key at `t` or inserts one, and `manfred unkey <recipe> <path> [<t>]` removes one key, or every key of the property; `<path>` is `object.hero.at`, `camera.chase.fov_y_deg`, `light.lamp.intensity`, `particles.spray.rate`, `look.exposure`, `sun.hour` or `haze.amount`. They edit the file in place, keeping its comments and layout, re-read and re-check it, and leave it untouched when the edit is refused. `--set object.hero.keys.at=[[0, [0, 0, 0]], [3, [0, 0, 20]]]` and a variant's `set` replace a whole keyed property.
+
+## Constraints
+
+Any object, camera or light can take an ordered list of constraints, Blender's way: `[[object.constraint]]` under its `[[object]]`, `[[camera.constraint]]` under its `[[camera]]`, `[[light.constraint]]` under its `[[light]]`. Each one is a table with a `type` and that type's keys; the list is evaluated in order at the timeline's fixed step, each constraint working on the pose the ones before it left, and the result is baked into the owner's tracks in the GLB's `timeline` animation, once a frame.
+
+```toml
+[[object]]
+name = "hero"
+generator = "manfred/car"
+
+[[object.constraint]]
+type = "follow_path"
+route = "main"
+lane = 1.5
+speed = [[0.0, 12.0], [3.0, 28.0]]
+
+[[object]]
+name = "drone"
+kind = "box"
+size = [0.4, 0.1, 0.4]
+
+[[object.constraint]]
+name = "ride"
+type = "copy"
+target = "hero"
+offset = [0.0, 2.5, -1.0]
+
+[[object.constraint]]
+type = "look_at"
+target = "hero.body"
+
+[[camera]]
+name = "chase"
+fov_y_deg = 38.0
+fstop = 2.8
+
+[[camera.constraint]]
+type = "rig"
+follow = "hero"
+lag = 0.25
+focus = "follow"
+
+[[light]]
+name = "search"
+kind = "spot"
+position = [0.0, 6.0, 0.0]
+
+[[light.constraint]]
+type = "look_at"
+target = "hero"
+```
+
+- **`type`** (required) is one of the four below. **`name`** (optional) names the constraint, for `--set` and for problems.
+- **`follow_path`** takes the keys of a `[[follow]]` (under Follow) without `object`: `route`, `lane`, `start`, `speed`, `drift` and `ride`. It sets the whole pose, so the constraints before it are overwritten. On an object, its `<object>.wheel_*` pieces spin and steer as a follow's do.
+- **`look_at`** turns the owner, where it stands, so one of its axes points at a target: `target` (required), `offset` (`[0, 0, 0]`, a point in the target's frame, so `[0, 1, 0]` aims a metre above its origin), `up` (`[0, 1, 0]`, the world direction the owner's +Y leans toward) and `axis` (`"x"`, `"-x"`, `"y"`, `"-y"`, `"z"` or `"-z"`, the owner's axis that points; `"z"`, the forward of an object, by default on an object, and `"-z"`, the way glTF's cameras and spot lights look, on a camera or a light). An owner on its aim point, or looking straight along `up`, is refused at build.
+- **`copy`** puts the owner in the target's frame: `target` (required), `offset` (`[0, 0, 0]`, metres in the target's frame), `rotate` (`[0, 0, 0]`, degrees in the target's frame, the order an object's `rotate` turns) and `channels` (`["translation", "rotation"]`; any of `"translation"`, `"rotation"` and `"scale"`), the channels it takes from the target; the others keep the owner's own. With `translation` and an offset, the owner rides the target as if parented.
+- **`rig`** is a camera rig (under Camera rig) on any owner: `follow` (required, the target) and every other key of `[camera.rig]`, its `tracks` (the replay moves `orbit`, `pitch`, `roll` and `look_offset` included) as a `[<owner>.constraint.tracks]` table under the constraint, `smooth` and `frame`. The rig's pose looks down the owner's −Z at its aim. `focus` and the lens tracks `focal` and `fov` are a camera's only.
+- **A target** is an object's name (its frame, the pose its constraints give it, or where it stands), one of its pieces' nodes (`hero.body`, `hero.wheel_fl`), `camera.<name>` or `light.<name>`. Every frame is +Z forward and +Y up, without scale. A target is evaluated before what targets it, whatever the order of the tables; a cycle (A looks at B, B copies A) is refused, naming the entry that closes it, and so is an unknown target, a constraint on its own owner, and any constraint in a recipe without a `[timeline]`.
+- **Sugar:** a `[[follow]]` is the first `follow_path` of its object, and a `[camera.rig]` the first `rig` of its camera, ahead of the explicit constraints; both build the same bytes as the constraint form, and both keep their own problems' names (`follow[hero].speed`, `camera[chase].rig.lag`). A camera with constraints takes no `path`, and is a perspective camera; its `position` and `target` are optional (a first `rig` gives them its `offset` and `look`, as `[camera.rig]` does, otherwise they default to the origin and −Z) and serve only where there is no timeline.
+- **What is written:** an object's nodes are keyed as a follow's (above); a camera is its top-level node `camera.<name>` (under Camera rig), with a `rig`'s `focus = "follow"` as `focus_keys`. A light is a top-level empty node `light.<name>` in the GLB, keyed like any node, and the scene's `[[light]]` rides it, `parent` the timeline's scene object with `node = "light.<name>"` and `at = [0, 0, 0]`; its `direction` is in that node's frame (`[0, 0, -1]` when left out, where `look_at` and `rig` aim it). A constrained light takes `position`, never `parent`. Manfred's own views pose it there at `--time`.
+- **`--set`, variants and `manfred set`** reach every key by the constraint's position in its owner's list, from 0, or by its `name`: `object.hero.constraint.0.lane=2.0`, `object.drone.constraint.ride.offset=[0, 3, -1]`, `camera.chase.constraint.0.tracks.distance=[[0, 4], [2, 9]]`, `light.search.constraint.0.offset=[0, 1, 0]`, and the window's edits use the same paths. A name is looked up first, so a constraint named `"1"` is reached by that name before the position.
 
 ## Variants, look and bake
 

@@ -580,6 +580,9 @@ pub(super) fn read_light(
         shadow: tab.or(cx, "shadow", false, super::BOOL)?,
     };
     super::keys::read(cx, &mut tab, "light", Some(light.name.as_str()), context)?;
+    let owner = crate::Owner::Light(light.name.clone());
+    let list = super::constraint::list(cx, &mut tab, &owner)?;
+    super::constraint::keep(cx, owner, list);
     tab.finish(cx)?;
     Ok(light)
 }

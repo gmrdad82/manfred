@@ -55,6 +55,8 @@ fn a_rig_reads_every_key_and_stands_in_for_position_and_target() {
             bank_spring: None,
             release: None,
             release_ease: 1.5,
+            smooth: Default::default(),
+            frame: manfred_recipe::RigFrame::Target,
         })
     );
     assert_eq!(camera.position, [0.5, 1.4, -7.0]);

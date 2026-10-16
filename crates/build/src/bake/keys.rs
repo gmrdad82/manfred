@@ -102,6 +102,7 @@ pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
                 keys: world.iter().map(|m| trs_from_matrix(*m)).collect(),
                 camera: None,
                 focus: None,
+                fov: None,
             });
         }
     }

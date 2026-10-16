@@ -278,11 +278,11 @@ fn parse_errors_name_the_key_the_line_and_what_was_expected() {
     let cases: &[(&str, &str)] = &[
         (
             "unknown_key",
-            "line 8: object[a].colour: unknown key `colour` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px, keys, interp",
+            "line 8: object[a].colour: unknown key `colour` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px, keys, interp, constraint",
         ),
         (
             "wrong_kind_key",
-            "line 8: object[a].radius: unknown key `radius` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px, keys, interp",
+            "line 8: object[a].radius: unknown key `radius` in `object[a]`, expected one of: name, id, kind, at, at_px, rotate, scale, keep_transform, parent, material, materials, smooth_angle, smooth, flat_faces, bevel, uv, detail_uv, shadow, two_sided, hidden, dynamic, proxy, lod, size, size_px, keys, interp, constraint",
         ),
         (
             "unknown_top",

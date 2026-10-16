@@ -1,39 +1,13 @@
-use crate::{Bake, Track};
+use crate::Track;
 use glam::{DMat4, DQuat, DVec3};
 use manfred_glb::Node;
 use manfred_motion::{Route, Timeline, noise1, trs_from_matrix};
-use manfred_recipe::{Follow, Recipe};
+use manfred_recipe::Follow;
 
 const STEER_MAX_DEG: f64 = 35.0;
 const SLIP_SMOOTH_S: f64 = 0.2;
 const CRAWL_M_S: f64 = 1.0;
 const WHEELBASE_M: f64 = 2.7;
-
-pub(crate) fn animates(recipe: &Recipe) -> Vec<String> {
-    recipe.follows.iter().map(|f| f.object.clone()).collect()
-}
-
-pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
-    let mut tracks = Vec::new();
-    for follow in &b.recipe.follows {
-        let route = b.routes.get(&follow.route).ok_or_else(|| {
-            format!(
-                "follow[{}].route: no route named `{}`",
-                follow.object, follow.route
-            )
-        })?;
-        let scale = b
-            .recipe
-            .objects
-            .iter()
-            .find(|o| o.name == follow.object)
-            .map_or(DVec3::ONE, |o| DVec3::from_array(o.scale));
-        let path = drive(follow, route, b.timeline);
-        let facts = b.facts.get(&follow.object);
-        tracks.extend(car(&follow.object, &path, route, b.nodes, facts, scale));
-    }
-    Ok(tracks)
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Drive {
@@ -211,13 +185,14 @@ fn wheelbase(wheels: &[(bool, Wheel)], facts: Option<&serde_json::Value>) -> f64
     }
 }
 
-fn car(
+pub(crate) fn nodes(
     object: &str,
-    path: &Drive,
-    route: &Route,
+    poses: &[DMat4],
+    scales: Option<&[DVec3]>,
+    scale: DVec3,
+    drive: Option<(&Drive, &Route)>,
     nodes: &[Node],
     facts: Option<&serde_json::Value>,
-    scale: DVec3,
 ) -> Vec<Track> {
     let prefix = format!("{object}.");
     let wheel_prefix = format!("{object}.wheel_");
@@ -233,39 +208,47 @@ fn car(
         })
         .collect();
     let base = wheelbase(&wheels, facts);
-    let scaled = DMat4::from_scale(scale);
+    let constant = DMat4::from_scale(scale);
+    let scaled = |n: usize| match scales {
+        Some(scales) => DMat4::from_scale(scales[n]),
+        None => constant,
+    };
     let mut tracks = Vec::with_capacity(owned.len());
     let mut wheel_at = 0;
     for node in owned {
-        let keys = if node.name.starts_with(&wheel_prefix) {
-            let (front, wheel) = wheels[wheel_at];
-            wheel_at += 1;
-            path.pose
+        let keys = match drive {
+            Some((path, route)) if node.name.starts_with(&wheel_prefix) => {
+                let (front, wheel) = wheels[wheel_at];
+                wheel_at += 1;
+                poses
+                    .iter()
+                    .zip(&path.distance)
+                    .enumerate()
+                    .map(|(n, (pose, &d))| {
+                        let turn = if front { steer(route, d, base) } else { 0.0 };
+                        let local = DMat4::from_translation(wheel.centre)
+                            * DMat4::from_rotation_y(turn)
+                            * DMat4::from_quat(DQuat::from_axis_angle(
+                                wheel.axle,
+                                spin(d, wheel.radius),
+                            ))
+                            * DMat4::from_translation(-wheel.centre);
+                        trs_from_matrix(*pose * scaled(n) * local)
+                    })
+                    .collect()
+            }
+            _ => poses
                 .iter()
-                .zip(&path.distance)
-                .map(|(pose, &d)| {
-                    let turn = if front { steer(route, d, base) } else { 0.0 };
-                    let local = DMat4::from_translation(wheel.centre)
-                        * DMat4::from_rotation_y(turn)
-                        * DMat4::from_quat(DQuat::from_axis_angle(
-                            wheel.axle,
-                            spin(d, wheel.radius),
-                        ))
-                        * DMat4::from_translation(-wheel.centre);
-                    trs_from_matrix(*pose * scaled * local)
-                })
-                .collect()
-        } else {
-            path.pose
-                .iter()
-                .map(|pose| trs_from_matrix(*pose * scaled))
-                .collect()
+                .enumerate()
+                .map(|(n, pose)| trs_from_matrix(*pose * scaled(n)))
+                .collect(),
         };
         tracks.push(Track {
             node: node.name.clone(),
             keys,
             camera: None,
             focus: None,
+            fov: None,
         });
     }
     tracks

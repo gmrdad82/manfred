@@ -8,17 +8,15 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::path::{Component, Path, PathBuf};
 
+pub(crate) mod constraint;
 pub(crate) mod follow;
 pub(crate) mod keys;
 pub(crate) mod rig;
 
-pub(crate) const BAKERS: &[(&str, crate::Baker)] = &[
-    ("keys", keys::bake),
-    ("follow", follow::bake),
-    ("rig", rig::bake),
-];
+pub(crate) const BAKERS: &[(&str, crate::Baker)] =
+    &[("keys", keys::bake), ("constraints", constraint::bake)];
 
-pub(crate) const ANIMATES: &[crate::Animates] = &[keys::animates, follow::animates];
+pub(crate) const ANIMATES: &[crate::Animates] = &[keys::animates, constraint::animates];
 
 pub(crate) const LIBRARY: &str = "bake-materials.toml";
 

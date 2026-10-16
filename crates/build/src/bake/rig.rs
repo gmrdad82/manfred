@@ -1,7 +1,7 @@
-use crate::{Bake, Track, camera_track};
+use crate::Bake;
 use glam::{DMat4, DQuat, DVec3};
-use manfred_motion::{matrix, trs_from_matrix};
-use manfred_recipe::{Camera, Rig, RigFocus, Spring};
+use manfred_motion::Route;
+use manfred_recipe::{Camera, Rig, RigFrame, RigTracks, Spring};
 use pfx_core::fx::{Comfort, Shake, ShakeTuning};
 use pfx_core::rig::{Follow, FollowTuning, Input};
 use std::f64::consts::{PI, TAU};
@@ -10,28 +10,22 @@ const LOOK_AHEAD_EASE: f64 = 0.25;
 const BANK_EASE: f64 = 0.5;
 const MAX_BANK_DEG: f64 = 30.0;
 
-pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
-    b.recipe
-        .cameras
-        .iter()
-        .filter_map(|camera| camera.rig.as_ref().map(|rig| (camera, rig)))
-        .map(|(camera, rig)| track(b, camera, rig))
-        .collect()
-}
-
-fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
-    let frames = frames(b, rig)?;
+pub(crate) fn rigged(
+    b: &Bake,
+    rig: &Rig,
+    frames: &[(DQuat, DVec3)],
+    up: DVec3,
+    route: Option<&Route>,
+) -> Result<Vec<DMat4>, String> {
     let dt = 1.0 / f64::from(b.timeline.fps.max(1));
     let times: Vec<f64> = (0..frames.len())
         .map(|n| b.timeline.time(n as u32))
         .collect();
-    let curve = |name: &str, fallback: f64| -> Vec<f64> {
-        match rig.tracks.get(name) {
-            Some(keys) if !keys.is_empty() => times.iter().map(|t| hermite(keys, *t)).collect(),
-            _ => vec![fallback; times.len()],
-        }
-    };
-    let distance = curve("distance", -rig.offset[2]);
+    let curve =
+        |name: &str, fallback: f64| -> Vec<f64> { sampled(rig, &times, dt, name, fallback) };
+    let spherical = rig.tracks.spherical();
+    let reach = DVec3::from(rig.offset).length();
+    let distance = curve("distance", if spherical { reach } else { -rig.offset[2] });
     let lateral = curve("lateral", -rig.offset[0]);
     let height = curve("height", rig.offset[1]);
     let lag: Vec<f64> = curve("lag", rig.lag).iter().map(|v| v.max(0.0)).collect();
@@ -41,26 +35,50 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
         .iter()
         .map(|v| v.max(0.0))
         .collect();
-    let turns = headings(&frames, rig.yaw_lag, dt);
+    let world = rig.frame == RigFrame::World;
+    let turns = if world {
+        vec![DQuat::IDENTITY; frames.len()]
+    } else {
+        headings(frames, rig.yaw_lag, dt)
+    };
+    let offsets: Vec<DVec3> = if spherical {
+        let elevation = if reach > 0.0 {
+            (rig.offset[1] / reach).clamp(-1.0, 1.0).asin().to_degrees()
+        } else {
+            0.0
+        };
+        let azimuth = (-rig.offset[0]).atan2(-rig.offset[2]).to_degrees();
+        let orbit = curve("orbit", azimuth);
+        let pitch = curve("pitch", elevation);
+        (0..frames.len())
+            .map(|n| around(distance[n], orbit[n], pitch[n]))
+            .collect()
+    } else {
+        (0..frames.len())
+            .map(|n| DVec3::new(-lateral[n], height[n], -distance[n]))
+            .collect()
+    };
     let wanted: Vec<DVec3> = frames
         .iter()
         .zip(&turns)
         .enumerate()
-        .map(|(n, ((_, at), turn))| *at + *turn * DVec3::new(-lateral[n], height[n], -distance[n]))
+        .map(|(n, ((_, at), turn))| *at + *turn * offsets[n])
         .collect();
-    let crab = rig.tracks.lateral.is_some();
+    let crab = rig.tracks.lateral.is_some() && !spherical;
+    let aims = looks(rig, &times, dt);
     let looked: Vec<DVec3> = frames
         .iter()
         .zip(&turns)
         .enumerate()
         .map(|(n, ((_, at), turn))| {
-            let mut look = DVec3::from(rig.look);
+            let mut look = aims.as_ref().map_or(DVec3::from(rig.look), |a| a[n]);
             if crab {
                 look.x -= lateral[n] + rig.offset[0];
             }
             *at + *turn * look
         })
         .collect();
+    let rolls = rig.tracks.roll.is_some().then(|| curve("roll", 0.0));
     let mut place = smoothing(rig.lag);
     let mut aim = smoothing(LOOK_AHEAD_EASE);
     let mut eyes = Vec::with_capacity(frames.len());
@@ -75,7 +93,7 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
         targets.push(looked[n] + ahead * ahead_s[n]);
     }
     let calm = released(&mut eyes, &times, rig, dt);
-    let banks = banks(b, rig, &frames, dt, &gain, &calm);
+    let banks = banks(rig, frames, dt, &gain, &calm, route);
     let mut shake = rig.shake.map(|s| {
         let mut shake = Shake::new(ShakeTuning {
             translation: [s.translation as f32; 2],
@@ -87,14 +105,16 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
         shake.add(1.0);
         shake
     });
-    let up = DVec3::from(camera.up);
     let mut keys = Vec::with_capacity(frames.len());
-    let mut focus = Vec::with_capacity(frames.len());
     for n in 0..frames.len() {
         let mut eye = eyes[n];
-        let mut pose = view(eye, targets[n], up)?;
+        let mut pose =
+            view(eye, targets[n], up).or_else(|_| view(eye, targets[n], turns[n] * DVec3::Z))?;
         if let Some(roll) = banks.get(n) {
             pose *= DQuat::from_rotation_z(-roll.to_radians());
+        }
+        if let Some(rolls) = &rolls {
+            pose *= DQuat::from_rotation_z(-rolls[n].to_radians());
         }
         if let Some(shake) = &mut shake {
             if n > 0 {
@@ -105,14 +125,9 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
             eye += (pose * DVec3::X * x + pose * DVec3::Y * y) * jolt[n];
             pose *= DQuat::from_rotation_z(f64::from(offset.roll).to_radians() * jolt[n]);
         }
-        keys.push(trs_from_matrix(DMat4::from_rotation_translation(pose, eye)));
-        focus.push(eye.distance(frames[n].1));
+        keys.push(DMat4::from_rotation_translation(pose, eye));
     }
-    let mut track = camera_track(camera, b.timeline, keys);
-    if rig.focus == Some(RigFocus::Follow) {
-        track.focus = Some(focus);
-    }
-    Ok(track)
+    Ok(keys)
 }
 
 pub fn hermite(keys: &[[f64; 2]], t: f64) -> f64 {
@@ -141,6 +156,83 @@ pub fn hermite(keys: &[[f64; 2]], t: f64) -> f64 {
         + (u3 - 2.0 * u2 + u) * h * slope(i)
         + (3.0 * u2 - 2.0 * u3) * v1
         + (u3 - u2) * h * slope(i + 1)
+}
+
+fn sampled(rig: &Rig, times: &[f64], dt: f64, name: &str, fallback: f64) -> Vec<f64> {
+    let values: Vec<f64> = match rig.tracks.get(name) {
+        Some(keys) if !keys.is_empty() => times.iter().map(|t| hermite(keys, *t)).collect(),
+        _ => vec![fallback; times.len()],
+    };
+    match rig.smooth.get(name) {
+        Some(&seconds) if seconds > 0.0 => damp(&values, seconds, dt),
+        _ => values,
+    }
+}
+
+fn damp(values: &[f64], seconds: f64, dt: f64) -> Vec<f64> {
+    let omega = 2.0 / seconds;
+    let fade = (-omega * dt).exp();
+    let mut at = values.first().copied().unwrap_or(0.0);
+    let mut rate = 0.0;
+    values
+        .iter()
+        .enumerate()
+        .map(|(n, goal)| {
+            if n > 0 {
+                let change = at - goal;
+                let push = (rate + omega * change) * dt;
+                rate = (rate - omega * push) * fade;
+                at = goal + (change + push) * fade;
+            }
+            at
+        })
+        .collect()
+}
+
+fn around(distance: f64, orbit_deg: f64, pitch_deg: f64) -> DVec3 {
+    let (sa, ca) = orbit_deg.to_radians().sin_cos();
+    let (se, ce) = pitch_deg.to_radians().sin_cos();
+    DVec3::new(-distance * ce * sa, distance * se, -distance * ce * ca)
+}
+
+fn looks(rig: &Rig, times: &[f64], dt: f64) -> Option<Vec<DVec3>> {
+    let keys = rig.tracks.look_offset.as_ref().filter(|k| !k.is_empty())?;
+    let axis = |i: usize| {
+        let line: Vec<[f64; 2]> = keys.iter().map(|(t, v)| [*t, v[i]]).collect();
+        let values: Vec<f64> = times.iter().map(|t| hermite(&line, *t)).collect();
+        match rig.smooth.get(RigTracks::LOOK_OFFSET) {
+            Some(&seconds) if seconds > 0.0 => damp(&values, seconds, dt),
+            _ => values,
+        }
+    };
+    let [x, y, z] = [axis(0), axis(1), axis(2)];
+    Some(
+        (0..times.len())
+            .map(|n| DVec3::new(x[n], y[n], z[n]))
+            .collect(),
+    )
+}
+
+pub(crate) fn zoom(b: &Bake, rig: &Rig, camera: &Camera, count: usize) -> Option<Vec<f64>> {
+    let dt = 1.0 / f64::from(b.timeline.fps.max(1));
+    let times: Vec<f64> = (0..count).map(|n| b.timeline.time(n as u32)).collect();
+    let aspect = b.timeline.aspect();
+    if rig.tracks.fov.is_some() {
+        return Some(sampled(rig, &times, dt, "fov", camera.fov_y_deg(aspect)));
+    }
+    rig.tracks.focal.as_ref()?;
+    let mut lens = camera.clone();
+    lens.fov_y_deg = None;
+    let millimetres = sampled(rig, &times, dt, "focal", camera.focal_mm.unwrap_or(50.0));
+    Some(
+        millimetres
+            .into_iter()
+            .map(|focal| {
+                lens.focal_mm = Some(focal);
+                lens.fov_y_deg(aspect)
+            })
+            .collect(),
+    )
 }
 
 fn released(eyes: &mut [DVec3], times: &[f64], rig: &Rig, dt: f64) -> Vec<f64> {
@@ -216,23 +308,17 @@ fn headings(frames: &[(DQuat, DVec3)], lag: f64, dt: f64) -> Vec<DQuat> {
 }
 
 fn banks(
-    b: &Bake,
     rig: &Rig,
     frames: &[(DQuat, DVec3)],
     dt: f64,
     gain: &[f64],
     calm: &[f64],
+    route: Option<&Route>,
 ) -> Vec<f64> {
     if gain.iter().all(|g| *g == 0.0) {
         return Vec::new();
     }
-    let Some(route) = b
-        .recipe
-        .follows
-        .iter()
-        .find(|f| f.object == rig.follow)
-        .and_then(|f| b.routes.get(&f.route))
-    else {
+    let Some(route) = route else {
         return Vec::new();
     };
     let places: Vec<DVec3> = frames.iter().map(|(_, at)| *at).collect();
@@ -288,42 +374,6 @@ fn velocity(points: &[DVec3], n: usize, dt: f64) -> DVec3 {
     (to - from) / dt
 }
 
-fn frames(b: &Bake, rig: &Rig) -> Result<Vec<(DQuat, DVec3)>, String> {
-    let count = b.timeline.frames as usize + 1;
-    let object = &rig.follow;
-    let piece = format!("{object}.");
-    let wheel = format!("{object}.wheel_");
-    let owned = b.tracks.iter().find(|t| t.node == *object).or_else(|| {
-        b.tracks
-            .iter()
-            .find(|t| t.node.starts_with(&piece) && !t.node.starts_with(&wheel))
-    });
-    if let Some(track) = owned {
-        if track.keys.len() < count {
-            return Err(format!(
-                "camera rig: the track of `{}` has {} keys, expected {count}",
-                track.node,
-                track.keys.len()
-            ));
-        }
-        return Ok(track.keys[..count]
-            .iter()
-            .map(|key| rigid(matrix(key)))
-            .collect());
-    }
-    match b.nodes.iter().find(|n| n.name == *object) {
-        Some(node) => Ok(vec![rigid(node.transform); count]),
-        None => Err(format!(
-            "camera rig: nothing named `{object}` moves or stands in the built scene, expected an object with a `[[follow]]`"
-        )),
-    }
-}
-
-fn rigid(m: DMat4) -> (DQuat, DVec3) {
-    let (_, turn, at) = m.to_scale_rotation_translation();
-    (turn.normalize(), at)
-}
-
 pub(crate) fn view(eye: DVec3, target: DVec3, up: DVec3) -> Result<DQuat, String> {
     let back = (eye - target).normalize_or_zero();
     let right = up.cross(back).normalize_or_zero();
@@ -342,8 +392,11 @@ pub(crate) fn view(eye: DVec3, target: DVec3, up: DVec3) -> Result<DQuat, String
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Lens;
+    use crate::bake::constraint::bake;
+    use crate::{Lens, Track};
+    use manfred_motion::matrix;
     use manfred_motion::{Route, Timeline, Trs};
+    use manfred_recipe::RigFocus;
     use manfred_recipe::{RigShake, RigTracks};
     use std::collections::BTreeMap;
 
@@ -385,6 +438,8 @@ mod tests {
             bank_spring: None,
             release: None,
             release_ease: 1.5,
+            smooth: BTreeMap::new(),
+            frame: RigFrame::Target,
         }
     }
 
@@ -414,6 +469,7 @@ mod tests {
                 .collect(),
             camera: None,
             focus: None,
+            fov: None,
         }];
         let facts = serde_json::Map::new();
         let b = Bake {
@@ -473,6 +529,11 @@ mod tests {
 
     fn eye(track: &Track, n: usize) -> DVec3 {
         DVec3::from(track.keys[n].translation)
+    }
+
+    fn rigid(m: DMat4) -> (DQuat, DVec3) {
+        let (_, turn, at) = m.to_scale_rotation_translation();
+        (turn.normalize(), at)
     }
 
     fn wanted(n: u32, point: [f64; 3]) -> DVec3 {
@@ -749,6 +810,7 @@ mod tests {
                         lag: Some(vec![[0.0, 0.1], [1.0, 0.4]]),
                         shake: Some(vec![[0.0, 1.0], [2.0, 0.3]]),
                         look_ahead: Some(vec![[0.0, 0.0], [1.0, 0.3]]),
+                        ..RigTracks::default()
                     },
                     bank_spring: Some(Spring {
                         frequency: 1.2,
@@ -769,5 +831,115 @@ mod tests {
                 .iter()
                 .all(|k| k.translation.iter().all(|v| v.is_finite()))
         );
+    }
+
+    fn orbiting(orbit: f64, pitch: f64, frame: RigFrame) -> Track {
+        baked(Rig {
+            tracks: RigTracks {
+                orbit: Some(vec![[0.0, orbit]]),
+                pitch: Some(vec![[0.0, pitch]]),
+                distance: Some(vec![[0.0, 6.0]]),
+                ..RigTracks::default()
+            },
+            frame,
+            ..rig()
+        })
+    }
+
+    #[test]
+    fn orbit_zero_is_behind_ninety_the_right_side_and_pitch_ninety_straight_above() {
+        let behind = orbiting(0.0, 0.0, RigFrame::Target);
+        let right = orbiting(90.0, 0.0, RigFrame::Target);
+        let front = orbiting(180.0, 0.0, RigFrame::Target);
+        let above = orbiting(0.0, 90.0, RigFrame::Target);
+        for n in [0u32, 30, 60] {
+            let i = n as usize;
+            assert!(eye(&behind, i).distance(wanted(n, [0.0, 0.0, -6.0])) < 1e-9);
+            assert!(eye(&right, i).distance(wanted(n, [-6.0, 0.0, 0.0])) < 1e-9);
+            assert!(eye(&front, i).distance(wanted(n, [0.0, 0.0, 6.0])) < 1e-9);
+            assert!(eye(&above, i).distance(wanted(n, [0.0, 6.0, 0.0])) < 1e-9);
+            let down = DQuat::from_array(above.keys[i].rotation) * DVec3::NEG_Z;
+            assert!(down.dot(DVec3::NEG_Y) > 1.0 - 1e-9);
+            let toward = (wanted(n, [0.0, 0.6, 0.0]) - eye(&right, i)).normalize();
+            let forward = DQuat::from_array(right.keys[i].rotation) * DVec3::NEG_Z;
+            assert!(forward.dot(toward) > 1.0 - 1e-9);
+        }
+    }
+
+    #[test]
+    fn a_world_frame_orbit_ignores_the_target_s_heading() {
+        let free = orbiting(0.0, 0.0, RigFrame::World);
+        let tied = orbiting(0.0, 0.0, RigFrame::Target);
+        for n in [0u32, 30, 60] {
+            let at = DVec3::from(car(TIMELINE.time(n)).translation);
+            assert!(eye(&free, n as usize).distance(at + DVec3::new(0.0, 0.0, -6.0)) < 1e-9);
+        }
+        assert!(eye(&tied, 60).distance(eye(&free, 60)) > 1.0);
+    }
+
+    #[test]
+    fn smoothing_lags_a_step_and_settles_without_overshoot() {
+        let step: Vec<f64> = (0..240).map(|n| if n < 10 { 0.0 } else { 5.0 }).collect();
+        let eased = damp(&step, 0.3, 1.0 / 60.0);
+        assert_eq!(eased[..10], step[..10]);
+        assert!(eased[11] < 1.0 && eased[20] < 5.0 && eased[20] > eased[11]);
+        assert!(eased.windows(2).all(|w| w[1] >= w[0] && w[1] <= 5.0));
+        assert!((eased[239] - 5.0).abs() < 1e-3, "{}", eased[239]);
+        let keyed = |smooth: BTreeMap<String, f64>| {
+            baked(Rig {
+                tracks: RigTracks {
+                    height: Some(vec![[0.0, 1.0], [0.5, 1.0], [0.6, 3.0]]),
+                    ..RigTracks::default()
+                },
+                smooth,
+                ..rig()
+            })
+        };
+        let sharp = keyed(BTreeMap::new());
+        let soft = keyed(BTreeMap::from([("height".to_string(), 0.4)]));
+        assert_eq!(sharp.keys[0], soft.keys[0]);
+        assert!(eye(&soft, 20).y < eye(&sharp, 20).y - 0.3);
+        assert!((eye(&soft, 60).y - eye(&sharp, 60).y).abs() < 0.2);
+    }
+
+    #[test]
+    fn a_keyed_lens_zooms_the_camera_and_roll_adds_to_the_horizon() {
+        let mut r = recipe(rig());
+        r.cameras[0].rig = Some(Rig {
+            tracks: RigTracks {
+                fov: Some(vec![[0.0, 30.0], [2.0, 60.0]]),
+                roll: Some(vec![[0.0, 10.0]]),
+                ..RigTracks::default()
+            },
+            ..rig()
+        });
+        let camera = r.cameras[0].clone();
+        let lens = zoom(
+            &Bake {
+                recipe: &r,
+                nodes: &[],
+                facts: &serde_json::Map::new(),
+                timeline: &TIMELINE,
+                routes: &BTreeMap::new(),
+                tracks: &[],
+            },
+            camera.rig.as_ref().unwrap(),
+            &camera,
+            61,
+        )
+        .expect("a lens");
+        assert_eq!((lens[0], lens[60]), (30.0, 60.0));
+        let rolled = baked(Rig {
+            tracks: RigTracks {
+                roll: Some(vec![[0.0, 10.0]]),
+                ..RigTracks::default()
+            },
+            ..rig()
+        });
+        let level = baked(rig());
+        let tilt = (DQuat::from_array(level.keys[30].rotation).inverse()
+            * DQuat::from_array(rolled.keys[30].rotation))
+        .to_axis_angle();
+        assert!((tilt.1.to_degrees() - 10.0).abs() < 1e-6);
     }
 }
