@@ -54,6 +54,14 @@ Corporation, with the RT filter's trained weights (rt_hdr_alb_nrm.tza, from
 https://github.com/RenderKit/oidn-weights, commit 28883d1), Copyright Intel
 Corporation, both under the Apache License 2.0 (assets/licenses/Apache-2.0.txt).
 
+The manfred binary includes manf, the .manf container
+(https://github.com/gmrdad82/pfx-scene, manf/, tag v1.5.0, MIT), whose LZ4
+block coder ports lz4_flex 0.14.0 (https://github.com/pseitz/lz4_flex, commit
+1bffdcbbf906a234b913937cb2f57c0245915038), Copyright (c) 2020 Pascal Seitz,
+and whose CRC-32 ports crc32fast 1.5.0 (https://github.com/srijs/rust-crc32fast,
+tag v1.5.0), Copyright (c) 2018 Sam Rijs, Alex Crichton and contributors, both
+under the MIT licence below; manf's own NOTICE (manf/NOTICE) carries them.
+
 The route spline in crates/motion/src/route.rs ports the arc-length baking of
 Godot Engine's Curve3D (https://github.com/godotengine/godot,
 scene/resources/curve.cpp, tag 4.5-stable, commit
