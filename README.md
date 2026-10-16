@@ -224,6 +224,8 @@ manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--
                                                           one frame of the window, offscreen
 manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> [--size WxH] [--fps 30|60|120] [--poster first|last|<seconds>] [--start]
                                                           the window playing a tape, offscreen: an x264 master, its poster and a manifest
+manfred route <recipe> list|set|add|remove [--route <name>] [--at <i>] [--point x,y,z] [--json]
+                                                          list the routes' points and lengths, or move, add or remove a point in the file
 ```
 
 `manfred --help` and `manfred help <command>` print the whole help. A line Manfred cannot parse gets clap's short error on stderr and exits 2; a recipe, camera or file it refuses after that is one line on stderr, `manfred <command>: …`, and exits 1.

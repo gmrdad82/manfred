@@ -44,3 +44,31 @@ crates/denoise, MIT), a port of Intel Open Image Denoise 2.5.1
 Corporation, with the RT filter's trained weights (rt_hdr_alb_nrm.tza, from
 https://github.com/RenderKit/oidn-weights, commit 28883d1), Copyright Intel
 Corporation, both under the Apache License 2.0 (assets/licenses/Apache-2.0.txt).
+
+The route spline in crates/motion/src/route.rs ports the arc-length baking of
+Godot Engine's Curve3D (https://github.com/godotengine/godot,
+scene/resources/curve.cpp, tag 4.5-stable, commit
+876b290332ec6f2e6d173d08162a02aa7e6ca46d): the even-length subdivision of each
+segment, the distance table searched by bisection, and the nearest distance by
+projection onto the baked polyline. Its licence:
+
+  Copyright (c) 2014-present Godot Engine contributors (see AUTHORS.md).
+  Copyright (c) 2007-2014 Juan Linietsky, Ariel Manzur.
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in all
+  copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.

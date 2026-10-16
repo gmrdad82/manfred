@@ -98,6 +98,14 @@ One JSON object a line on stderr, at most about one a second while tracing. Ever
 - `materials_differ`, with `materials_a` and `materials_b` when it is true;
 - `render`, with `--render`: `psnr_db` (a number, or `"inf"` when the pictures are identical), `floor_db`, and the paths of `a`, `b` and `difference`, the three PNGs it drew.
 
+## `manfred route --json`
+
+One JSON object on stdout. `list` prints `recipe` (the path as given) and `routes[]`; `set`, `add` and `remove` print `recipe` and the edited `route`, as the file holds it after the edit. A route is `name`, `closed`, `points` (`[x, y, z]` in metres) and `length` (metres along the curve), with `length` null and a `problem` sentence when its points do not make a route.
+
+```json
+{"recipe":"street.toml","routes":[{"closed":false,"length":81.87448581919321,"name":"main","points":[[0.0,0.0,0.0],[0.0,0.0,40.0],[12.0,0.0,80.0]]}]}
+```
+
 ## A clip's folder
 
 `manfred clip --out <dir>` writes:

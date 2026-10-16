@@ -37,7 +37,7 @@ scene_camera = "main"
 scene_format = 1
 ```
 
-- `include`: other files whose cameras, lights, sky, look, materials and objects merge into this recipe, under "Includes and uses" below.
+- `include`: other files whose cameras, lights, sky, look, materials, routes and objects merge into this recipe, under "Includes and uses" below.
 - `params`: an optional JSON or TOML file whose values can be substituted into numeric fields as `"${params.camera.focal_mm}"`. An app's own solver writes the file; the recipe consumes it.
 - `[plate]`: declares plate pixels, and fixes the `plate` UV projection. `camera` names the camera that projection looks through; without it, the first `[[camera]]`.
   - **Twins:** with a plate, these keys have a `_px` twin read in pixels: `at_px`, `size_px`, `rect_px`, `radius_px`, `circle_px`, `points_px`, and a mover's `pivot_px`, `travel_px`, `clip_px` and `clip2_px`. A key and its twin together are an error, and a twin without a `[plate]` is a problem.
@@ -212,8 +212,8 @@ The rules follow the engine's `scene.toml` `include` where they fit (pfx's `docs
 
 - **Paths** are relative to the file that names them: an `include` or a use's `file`, and a sky's `path`, a card's `image`, a mesh's `path` and a span's font `family` inside an included or used file. An absolute path is refused. A `"${params.…}"` inside one reads the recipe's own params, and a `_px` key the recipe's own `[plate]`.
 - **`include = ["rig.toml", …]`** merges each file's tables into the recipe, in order and depth first: an included file's own includes come before it, and every included entry comes before the recipe's own. A file is included once per recipe; a second include of it is refused, and so is a cycle, naming the chain (`a.toml → b.toml → a.toml is a cycle`). A missing file is an error at the include that names it: `include: cannot read nope.toml: no such file`.
-- **What an included file holds:** `[[object]]`, `[[camera]]`, `[[light]]`, `[[mover]]`, `[[use]]`, `[sun]`, `[sky]`, `[look]`, `[materials.<name>]`, its own `include`, and optionally `manfred`. `name`, `seed`, `params`, `[plate]`, `[output]`, variants, `[sidecar]` and `[bake]` belong to the recipe and are refused in an included file.
-- **Names:** an object, camera, light, mover group, non-empty use prefix or material is defined once across a recipe and the files it includes and uses. A second definition in another file is an error naming both files: ``light[lamp]: `lamp` is defined in rig.toml and in panel.toml``. The recipe overrides an entry by changing it in the file that holds it, never by defining it again.
+- **What an included file holds:** `[[object]]`, `[[camera]]`, `[[light]]`, `[[mover]]`, `[[route]]`, `[[use]]`, `[sun]`, `[sky]`, `[look]`, `[materials.<name>]`, its own `include`, and optionally `manfred`. `name`, `seed`, `params`, `[plate]`, `[output]`, variants, `[sidecar]` and `[bake]` belong to the recipe and are refused in an included file.
+- **Names:** an object, camera, light, mover group, route, non-empty use prefix or material is defined once across a recipe and the files it includes and uses. A second definition in another file is an error naming both files: ``light[lamp]: `lamp` is defined in rig.toml and in panel.toml``. The recipe overrides an entry by changing it in the file that holds it, never by defining it again.
 - **Tables:** `[sun]`, `[sky]` and `[look]` are set by one included file at most (two siblings setting one is refused, naming both), and the including file's own keys win over the included ones key by key, through nested tables such as `[sky.prepare]` and `[sky.room]`. Above, the panel keeps the rig's whole sky and changes only its intensity. An array or an inline table is one value and is replaced whole.
 - **A problem in another file** is reported at the recipe's line that brings the file in, with that file's own name and line before the key: `manfred check panel.toml` prints `panel.toml:3: rig.toml:24: light[lamp].colour: unknown key …`, and `Recipe::origin_of` gives the file and line of any key.
 
@@ -422,6 +422,27 @@ clip = [0.0, 0.0, 1.0, 0.0]
   - **`clip` and `clip2`** are planes `[nx, ny, nz, d]`: a point `p` with `dot(n, p) > d` is cut away while the part moves. `clip_px = [0, 1, 0, row]` and `clip2_px = [0, -1, 0, row]` put the plane on a plate row: the normal must be [0, ±1, 0], and `d` is the normal's y times the row's height in metres. So `clip_px = [0, 1, 0, 151]` cuts everything above row 151, and `clip2_px = [0, -1, 0, 738]` everything below row 738.
   - **In the live view** (`manfred shot` and the window) every piece of every part of a mover carries its mover's `clip` and `clip2` as the engine's per-instance clip planes, in world space as written: the pieces are drawn at their rest pose, so the recipe's axes are the world's. A part is cut, its shadow too. A part two movers claim takes the first mover's planes, as the extras do. `manfred render` clips movers too (`docs/render.md`). The glass parts of a mover are not clipped live until an engine release clips glass surfaces per instance.
   - **In the sidecar:** the facts dialect writes `movers.<group>` with `pivot`, `axis`, `travel`, and `clip` and `clip2` when the mover has them; an app's writer writes them as its loader reads them.
+
+## Routes
+
+A route is a smooth path through the scene, for anything that travels along it: a car that follows a street, a camera rig, a generator that lays a road beside it.
+
+```toml
+[[route]]
+name = "main"
+points = [
+  [0.0, 0.0, 0.0],
+  [0.0, 0.0, 40.0],
+  [12.0, 0.0, 80.0],
+]
+closed = false
+```
+
+- `name` is required and no other route uses it. `points` is required: at least 2 points `[x, y, z]` in metres, Y up (a closed route needs 3), every number finite, and no point at the same place as the next one (for a closed route, the last and the first too). A problem names the route, as `route[main].points`.
+- `closed` (false by default) joins the last point back to the first.
+- **The curve** passes through every point: a centripetal Catmull-Rom spline (alpha 0.5), which never loops or cusps between points. An open route's ends continue straight past the first and last points' neighbours. Distances along the route are in metres, from an arc-length table built once when the route is read; a distance past an open route's ends holds at the end, and a closed route's wraps around.
+- **The frame** at a distance is its position, its tangent (the way of travel), its right (the tangent crossed with world up) and its up. A route that runs straight up or down takes world +Z as its reference instead of world up. Curvature is signed, positive where the route turns right.
+- **Editing:** `--set route.main.points=[[0, 0, 0], [0, 0, 50]]` and a variant's `set` replace the points; `closed` the same way. `manfred route <recipe> list|set|add|remove --route <name> [--at <i>] [--point x,y,z] [--json]` lists the routes with their points and lengths, moves point `--at` to `--point`, inserts `--point` before point `--at` (or at the end without `--at`), or removes point `--at`, and writes the recipe file through the same edits the window makes, keeping its comments; a route never goes below its 2 points (3 when closed). Routes in an included file are edited in that file.
 
 ## Variants, look and bake
 
