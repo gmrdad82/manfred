@@ -1,11 +1,11 @@
 ---
 title: "Film a camera path"
-description: "Give a camera an orbit or keyframes and turn it into numbered frames and a video, live or path-traced."
+description: "Give a camera an orbit or keyframes, or turn an object under a still camera, and make numbered frames and a video, live or path-traced."
 sidebar:
   order: 5
 ---
 
-A camera with a path turns into frames with `manfred clip`, drawn live or path-traced, and into a video when an encoder is there.
+A camera with a path, or an object turning under a still camera, turns into frames with `manfred clip`, drawn live or path-traced, and into a video when an encoder is there.
 
 ![Four path-traced frames of an orbit around the workshop scene, a quarter turn apart, seen from the front, the right, the back and the left.](../images/orbit.png)
 
@@ -59,6 +59,37 @@ The first draws each frame on the live renderer; `--trace` path-traces them (64 
 - **An orbit loops:** frame `i` of `N` is at `i / N`, so a whole number of turns repeats no frame. Keys end on their last key.
 - **A run resumes:** a frame is written whole or not at all, and a second run into the same folder skips the finished frames. A run with different settings into that folder is refused, so frames never mix.
 - **Same input, same bytes:** each frame depends on its pose, the recipe and the flags only.
+
+## Turn an object on a turntable
+
+`--spin` turns an object, and every object parented to it, about the vertical line through its origin, while the camera and the lights stay still. Give the figure a hidden root to turn about, and a camera without a path:
+
+```toml
+[[object]]
+name = "body"
+kind = "box"
+size = [0.01, 0.01, 0.01]
+hidden = true
+
+[[object]]
+name = "figure"
+kind = "mesh"
+path = "figurine.glb"
+parent = "body"
+
+[[camera]]
+name = "front"
+position = [0.0, 0.12, 0.45]
+target = [0.0, 0.08, 0.0]
+fov_y_deg = 30.0
+```
+
+```sh
+manfred clip figurine.toml --camera front --spin body --frames 96 --fps 24 --size 1080x1080 --out turn --video turn.mp4
+manfred clip figurine.toml --camera front --spin body --turns -0.5 --frames 48 --fps 24 --size 1080x1080 --out half --trace --spp 64
+```
+
+Frame `i` of `N` turns `body` by `turns × 360° × i / N` (`--turns` is 1 by default, and may be fractional or negative to turn the other way), so a whole number of turns loops without repeating a frame. A camera with a path is refused with `--spin`, and so is `--timeline`. The recipe is read and built once: each frame only moves the turned objects.
 
 ## Film the timeline
 

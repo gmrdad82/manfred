@@ -1057,6 +1057,10 @@ fn parents(recipe: &Recipe) -> Vec<Option<usize>> {
         .collect()
 }
 
+pub fn family_of(recipe: &Recipe, object: usize) -> Vec<bool> {
+    family(&parents(recipe), object)
+}
+
 fn family(parents: &[Option<usize>], object: usize) -> Vec<bool> {
     (0..parents.len())
         .map(|start| {

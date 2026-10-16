@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
 use manfred_build::{Built, Registry};
+use manfred_glb::DMat4;
 use manfred_recipe::{Camera, CameraPath, Recipe};
 use manfred_render::Step;
 
@@ -12,6 +13,15 @@ const SAMPLES: u32 = 64;
 const MAX_FPS: i64 = 240;
 const MANIFEST: &str = "clip.txt";
 const LIST: &str = "frames.ffconcat";
+
+type Matrix = [[f32; 4]; 4];
+
+fn turns(text: &str) -> Result<f64, String> {
+    match text.parse::<f64>() {
+        Ok(turns) if turns.is_finite() => Ok(turns),
+        _ => Err("is not a finite number of turns".into()),
+    }
+}
 
 fn video(text: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(text);
@@ -28,7 +38,7 @@ pub(super) struct Args {
     #[arg(
         long,
         value_name = "name",
-        help = "The recipe's camera, with a path to move along"
+        help = "The recipe's camera, with a path to move along, or still with --spin"
     )]
     camera: String,
     #[arg(
@@ -54,6 +64,22 @@ pub(super) struct Args {
         help = "Film the recipe's [timeline], frames 0 to its last at its fps, the camera from its rig when it has one"
     )]
     timeline: bool,
+    #[arg(
+        long,
+        value_name = "object",
+        conflicts_with = "timeline",
+        help = "Turn this object and everything parented to it about the world Y axis through its origin, the camera and lights held still"
+    )]
+    spin: Option<String>,
+    #[arg(
+        long = "turns",
+        value_name = "N",
+        requires = "spin",
+        allow_negative_numbers = true,
+        value_parser = turns,
+        help = "How many turns --spin makes over the clip, negative the other way [default: 1]"
+    )]
+    turns: Option<f64>,
     #[arg(long, value_name = "WxH", value_parser = size, help = "Each frame's size in pixels")]
     size: [u32; 2],
     #[arg(
@@ -106,12 +132,13 @@ impl Args {
     fn rate(&self) -> u32 {
         self.fps.unwrap_or(1)
     }
+
+    fn spun(&self) -> f64 {
+        self.turns.unwrap_or(1.0)
+    }
 }
 
-fn resolved(args: &Args) -> Result<Args, String> {
-    if !args.timeline {
-        return Ok(args.clone());
-    }
+fn chosen(args: &Args) -> Result<Recipe, String> {
     let file = args.recipe.display().to_string();
     let failed = |e: manfred_recipe::Error| super::read_failure(&file, &e);
     let loaded = manfred_recipe::load(&args.recipe).map_err(failed)?;
@@ -119,8 +146,67 @@ fn resolved(args: &Args) -> Result<Args, String> {
         Some(name) => manfred_recipe::apply_variant(&loaded.recipe, name).map_err(failed)?,
         None => loaded.recipe,
     };
-    let chosen = manfred_recipe::apply_set(&chosen, &args.set).map_err(failed)?;
-    let timeline = chosen.timeline.ok_or_else(|| {
+    manfred_recipe::apply_set(&chosen, &args.set).map_err(failed)
+}
+
+fn degrees(turns: f64, frame: u32, frames: u32) -> f64 {
+    turns * 360.0 * f64::from(frame) / f64::from(frames.max(1))
+}
+
+fn spun(recipe: &Recipe, name: &str) -> Result<usize, String> {
+    recipe
+        .objects
+        .iter()
+        .position(|object| object.name == name)
+        .ok_or_else(|| {
+            let known: Vec<&str> = recipe.objects.iter().map(|o| o.name.as_str()).collect();
+            if known.is_empty() {
+                format!("--spin {name}: the recipe has no objects")
+            } else {
+                format!(
+                    "--spin {name}: no such object, expected one of: {}",
+                    known.join(", ")
+                )
+            }
+        })
+}
+
+fn motion(recipe: &Recipe, object: usize, degrees: f64) -> Result<DMat4, String> {
+    let pivot = manfred_build::world(recipe, object)
+        .map_err(|e| e.to_string())?
+        .w_axis
+        .truncate();
+    Ok(DMat4::from_translation(pivot)
+        * manfred_build::rotation([0.0, degrees, 0.0])
+        * DMat4::from_translation(-pivot))
+}
+
+fn narrow(matrix: DMat4) -> Matrix {
+    matrix
+        .to_cols_array_2d()
+        .map(|column| column.map(|v| v as f32))
+}
+
+fn held(args: &Args, camera: &Camera) -> Result<(), String> {
+    if args.timeline {
+        return Ok(());
+    }
+    match (&args.spin, &camera.path) {
+        (Some(object), Some(_)) => Err(format!(
+            "camera.{}: --spin {object} holds the camera still, and this camera has a [camera.path]; film the spin through a camera without one",
+            camera.name
+        )),
+        (Some(_), None) => Ok(()),
+        (None, _) => path_of(camera).map(|_| ()),
+    }
+}
+
+fn resolved(args: &Args) -> Result<Args, String> {
+    if !args.timeline {
+        return Ok(args.clone());
+    }
+    let file = args.recipe.display().to_string();
+    let timeline = chosen(args)?.timeline.ok_or_else(|| {
         format!("{file}: --timeline films the recipe's [timeline], and the recipe has none (docs/recipe.md, Timeline)")
     })?;
     Ok(Args {
@@ -154,6 +240,9 @@ fn manifest(args: &Args) -> String {
     );
     if args.timeline {
         text.push_str("timeline\n");
+    }
+    if let Some(object) = &args.spin {
+        text.push_str(&format!("spin {object}, {} turns\n", args.spun()));
     }
     match args.samples() {
         Some(samples) => text.push_str(&format!("renderer traced, {samples} spp\n")),
@@ -234,10 +323,10 @@ fn precheck(args: &Args) -> Result<(), String> {
         &args.camera,
         None,
     )?;
-    if args.timeline {
-        return Ok(());
+    if let Some(name) = &args.spin {
+        spun(&chosen(args)?, name)?;
     }
-    path_of(&camera).map(|_| ())
+    held(args, &camera)
 }
 
 fn requeue(args: &[String]) -> Option<ExitCode> {
@@ -259,6 +348,20 @@ enum Renderer {
 }
 
 impl Renderer {
+    fn recipe(&self) -> &Recipe {
+        match self {
+            Renderer::Live(_, base) => &base.0,
+            Renderer::Traced(reel, _) => &reel.recipe,
+        }
+    }
+
+    fn spin(&mut self, object: usize, motion: Matrix) -> Result<(), String> {
+        match self {
+            Renderer::Live(reel, _) => reel.preview(object, motion).map_err(|e| e.0),
+            Renderer::Traced(reel, _) => reel.spin(object, motion).map_err(|e| e.to_string()),
+        }
+    }
+
     fn pose(&mut self, time: f64, name: &str) -> Result<Camera, String> {
         match self {
             Renderer::Live(reel, base) => {
@@ -313,8 +416,9 @@ fn open(args: &Args, registry: &Registry) -> Result<(Renderer, Camera), String> 
                 manfred_scene::load(&args.recipe, args.variant.as_deref(), &args.set, registry)
                     .map_err(|e| e.0)?;
             let camera = manfred_scene::camera(&recipe, &args.camera).map_err(|e| e.0)?;
-            if !args.timeline {
-                path_of(camera)?;
+            held(args, camera)?;
+            if let Some(name) = &args.spin {
+                spun(&recipe, name)?;
             }
             let gpu = manfred_scene::headless().map_err(|e| e.0)?;
             let reel = manfred_scene::Reel::new(&gpu, &recipe, &built.parts, args.size)
@@ -336,9 +440,7 @@ fn open(args: &Args, registry: &Registry) -> Result<(Renderer, Camera), String> 
         }
     };
     let camera = manfred_scene::camera(&recipe, &args.camera).map_err(|e| e.0)?;
-    if !args.timeline {
-        path_of(camera)?;
-    }
+    held(args, camera)?;
     Ok((renderer, camera.clone()))
 }
 
@@ -357,15 +459,30 @@ fn frames(args: &Args, registry: &Registry, progress: &mut dyn FnMut(u32)) -> Re
         return Ok(());
     }
     let (mut renderer, camera) = open(args, registry)?;
-    let path = if args.timeline {
+    let spin = match &args.spin {
+        Some(name) => Some(spun(renderer.recipe(), name)?),
+        None => None,
+    };
+    let path = if args.timeline || spin.is_some() {
         None
     } else {
         Some(path_of(&camera)?)
     };
     for (made, &frame) in todo.iter().enumerate() {
-        let pose = match path {
-            Some(path) => camera.at(path.time(frame, count)),
-            None => renderer.pose(f64::from(frame) / f64::from(args.rate()), &args.camera)?,
+        let pose = match (spin, path) {
+            (Some(object), _) => {
+                let turned = motion(
+                    renderer.recipe(),
+                    object,
+                    degrees(args.spun(), frame, count),
+                )?;
+                renderer.spin(object, narrow(turned))?;
+                camera.clone()
+            }
+            (None, Some(path)) => camera.at(path.time(frame, count)),
+            (None, None) => {
+                renderer.pose(f64::from(frame) / f64::from(args.rate()), &args.camera)?
+            }
         };
         let part = args.out.join(partial(frame, count));
         let to = args.out.join(name(frame, count));
@@ -489,7 +606,7 @@ mod tests {
     #[test]
     fn every_flag_is_read() {
         let args = parse(&strings(
-            "table.toml --camera main --frames 24 --fps 30 --size 320x200 --out tmp/c --trace --spp 16 --variant bare --set sky.intensity=0.4 --video tmp/c.webm",
+            "table.toml --camera main --frames 24 --fps 30 --spin body --turns -0.5 --size 320x200 --out tmp/c --trace --spp 16 --variant bare --set sky.intensity=0.4 --video tmp/c.webm",
         ))
         .unwrap();
         assert_eq!(
@@ -500,6 +617,8 @@ mod tests {
                 frames: Some(24),
                 fps: Some(30),
                 timeline: false,
+                spin: Some("body".into()),
+                turns: Some(-0.5),
                 size: [320, 200],
                 out: "tmp/c".into(),
                 trace: true,
@@ -540,6 +659,10 @@ mod tests {
             "b.toml",
             "--set",
             "--timeline",
+            "--turns 2",
+            "--spin body --turns",
+            "--spin body --turns inf",
+            "--spin body --turns x",
         ] {
             assert!(
                 parse(&strings(&format!("{base} {extra}"))).is_err(),
@@ -558,6 +681,7 @@ mod tests {
             "a.toml --camera main --frames 3 --fps 241 --size 8x8 --out d",
             "a.toml --camera main --frames -1 --fps 24 --size 8x8 --out d",
             "a.toml --camera main --frames 3 --fps 24 --size 0x8 --out d",
+            "a.toml --camera main --timeline --spin body --size 8x8 --out d",
         ] {
             assert!(parse(&strings(bad)).is_err(), "{bad}");
         }
@@ -673,6 +797,101 @@ mod tests {
             assert_eq!(format!("{code:?}"), one, "{line}");
         }
         assert!(!Path::new("tmp/clip-tests/never").exists());
+    }
+
+    const BODY: &str = "manfred = 1\nname = \"turntable\"\n[[object]]\nname = \"body\"\nkind = \"box\"\nsize = [0.01, 0.01, 0.01]\nat = [1.0, 0.5, -2.0]\nrotate = [0.0, 30.0, 0.0]\nhidden = true\n[[object]]\nname = \"figure\"\nkind = \"box\"\nsize = [0.2, 0.4, 0.2]\nparent = \"body\"\nat = [0.3, 0.0, 0.1]\nrotate = [0.0, 0.0, 10.0]\n[[object]]\nname = \"hat\"\nkind = \"box\"\nsize = [0.1, 0.1, 0.1]\nparent = \"figure\"\nat = [0.0, 0.3, 0.0]\n[[object]]\nname = \"floor\"\nkind = \"box\"\nsize = [4.0, 0.1, 4.0]\n[[camera]]\nname = \"main\"\nposition = [0.0, 1.0, 3.0]\ntarget = [1.0, 0.5, -2.0]\nfov_y_deg = 40.0\n";
+
+    #[test]
+    fn a_spin_turns_from_zero_to_its_turns_over_the_clip() {
+        assert_eq!(degrees(1.0, 0, 8), 0.0);
+        assert_eq!(degrees(1.0, 8, 8), 360.0);
+        assert_eq!(degrees(1.0, 2, 8), 90.0);
+        assert_eq!(degrees(-2.0, 8, 8), -720.0);
+        assert_eq!(degrees(0.5, 4, 8), 90.0);
+        let recipe = manfred_recipe::parse(BODY).unwrap();
+        let body = spun(&recipe, "body").unwrap();
+        assert_eq!(
+            motion(&recipe, body, degrees(1.0, 0, 8)).unwrap(),
+            DMat4::IDENTITY
+        );
+        let whole = motion(&recipe, body, degrees(3.0, 8, 8)).unwrap();
+        assert!(whole.abs_diff_eq(DMat4::IDENTITY, 1e-12), "{whole:?}");
+        let message = spun(&recipe, "nobody").unwrap_err();
+        assert!(
+            message.contains("no such object, expected one of: body, figure, hat, floor"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn a_spin_turns_the_whole_parent_chain_about_its_own_origin() {
+        let recipe = manfred_recipe::parse(BODY).unwrap();
+        let body = spun(&recipe, "body").unwrap();
+        let turned = motion(&recipe, body, 75.0).unwrap();
+        let mut rotated = recipe.clone();
+        rotated.objects[body].rotate[1] += 75.0;
+        for name in ["body", "figure", "hat"] {
+            let at = spun(&recipe, name).unwrap();
+            let moved = turned * manfred_build::world(&recipe, at).unwrap();
+            let expected = manfred_build::world(&rotated, at).unwrap();
+            assert!(moved.abs_diff_eq(expected, 1e-12), "{name}");
+        }
+        let pivot = manfred_build::world(&recipe, body).unwrap().w_axis;
+        assert!((turned * pivot).abs_diff_eq(pivot, 1e-12));
+        assert_eq!(
+            manfred_scene::family_of(&recipe, body),
+            [true, true, true, false]
+        );
+        let figure = spun(&recipe, "figure").unwrap();
+        assert_eq!(
+            manfred_scene::family_of(&recipe, figure),
+            [false, true, true, false]
+        );
+        let hat = manfred_build::world(&recipe, spun(&recipe, "hat").unwrap()).unwrap();
+        let around = motion(&recipe, figure, 90.0).unwrap() * hat;
+        let origin = manfred_build::world(&recipe, figure).unwrap().w_axis;
+        let lever = hat.w_axis - origin;
+        let swung = around.w_axis - origin;
+        assert!((swung.x - lever.z).abs() < 1e-12 && (swung.z + lever.x).abs() < 1e-12);
+        assert!((swung.y - lever.y).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_spin_holds_a_still_camera_and_refuses_a_moving_one() {
+        let recipe = manfred_recipe::parse(BODY).unwrap();
+        let line = |rest: &str| {
+            parse(&strings(&format!(
+                "a.toml --camera main --frames 8 --fps 24 --size 8x8 --out d {rest}"
+            )))
+            .unwrap()
+        };
+        assert_eq!(held(&line("--spin body"), &recipe.cameras[0]), Ok(()));
+        assert!(
+            held(&line(""), &recipe.cameras[0])
+                .unwrap_err()
+                .contains("has no path")
+        );
+        let mut moving = recipe.cameras[0].clone();
+        moving.path = orbit();
+        let refused = held(&line("--spin body --turns 2"), &moving).unwrap_err();
+        assert!(refused.contains("holds the camera still"), "{refused}");
+        let spun = manifest(&line("--spin body --turns -1.5"));
+        assert!(spun.contains("spin body, -1.5 turns\n"), "{spun}");
+        assert_eq!(
+            manifest(&line("--spin body")),
+            manifest(&line("--spin body --turns 1"))
+        );
+        assert!(!manifest(&line("")).contains("spin"));
+    }
+
+    fn orbit() -> Option<CameraPath> {
+        manfred_recipe::parse(
+            "manfred = 1\nname = \"o\"\n[[camera]]\nname = \"main\"\nposition = [0.0, 1.0, 2.0]\ntarget = [0.0, 0.0, 0.0]\nfov_y_deg = 40.0\n[camera.path]\nkind = \"orbit\"\ntarget = [0.0, 0.0, 0.0]\nturns = 1.0\n",
+        )
+        .unwrap()
+        .cameras[0]
+            .path
+            .clone()
     }
 
     #[test]

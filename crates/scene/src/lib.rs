@@ -27,7 +27,7 @@ pub use parts::{Palette, Piece, glb_parts, material, palette, palette_with, piec
 use pfx_live::frame::Matrix;
 pub use pfx_live::frame::MeshStats;
 pub use picture::{difference, psnr, read_png, read_png_size, write_png};
-pub use stage::{Change, Pick, Prepared, Stage};
+pub use stage::{Change, Pick, Prepared, Stage, family_of};
 pub use text::{Laid, fonts};
 
 pub const SETTLE_FRAMES: u32 = 48;
@@ -179,6 +179,10 @@ impl Reel {
 
     pub fn pose(&mut self, recipe: &Recipe, parts: &[Part]) -> Result<(), Error> {
         self.stage.apply(Prepared::of(recipe, parts)?).map(|_| ())
+    }
+
+    pub fn preview(&mut self, object: usize, motion: Matrix) -> Result<(), Error> {
+        self.stage.preview(object, motion)
     }
 
     pub fn eye(&self, camera: &Camera) -> Eye {

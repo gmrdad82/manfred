@@ -2,6 +2,7 @@ use crate::text::Lettering;
 use manfred_build::Part;
 use manfred_recipe::{Recipe, Shadow};
 use manfred_scene::{Card, Cards, Error, Eye, Laid, Lighting, Palette, Picture, Piece};
+use pfx_live::frame::{Matrix, multiply};
 use pfx_live::sky::SkySource;
 use pfx_materials::{Blend, Material};
 use pfx_post::Chain;
@@ -47,6 +48,7 @@ pub struct Staging {
     pub lights: Vec<LocalLight>,
     pub finish: Chain,
     pub text: Laid,
+    pub posed: Vec<Matrix>,
 }
 
 impl Staging {
@@ -125,6 +127,7 @@ impl Staging {
                 shape: LightShape::Point,
             })
             .collect();
+        let count = pieces.len();
         Ok(Staging {
             pieces,
             slots,
@@ -147,6 +150,7 @@ impl Staging {
             lights,
             finish: lighting.finish.clone(),
             text: Laid::of(recipe, parts)?,
+            posed: vec![IDENTITY; count],
         })
     }
 
@@ -193,9 +197,15 @@ impl Staging {
             .zip(&self.mapped)
             .enumerate()
             .map(|(mesh, ((((&material, piece), card), clip), mapped))| {
-                let model = card
+                let faced = card
                     .and_then(|card| card.face)
                     .map_or(IDENTITY, |face| manfred_scene::facing(&face, eye));
+                let posed = self.posed.get(mesh).copied().unwrap_or(IDENTITY);
+                let model = if posed == IDENTITY {
+                    faced
+                } else {
+                    multiply(posed, faced)
+                };
                 let mut placed = Placement {
                     casts_shadow: piece.shadow != Shadow::None,
                     content: card.as_ref().map(|card| self.content(card)).or_else(|| {

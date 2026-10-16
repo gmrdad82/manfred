@@ -217,7 +217,7 @@ manfred shot <recipe> --camera <name> --size WxH --out <png> [--variant <name>] 
                                                           one still on the live renderer, headless; --set overrides a value the recipe has
 manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--crop x,y,w,h] [--variant V] [--set key=value]... [--time S] [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file.png|file.exr|file.hdr>
                                                           path-traced on the engine's tracer
-manfred clip <recipe> --camera <name> (--frames N --fps F | --timeline) --size WxH --out <dir> [--trace [--spp N]] [--variant V] [--set key=value]... [--video <file.mp4|file.webm>]
+manfred clip <recipe> --camera <name> (--frames N --fps F [--spin <object> [--turns N]] | --timeline) --size WxH --out <dir> [--trace [--spp N]] [--variant V] [--set key=value]... [--video <file.mp4|file.webm>]
                                                           a camera moving along the recipe's path, as frames and a video
 manfred new street [--seed N] [--out <file.toml>] [--json]
                                                           writes a starter chase shot: a 9:16 timeline, a route, a street, a hero car, traffic, a chase camera, and road spray on the hero's body behind each rear wheel

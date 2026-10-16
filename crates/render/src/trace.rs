@@ -7,6 +7,7 @@ use pfx::adapter::{Report, TurnState, turn_reporting};
 use pfx_denoise::Denoiser;
 use pfx_gpu::Gpu;
 use pfx_gpu::pace::{Pacer, Stats};
+use pfx_live::frame::Matrix;
 use pfx_post::Chain;
 use pfx_trace::sky::Environment;
 use pfx_trace::sobol::Sampler;
@@ -507,6 +508,22 @@ impl Reel {
         let (recipe, built) = manfred_scene::posed(&self.base, &self.built, time)?;
         self.staging = Staging::of(&recipe, &built.parts)?;
         self.recipe = recipe;
+        Ok(())
+    }
+
+    pub fn spin(&mut self, object: usize, motion: Matrix) -> Result<(), Fault> {
+        if object >= self.recipe.objects.len() {
+            return Err(Fault::Failed(format!(
+                "no object {object} to spin, the recipe has {}",
+                self.recipe.objects.len()
+            )));
+        }
+        let family = manfred_scene::family_of(&self.recipe, object);
+        for (posed, piece) in self.staging.posed.iter_mut().zip(&self.staging.pieces) {
+            if family.get(piece.object).copied().unwrap_or(false) {
+                *posed = motion;
+            }
+        }
         Ok(())
     }
 
