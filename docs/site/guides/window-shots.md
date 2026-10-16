@@ -52,6 +52,7 @@ key g
 | `wireframe xray on` / `wireframe xray off` | shows the hidden edges brighter, or dimmed again |
 | `clay on` / `clay off` | switches the viewport to clay (wireframe off) or back to shaded, in one frame |
 | `shade shaded\|clay\|wireframe [<seconds>]` | fades the viewport to that mode over the seconds, one even step a frame; into wireframe the clay stays under the fading edges, out of it the clay is there as they fade; without seconds it jumps |
+| `seek <marker\|seconds>` | sets the timeline's clock to a marker's time or to seconds, paused, in one frame; a marker the scene lacks stops the tape, naming its line |
 
 A tape also directs the view. These steps work in `--tape` (not in `--input`). Each timed one takes its frames like a `wait`, one even step a frame at the clip's rate, eased in and out (`reveal` is linear):
 

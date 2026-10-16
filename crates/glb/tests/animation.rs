@@ -63,6 +63,7 @@ fn a_track_writes_the_timeline_animation_and_a_camera_track_its_camera_node() {
         Some(Animation {
             fps: 2,
             tracks: &tracks,
+            markers: &[],
         }),
     )
     .unwrap();
@@ -165,6 +166,7 @@ fn no_tracks_write_the_same_bytes_as_before() {
         Some(Animation {
             fps: 60,
             tracks: &[],
+            markers: &[],
         }),
     )
     .unwrap();
@@ -190,8 +192,40 @@ fn a_track_naming_no_node_is_refused() {
         Some(Animation {
             fps: 60,
             tracks: &tracks,
+            markers: &[],
         }),
     )
     .unwrap_err();
     assert!(error.0.contains("ghost"), "{error}");
+}
+
+#[test]
+fn markers_ride_in_the_timeline_animation_s_extras() {
+    let tracks = vec![Track {
+        node: "a".into(),
+        keys: vec![key(0.0, 0.0), key(1.0, 0.0), key(2.0, 0.0)],
+        camera: None,
+        focus: None,
+    }];
+    let markers = vec![("launch".to_string(), 0.5), ("jump".to_string(), 1.0)];
+    let bytes = write_animated(
+        &[node("a")],
+        &[],
+        &[],
+        Content::default(),
+        Order::File,
+        "manfred test",
+        Some(Animation {
+            fps: 2,
+            tracks: &tracks,
+            markers: &markers,
+        }),
+    )
+    .unwrap();
+    let length = u32::from_le_bytes(bytes[12..16].try_into().unwrap()) as usize;
+    let json: serde_json::Value = serde_json::from_slice(&bytes[20..20 + length]).unwrap();
+    assert_eq!(
+        json["animations"][0]["extras"],
+        serde_json::json!({ "markers": [{ "name": "launch", "t": 0.5 }, { "name": "jump", "t": 1.0 }] })
+    );
 }

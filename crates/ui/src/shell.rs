@@ -1373,7 +1373,15 @@ impl Shell {
             (_, Key::Home) if self.live() => self.fit_selection(),
             (_, Key::Z) if self.live() => self.cycle_shading(),
             (_, Key::K) if self.live() && self.has_curves() => self.toggle_curves(),
-            (_, Key::Space | Key::Comma | Key::Period | Key::F) if self.span().is_some() => {
+            (
+                _,
+                Key::Space
+                | Key::Comma
+                | Key::Period
+                | Key::F
+                | Key::OpenBracket
+                | Key::CloseBracket,
+            ) if self.span().is_some() => {
                 self.transport_key(key);
             }
             (Panel::B1, Key::ArrowUp | Key::ArrowDown) => {
@@ -3829,6 +3837,35 @@ heading = 0.0
             "key c\nkey 1\nkey 0\nframe\nscroll 700 400 2\nframe",
         );
         assert!(shell.through().is_none());
+    }
+
+    #[test]
+    fn brackets_jump_between_markers_and_seek_takes_a_marker_or_seconds() {
+        let (mut shell, _, _) = live("shell-markers", SCENE);
+        let mut document = shell.document().clone();
+        document.timeline = Some(Span {
+            fps: 10,
+            frames: 20,
+            aspect: 0.5625,
+        });
+        document.markers = vec![("tip".into(), 1.5), ("start".into(), 0.5)];
+        shell.place(document, &[]);
+        let size = [1586, 992];
+        run(&mut shell, size, "key CloseBracket\nframe");
+        assert_eq!(shell.time(), Some(0.5));
+        run(
+            &mut shell,
+            size,
+            "key CloseBracket\nkey CloseBracket\nframe",
+        );
+        assert_eq!(shell.time(), Some(1.5));
+        run(&mut shell, size, "key OpenBracket\nframe");
+        assert_eq!(shell.time(), Some(0.5));
+        assert_eq!(shell.seek_to("tip"), Ok(1.5));
+        assert_eq!(shell.seek_to("0.25"), Ok(0.25));
+        assert_eq!(shell.seek_to("9"), Ok(2.0));
+        let refused = shell.seek_to("nope").unwrap_err();
+        assert!(refused.contains("tip, start"), "{refused}");
     }
 
     #[test]

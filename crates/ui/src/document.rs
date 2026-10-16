@@ -43,6 +43,7 @@ pub struct Document {
     pub patch: String,
     pub source: u64,
     pub timeline: Option<crate::timeline::Span>,
+    pub markers: Vec<(String, f64)>,
 }
 
 fn transform(index: usize) -> ([f32; 3], [f32; 3], [f32; 3]) {
@@ -274,6 +275,7 @@ impl Document {
             patch: sample::LAST_PATCH.to_string(),
             source: 0,
             timeline: None,
+            markers: Vec::new(),
         }
     }
 
@@ -294,6 +296,7 @@ impl Document {
             patch: "none".to_string(),
             source: 0,
             timeline: None,
+            markers: Vec::new(),
         }
     }
 
@@ -353,6 +356,11 @@ impl Document {
             patch: "none".to_string(),
             source: crate::follow::hash(&recipe.source),
             timeline: crate::timeline::Span::of(recipe),
+            markers: recipe
+                .markers
+                .iter()
+                .map(|m| (m.name.clone(), m.t))
+                .collect(),
         }
     }
 

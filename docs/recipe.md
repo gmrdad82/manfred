@@ -37,7 +37,7 @@ scene_camera = "main"
 scene_format = 1
 ```
 
-- `include`: other files whose cameras, lights, sky, look, materials, routes, particles, flare, motion blur, haze and objects merge into this recipe, under "Includes and uses" below.
+- `include`: other files whose cameras, lights, sky, look, materials, routes, markers, particles, flare, motion blur, haze and objects merge into this recipe, under "Includes and uses" below.
 - `sound`: an optional `*.sound.toml` file, relative to the recipe, which the scene names as its top-level `sound` (format 1 only; see "Shot effects").
 - `params`: an optional JSON or TOML file whose values can be substituted into numeric fields as `"${params.camera.focal_mm}"`. An app's own solver writes the file; the recipe consumes it.
 - `[plate]`: declares plate pixels, and fixes the `plate` UV projection. `camera` names the camera that projection looks through; without it, the first `[[camera]]`.
@@ -765,6 +765,25 @@ Every key takes `--set` and a variant's `set`, as `--set timeline.fps=30`. A rec
 - **The scene:** a format 1 scene of a recipe whose timeline animates something is one scene object for the whole GLB, named after the GLB's file name (`chase.glb` gives `chase`, or `timeline` when the name has other characters): its `[mesh.<name>]` reads every root of the GLB (no `node`), a `[mesh.<name>.nodes."<node>"]` gives a node its material, `shadow` or `two_sided`, and `[object.animation] clip = "timeline"` poses every node from the clip at `t = n / fps`. The camera stays the GLB's node `camera.<name>` inside it, so `pfx shot --camera chase` finds it, and a rig's focus stays on the scene's `[camera]` as `focus_keys`. Per-object scene keys an object has outside a timeline (`clip` planes, `content`, a card's `face_camera` and `alpha_cutoff`, `dynamic`, per-object `pick` ids) are not written in this form. A recipe without `[timeline]`, or whose timeline animates nothing, writes one scene object a node as before.
 - **Posing:** `manfred shot` and `manfred render` take `--time <seconds>` and draw the scene at that time: each key is interpolated as glTF's LINEAR is, the rotation by slerp, and a camera the timeline moves looks from its pose there. `--time` without a `[timeline]`, or outside 0 to its length, is refused before anything is drawn. `manfred clip <recipe> --timeline` films the timeline: frames 0 to the last at its `fps`, through `--camera`, posed by the timeline when it moves that camera, in place of `--frames`, `--fps` and a camera path.
 
+## Markers
+
+```toml
+[[marker]]
+name = "launch"
+t = 1.25
+
+[[marker]]
+name = "drift"
+t = 3.0
+```
+
+A marker names a time on the `[timeline]`, for jumping to and for tapes.
+
+- `name` (required) is unique among the markers; `t` (required) is seconds within the timeline, from 0 to its length. A marker without a `[timeline]` is a problem at `marker[<name>].t`.
+- `--set marker.<name>.t=2.0` and a variant's `set` move one.
+- **The GLB:** the markers ride in the `extras` of the GLB's `timeline` animation, as `{ "markers": [{ "name": "launch", "t": 1.25 }, ...] }`, in recipe order; a timeline that animates nothing writes no animation and so no markers. pfx-scene's format has no markers, so the scene file carries none: they stay Manfred's.
+- `manfred timeline` lists them with their frames. The window's transport bar draws each as a named tick on the scrubber, and `[` and `]` jump to the one before and after the current time. A tape's `seek <marker|seconds>` sets the clock to a marker or a time.
+
 ## Follow
 
 A `[[follow]]` drives an object along a `[[route]]` over the `[timeline]`, as a car down a street: its nodes are keyed once a frame in the GLB's `timeline` animation. Every other `[[follow]]` in the recipe (traffic) is driven the same way.
@@ -998,6 +1017,25 @@ The GLB carries what a loader needs about movers and shadows in glTF `extras` on
 - **Dialects:** the extras are written whatever the dialect, `none` included.
 - **`manfred diff`:** compares extras key by key, with nested keys joined by dots, and marks a difference under the node's name: `extras manfred.travel 0.003 -> 0.004`, or `extras manfred.group only in a`. A node that has extras on one side and none on the other lists every key as only on the side that has it. When one file carries no extras at all, as a Blender export doesn't, extras are left out of the diff.
 - **The runtime library:** `manfred_runtime` reads only `extras.manfred`, and a GLB a node of which still carries the older key `extras.manf` is an `Error::Glb` that names the new key; rebuild it with `manfred build`. It takes the movers from nodes whose `manfred` has a `pivot`. When the sidecar has movers too, the two must agree group for group, number for number, and a group that differs or is on one side only is an `Error::Sidecar` naming it. With no sidecar movers the extras are used alone; with no extras the sidecar is. A root without a `group`, or two roots of one group, is an `Error::Glb`. `Scene::groups` keeps each object's `extras.manfred.group` beside `Scene::objects`, and `Scene::group_of(object)` gives that group, or `mover_group(name)` when the GLB has none for the object, so `Scene::mover_of` finds a part the recipe lists in a mover's `parts` without the `mv_` prefix; a GLB without extras finds parts by their names as before.
+
+## Editing from the command line
+
+Besides `--set` (one build) and `manfred route` (a route's points), four commands change the recipe file's entries. Each writes the file through the same edits the window makes, so its comments and layout stay; reads the recipe back and checks it, and when the write brings in a problem the recipe did not have, puts every file back byte for byte and refuses, naming the problem. An entry in an included file is changed in that file. A refusal is one line on stderr, `manfred <command>: …`, exit 1.
+
+```sh
+manfred add r.toml object lamp2 kind=sphere radius=0.1 at='[0,2,0]' material=brass
+manfred add r.toml marker launch t=1.25
+manfred add r.toml follow hero route=main speed='[[0, 12]]'
+manfred duplicate r.toml object lamp2 lamp3 at='[1,2,0]'
+manfred remove r.toml object lamp3
+manfred list r.toml object --json
+```
+
+- **The tables:** `object`, `camera`, `light`, `route`, `stage`, `particles`, `follow`, `use`, `mover` and `marker`. An entry is named by its `name`, a follow's by its `object`, a use's by its `prefix` and a mover's by its `group`. Any other table is refused by the parser.
+- **`manfred add <recipe> <table> <name> [key=value]... [--json]`** appends an entry after the table's last, or starts the table at the end of the file. A value is read as TOML (`0.1`, `true`, `[0, 2, 0]`, `{ amount = 0.4 }`), and as a string when it is not TOML (`kind=sphere`); quote a string that would read as something else (`name='"7"'`). A dotted key writes a dotted key, as `params.radius=0.1` gives `params.radius = 0.1`. A name the table already has (a copy a use places, for objects) is refused, and so is the name key among the pairs.
+- **`manfred remove <recipe> <table> <name> [--json]`** removes the entry with the comments above it. It refuses while another entry refers to it, naming the referrer: an object that is another's `parent`, a pocket's `into`, a text's `on`, a use's `parent`, a `[[follow]]`'s object, a camera rig's `follow`, a light's or particles' `parent` (the object or one of its pieces), a mover's `parts` or the only object a stage's glob matches; a route a follow or a generator's `params.route` names; a camera `[output] scene_camera`, `[plate] camera` or a stage's `camera` names. Anything else that would break is caught by the check after the write.
+- **`manfred duplicate <recipe> <table> <name> <new-name> [key=value]... [--json]`** copies the entry, with its sub-tables, after the table's last entry under the new name, then applies the pairs as `add` does.
+- **`manfred list <recipe> [<table>] [--json]`** lists every entry as `<table>[<name>]`, with an object's kind (its generator's name for a generator) and parent, a marker's `t`, a follow's route, a light's or particles' parent and a camera rig's followed object. `--json` prints `{ "recipe", "entries": [{ "table", "name", ... }] }`; the editing commands print `{ "recipe", "done": "added"|"removed"|"duplicated", "table", "name", "entry" }`, with `entry` null after a remove.
 
 ## Defaults and requirements
 

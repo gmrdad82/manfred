@@ -249,6 +249,7 @@ pub struct Built {
     pub catalogue: BTreeMap<String, serde_json::Value>,
     pub notes: Vec<String>,
     pub timeline: Option<Timeline>,
+    pub markers: Vec<(String, f64)>,
     pub tracks: Vec<Track>,
     facts_by_object: serde_json::Map<String, serde_json::Value>,
     pub lights: Vec<GeneratedLight>,
@@ -348,6 +349,7 @@ impl Built {
             .map(|timeline| manfred_glb::Animation {
                 fps: timeline.fps,
                 tracks: &tracks,
+                markers: &self.markers,
             });
         manfred_glb::write_animated(
             &nodes,
@@ -1136,6 +1138,11 @@ fn assemble(
         nest: nest(recipe, &parts),
         wet,
         timeline: recipe.timeline,
+        markers: recipe
+            .markers
+            .iter()
+            .map(|m| (m.name.clone(), m.t))
+            .collect(),
         tracks: Vec::new(),
         facts_by_object: by_object,
         parts,

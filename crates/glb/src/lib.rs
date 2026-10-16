@@ -57,6 +57,7 @@ impl Track {
 pub struct Animation<'a> {
     pub fps: u32,
     pub tracks: &'a [Track],
+    pub markers: &'a [(String, f64)],
 }
 
 #[derive(Clone, Debug)]

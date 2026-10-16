@@ -932,9 +932,15 @@ fn animate(
         }
     }
     if !channels.is_empty() {
+        let markers: Vec<Value> = animation
+            .markers
+            .iter()
+            .map(|(name, t)| serde_json::json!({ "name": name, "t": t }))
+            .collect();
+        let extras = (!markers.is_empty()).then(|| serde_json::json!({ "markers": markers }));
         builder.root.animations.push(json::Animation {
             extensions: None,
-            extras: Default::default(),
+            extras: raw(extras.as_ref()),
             channels,
             name: Some(ANIMATION.to_string()),
             samplers,

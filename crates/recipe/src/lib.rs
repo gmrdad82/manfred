@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
 
+mod entries;
 mod include;
 mod patch;
 mod path;
@@ -13,6 +14,10 @@ mod text;
 mod validate;
 mod variant;
 
+pub use entries::{
+    Entry, TABLES, add_patch, duplicate_patch, entries, label_key, referrers, remove_patch,
+    write_checked,
+};
 pub use include::Files;
 pub use patch::{
     apply, apply_all, edit, flag, number, numbers, params_in, path_text, reread, save, save_to,
@@ -62,6 +67,7 @@ pub struct Recipe {
     pub follows: Vec<Follow>,
     pub stages: Vec<Stage>,
     pub keep: Vec<Vec<String>>,
+    pub markers: Vec<Marker>,
     pub variants: BTreeMap<String, Variant>,
     pub sidecar: serde_json::Map<String, serde_json::Value>,
     pub look: Option<Look>,
@@ -641,6 +647,12 @@ pub struct Stage {
     pub name: String,
     pub objects: Vec<String>,
     pub camera: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Marker {
+    pub name: String,
+    pub t: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

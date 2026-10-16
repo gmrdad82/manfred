@@ -42,8 +42,60 @@ impl Shell {
             Key::Comma => self.clock.step(&span, -1),
             Key::Period => self.clock.step(&span, 1),
             Key::F => self.clock.chase = !self.clock.chase,
+            Key::OpenBracket => self.jump_marker(false),
+            Key::CloseBracket => self.jump_marker(true),
             _ => {}
         }
+    }
+
+    fn jump_marker(&mut self, forward: bool) {
+        let Some(span) = self.span() else {
+            return;
+        };
+        let now = self.clock.time;
+        let mut times: Vec<f64> = self.document.markers.iter().map(|(_, t)| *t).collect();
+        times.sort_by(f64::total_cmp);
+        let next = if forward {
+            times.into_iter().find(|t| *t > now + 1e-6)
+        } else {
+            times.into_iter().rev().find(|t| *t < now - 1e-6)
+        };
+        if let Some(t) = next {
+            self.clock.seek(&span, t);
+        }
+    }
+
+    pub fn seek_to(&mut self, to: &str) -> Result<f64, String> {
+        let span = self
+            .span()
+            .ok_or_else(|| "seek needs a scene with a timeline".to_string())?;
+        let time = match to.parse::<f64>() {
+            Ok(t) if t.is_finite() && t >= 0.0 => t,
+            Ok(_) => {
+                return Err(format!(
+                    "seek wants seconds from 0 up or a marker, not {to}"
+                ));
+            }
+            Err(_) => match self.document.markers.iter().find(|(name, _)| name == to) {
+                Some((_, t)) => *t,
+                None => {
+                    let names: Vec<&str> = self
+                        .document
+                        .markers
+                        .iter()
+                        .map(|(n, _)| n.as_str())
+                        .collect();
+                    let known = if names.is_empty() {
+                        "the scene has no markers".to_string()
+                    } else {
+                        format!("expected one of: {}", names.join(", "))
+                    };
+                    return Err(format!("no marker named {to}, {known}"));
+                }
+            },
+        };
+        self.clock.seek(&span, time);
+        Ok(self.clock.time)
     }
 
     pub(super) fn transport(&mut self, ui: &mut Ui) {
@@ -72,6 +124,14 @@ impl Shell {
         }
         if chip(&mut bar, &format!("{NEXT}  ."), true).clicked() {
             self.clock.step(&span, 1);
+        }
+        if !self.document.markers.is_empty() {
+            if chip(&mut bar, &format!("{PREVIOUS}  ["), true).clicked() {
+                self.jump_marker(false);
+            }
+            if chip(&mut bar, &format!("{NEXT}  ]"), true).clicked() {
+                self.jump_marker(true);
+            }
         }
         if toggle(&mut bar, &format!("{LOOP}  loop"), self.clock.looping).clicked() {
             self.clock.looping = !self.clock.looping;
@@ -134,6 +194,20 @@ impl Shell {
             painter.line_segment(
                 [Pos2::new(at, y - 5.0), Pos2::new(at, y + 5.0)],
                 Stroke::new(STROKE, LINE_BORDER),
+            );
+        }
+        for (name, time) in &self.document.markers {
+            let at = x(*time);
+            painter.line_segment(
+                [Pos2::new(at, track.top()), Pos2::new(at, y + 5.0)],
+                Stroke::new(1.5, TEXT_SECONDARY),
+            );
+            painter.text(
+                Pos2::new(at + 2.0, track.top() - 1.0),
+                Align2::LEFT_TOP,
+                name,
+                Theme::of(painter.ctx()).font(SIZE_CODE - 2.0),
+                TEXT_SECONDARY,
             );
         }
         let now = x(self.clock.time);

@@ -74,6 +74,23 @@ big/desk.json
 
 The value takes the kind of the one it replaces. A key the recipe does not carry is refused in one line, exit 1; a missing `=` is a line Manfred cannot parse, exit 2.
 
+## Edit the recipe from the command line
+
+`add`, `remove`, `duplicate` and `list` change and read the recipe file's entries: objects, cameras, lights, routes, stages, particles, follows, uses, movers and markers. They write the file the way the window does, keeping its comments, then check the recipe again; a write that brings in a problem puts the file back byte for byte and is refused in one line, exit 1.
+
+```
+$ manfred add desk.toml object lamp2 kind=sphere radius=0.1 at='[0,2,0]'
+desk.toml: added object[lamp2]  kind sphere
+$ manfred duplicate desk.toml object lamp2 lamp3 at='[1,2,0]'
+desk.toml: duplicated object[lamp3]  kind sphere
+$ manfred remove desk.toml object desk
+manfred remove: desk.toml: object[desk]: object[lamp].parent refers to it; change or remove object[lamp].parent first
+$ manfred list desk.toml marker --json
+{"entries":[{"name":"launch","t":1.25,"table":"marker"}],"recipe":"desk.toml"}
+```
+
+A value that is not TOML is a string (`kind=sphere`), a dotted key writes a dotted key (`params.radius=0.1`), and a name the table already has is refused. `remove` names the entry that still refers to the one asked for: a child's `parent`, a follow, a camera rig, a light or emitter riding it, a stage whose glob only it matches, a follow or generator on a route, or the scene's camera. A marker (`[[marker]] name, t`) names a time on the timeline: `manfred timeline` lists them, the window's `[` and `]` jump between them, and a tape's `seek <marker|seconds>` sets the clock.
+
 ## Problems
 
 `manfred check` and `manfred build` report a problem at its line, naming the key, and exit 1:

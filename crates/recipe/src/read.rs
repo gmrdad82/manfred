@@ -10,12 +10,12 @@ pub(crate) mod effects;
 use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
     Casters, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind, Lines, Loaded,
-    Lod, LodTarget, Look, Mover, NO_SIDECAR, NORMAL_SIZE, OLD_HEADER, Object, Orbit, Order, Origin,
-    Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind,
-    Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE, RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus,
-    RigShake, RigTracks, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span,
-    Spring, Stage, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use, Uv, Variant,
-    VariantOutput, View, Volume,
+    Lod, LodTarget, Look, Marker, Mover, NO_SIDECAR, NORMAL_SIZE, OLD_HEADER, Object, Orbit, Order,
+    Origin, Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile,
+    ProfileKind, Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE, RIG_LOOK, RIG_OFFSET, Recipe,
+    Rig, RigFocus, RigShake, RigTracks, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind,
+    SkyLight, Span, Spring, Stage, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use,
+    Uv, Variant, VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -2504,6 +2504,17 @@ fn read_stage(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Resu
     Ok(stage)
 }
 
+fn read_marker(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Result<Marker, Error> {
+    let path = format!("marker[{}]", label(t, "name", index));
+    let mut tab = Tab::new(cx, t, path, format!("marker#{index}"), line);
+    let marker = Marker {
+        name: tab.req(cx, "name", STR)?,
+        t: tab.req(cx, "t", NUM)?,
+    };
+    tab.finish(cx)?;
+    Ok(marker)
+}
+
 fn missing_pair(tab: &Tab<'_>, key: &str, twin: &str, what: &str) -> Error {
     tab.missing(key, &format!("{what}, or `{twin}` in plate pixels"))
 }
@@ -3215,6 +3226,7 @@ fn read_root(
     let routes = tables(cx, &mut root, "route", read_route)?;
     let follows = tables(cx, &mut root, "follow", read_follow)?;
     let stages = tables(cx, &mut root, "stage", read_stage)?;
+    let markers = tables(cx, &mut root, "marker", read_marker)?;
     let variants = read_variants(cx, &mut root)?;
     let sidecar = read_sidecar(cx, &mut root)?;
     let look = read_look(cx, &mut root)?;
@@ -3282,6 +3294,7 @@ fn read_root(
         follows,
         stages,
         keep: Vec::new(),
+        markers,
         variants,
         sidecar,
         look,

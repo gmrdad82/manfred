@@ -90,6 +90,7 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     routes(&mut out);
     follows(&mut out);
     stages(&mut out);
+    markers(&mut out);
     output(&mut out);
     sky(&mut out);
     look(&mut out);
@@ -1085,6 +1086,32 @@ fn stages(out: &mut Out<'_>) {
                 camera,
                 "the name of a `[[camera]]`",
             );
+        }
+    }
+}
+
+fn markers(out: &mut Out<'_>) {
+    let r = out.r;
+    let names: Vec<&str> = r.markers.iter().map(|m| m.name.as_str()).collect();
+    duplicates(out, "marker", "name", &names);
+    for (i, m) in r.markers.iter().enumerate() {
+        let at = At::new(format!("marker[{}]", m.name), format!("marker#{i}"));
+        match &r.timeline {
+            None => out.at(
+                &at,
+                "t",
+                "a marker names a time on the timeline, expected a [timeline]",
+            ),
+            Some(timeline) => {
+                let end = timeline.seconds();
+                if !(m.t.is_finite() && (0.0..=end).contains(&m.t)) {
+                    out.at(
+                        &at,
+                        "t",
+                        format!("expected seconds within the timeline, from 0 to {end}"),
+                    );
+                }
+            }
         }
     }
 }

@@ -2,6 +2,7 @@ mod build;
 mod check;
 mod clip;
 mod diff;
+mod entries;
 mod gui;
 mod new;
 mod process;
@@ -98,6 +99,14 @@ enum Verb {
     Timeline(timeline::Args),
     #[command(about = "Build a recipe and render its timeline's frames with pfx shot, resumably")]
     Shoot(shoot::Args),
+    #[command(about = "Append an entry to one of the recipe's arrays of tables, in the file")]
+    Add(entries::Add),
+    #[command(about = "Remove an entry from the recipe, refused while another entry refers to it")]
+    Remove(entries::Remove),
+    #[command(about = "Copy an entry under a new name, with keys changed")]
+    Duplicate(entries::Duplicate),
+    #[command(about = "List the recipe's entries and their names")]
+    List(entries::List),
 }
 
 fn line(host: &Host) -> clap::Command {
@@ -299,6 +308,10 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::New(parsed) => new::run(&parsed),
         Verb::Timeline(parsed) => timeline::run(&parsed, registry),
         Verb::Shoot(parsed) => shoot::run(&parsed, registry),
+        Verb::Add(parsed) => entries::add(&parsed),
+        Verb::Remove(parsed) => entries::remove(&parsed),
+        Verb::Duplicate(parsed) => entries::duplicate(&parsed),
+        Verb::List(parsed) => entries::list(&parsed),
     }
 }
 
@@ -371,7 +384,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, new, timeline, shoot, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, new, timeline, shoot, add, remove, duplicate, list, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),
