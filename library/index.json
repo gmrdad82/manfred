@@ -107,7 +107,7 @@
     "kind": "cars",
     "name": "coupe",
     "sha256": {
-      "model": "4d4c56be1d7d7682ef8e2f016bfed26bec759e4836ffe1255cfe1514a990a19a",
+      "model": "bfd8d41ccab58e5c852e6872b30566bc0338a76c5a9e237091371c30836704c3",
       "sidecar": "b7e4feeb6d407ec5128d9de3e17bf73e0db6f505ecb20b1f3a6d39e6b2734c10",
       "thumb": "83258b2134b4b5d2e459b32b7e6023d1b9e5473f3cdc5971668c189f017b1ddf"
     },
@@ -132,7 +132,7 @@
     "kind": "cars",
     "name": "hatch",
     "sha256": {
-      "model": "7561828313d82fe3d8df66842bfa11d52f98e2e31df3b5e4e4c9fb7ec1b9d69d",
+      "model": "21b9377ac947f131b636e40b65a3b72731c6464324fe8344becfa30956565223",
       "sidecar": "0da9c9af9b02ba60fd5b361450b598d061582c67df541666adb058f038242436",
       "thumb": "96f3911ee7b16becabc2b7790a3ae06276092921e95d5f985ef884ab28eb20cb"
     },
@@ -157,7 +157,7 @@
     "kind": "cars",
     "name": "sedan",
     "sha256": {
-      "model": "ce566d03f60edf844c1313bcb151e538880393b172ca8cc375c4a656d33aeb57",
+      "model": "7919ceb4553d76419d20d382c33d582134e902b686d60524110cd848990f1b0a",
       "sidecar": "321147886030dd20ce1c3bf2a3f577beb5079e2a98f061fa83afa42abd1a7345",
       "thumb": "6bc457e6506906c81013ffda34c8782739d95f2a31472ff114cb1d3df4a8edbe"
     },
@@ -182,7 +182,7 @@
     "kind": "cars",
     "name": "van",
     "sha256": {
-      "model": "9573f898f52676825cbe1a37db0d8aec616befccf24ba40acfd6e38e8198b334",
+      "model": "abde8343c6ed181b0d1602af307df68f3ef4c2b9623c91352ec9d70b109a7ad2",
       "sidecar": "1da68e903105ddfefc870d9551baa87a7c4a08bd911fcb8d3c80f1cecb3fbcd9",
       "thumb": "54708afe561627f0338ab32918cea1aa247647eaf4164476da3eefceb809c01e"
     },

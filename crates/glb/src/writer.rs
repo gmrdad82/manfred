@@ -470,7 +470,11 @@ impl Builder<'_> {
                     }
                     positions.push(mesh.positions[old as usize]);
                     if normals {
-                        normal_data.push(mesh.normals[old as usize]);
+                        normal_data.push(unit(
+                            mesh.normals[old as usize],
+                            &mesh.positions,
+                            triangle,
+                        ));
                     }
                     if let Some(uvs) = uvs {
                         uv_data.push(uvs[old as usize]);
@@ -612,6 +616,32 @@ impl Builder<'_> {
             weights: morph.map(|m| m.weights.clone()),
         });
         Some(Index::new(self.root.meshes.len() as u32 - 1))
+    }
+}
+
+fn unit(normal: [f32; 3], positions: &[[f32; 3]], triangle: &[u32]) -> [f32; 3] {
+    let length = |v: [f32; 3]| (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+    let scaled = |v: [f32; 3], l: f32| [v[0] / l, v[1] / l, v[2] / l];
+    let size = length(normal);
+    if (size - 1.0).abs() <= 5e-3 {
+        return normal;
+    }
+    if size.is_finite() && size > 1e-12 {
+        return scaled(normal, size);
+    }
+    let [a, b, c] = [0, 1, 2].map(|k| positions[triangle[k] as usize]);
+    let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    let face = [
+        u[1] * v[2] - u[2] * v[1],
+        u[2] * v[0] - u[0] * v[2],
+        u[0] * v[1] - u[1] * v[0],
+    ];
+    let area = length(face);
+    if area.is_finite() && area > 1e-20 {
+        scaled(face, area)
+    } else {
+        [0.0, 1.0, 0.0]
     }
 }
 
