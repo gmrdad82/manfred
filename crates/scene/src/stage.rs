@@ -406,7 +406,11 @@ impl Stage {
         self.dress = dress;
         self.faced.clear();
         self.uploaded = uploaded;
-        self.materials = materials;
+        self.materials = if materials.is_empty() {
+            vec![Material::default()]
+        } else {
+            materials
+        };
         self.names = names;
         self.renderer.set_finish(lighting.finish.clone());
         self.renderer.set_lights(&lighting.lights).map_err(Error)?;
