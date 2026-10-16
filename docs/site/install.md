@@ -21,6 +21,22 @@ manfred --version
 
 To check the download, fetch `SHA256SUMS` from the same release and run `sha256sum -c --ignore-missing SHA256SUMS` beside the archive.
 
+## Register the .manf file type
+
+The archive also carries a `share/` tree: the `application/x-manfred` type for `*.manf` files (matched by their `MANFRED\0` header too), a `manfred.desktop` launcher that opens `.manf` and `.glb` files with `manfred gui`, and Manfred's mark as the app and file icon (scalable SVG). Unpack the whole archive and run `bin/register-filetypes`, or place the files by hand:
+
+```sh
+d=${XDG_DATA_HOME:-~/.local/share}
+mkdir -p "$d/mime/packages" "$d/applications" "$d/icons"
+cp share/mime/packages/manfred.xml "$d/mime/packages/"
+cp share/applications/manfred.desktop "$d/applications/"
+cp -r share/icons/hicolor "$d/icons/"
+update-mime-database "$d/mime"
+update-desktop-database "$d/applications"
+```
+
+`bin/register-filetypes` does the same from a checkout or an unpacked archive. Gamer Dad's own copy is placed by pci's installer. Registration is for Linux only: Windows and macOS are not targets.
+
 ## From source
 
 With Rust 1.97 or newer, `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu):

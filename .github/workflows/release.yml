@@ -41,7 +41,10 @@ jobs:
           mkdir -p dist/pack/licenses
           cp target/release/manfred LICENSE NOTICE README.md dist/pack/
           cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt dist/pack/licenses/
-          tar -czf "dist/$NAME" -C dist/pack manfred LICENSE NOTICE README.md licenses
+          cp -r share dist/pack/share
+          mkdir -p dist/pack/bin
+          cp bin/register-filetypes dist/pack/bin/
+          tar -czf "dist/$NAME" -C dist/pack manfred LICENSE NOTICE README.md licenses share bin
       - name: docs bundle
         run: bin/docs-bundle --bin target/release/manfred --out dist
       - name: object library
