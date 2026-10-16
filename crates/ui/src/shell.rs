@@ -39,6 +39,8 @@ pub const TABS: [&str; 4] = ["Scene", "Cameras", "Lights", "Render"];
 const TAB_PANELS: [Panel; 4] = [Panel::B1, Panel::B2, Panel::B3, Panel::C3];
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const GPU_TIME: &str = "GPU time of the last frame, from the engine's timestamp queries; the window's own CPU work is not in it";
+const PFX_EDITED: &str =
+    "pfx edited its scene; manfred fold folds or keeps those edits, a save here drops them";
 const GAP: f32 = 6.0;
 const TOP: f32 = 40.0;
 const HINTS: f32 = 26.0;
@@ -595,7 +597,11 @@ impl Shell {
             Some(Kind::Manf | Kind::Glb) => match file::hold(path) {
                 Ok((held, recipe)) => {
                     if self.open_recipe(&recipe, path) {
+                        let edited = held.edited;
                         self.held = Some(held);
+                        if edited {
+                            self.said_file(PFX_EDITED.to_string());
+                        }
                     }
                 }
                 Err(error) => self.fail(error),

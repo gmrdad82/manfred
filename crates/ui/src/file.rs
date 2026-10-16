@@ -75,6 +75,7 @@ pub struct Held {
     pub target: Option<PathBuf>,
     pub work: PathBuf,
     pub saved: usize,
+    pub edited: bool,
 }
 
 impl Held {
@@ -126,6 +127,7 @@ pub fn hold(path: &Path) -> Result<(Held, PathBuf), String> {
                     target: Some(path.to_path_buf()),
                     work,
                     saved: 0,
+                    edited: document.edited(),
                 },
                 recipe,
             ))
@@ -157,6 +159,7 @@ pub fn hold(path: &Path) -> Result<(Held, PathBuf), String> {
                     target: None,
                     work,
                     saved: 0,
+                    edited: false,
                 },
                 recipe,
             ))
