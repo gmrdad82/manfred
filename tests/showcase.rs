@@ -91,7 +91,12 @@ fn every_showcase_scene_uses_only_its_own_materials() {
             .flat_map(|o| o.material.iter().chain(&o.materials))
             .map(String::as_str)
             .collect();
-        assert!(!used.is_empty(), "{}", name(&path));
+        let generated = loaded
+            .recipe
+            .objects
+            .iter()
+            .all(|o| matches!(o.kind, manfred::recipe::Kind::Generator { .. }));
+        assert!(!used.is_empty() || generated, "{}", name(&path));
         for material in used {
             assert!(
                 loaded.recipe.materials.contains_key(material),
