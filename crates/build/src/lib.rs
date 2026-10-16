@@ -7,6 +7,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 
 mod bake;
+pub mod builtin;
 pub mod detail_uv;
 mod extras;
 mod facts;

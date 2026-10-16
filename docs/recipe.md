@@ -178,6 +178,23 @@ A `mesh` object keeps the morph targets of the file's triangle primitives:
 - **The GLB** keeps the positions and normals neutral, gives every primitive of the mesh one target per name, in the same order, with its POSITION deltas (with `min` and `max`, as glTF asks) and NORMAL deltas, and carries the object's weights as the mesh's `weights` and the names as its `extras.targetNames`, so a runtime blends them live.
 - **`manfred shot`, `manfred render` and the window** draw the mesh posed at those weights, applied on the CPU when it is built; bakes, bounds and proxies read the posed mesh too. A recipe without morph targets builds the same bytes as before.
 
+### manfred/road
+
+`generator = "manfred/road"` builds a street along a `[[route]]`, in world coordinates: leave the object's `at`, `rotate` and `scale` unset, since they would move the road off its route. Offsets across the road are metres to the right of travel; the asphalt sits at the route's height.
+
+```toml
+[[object]]
+name = "main"
+kind = "generator"
+generator = "manfred/road"
+params = { route = "street", lanes = 2, every = 80, offset = 30 }
+```
+
+- **`params`:** `route` (a route's name, required); `lanes` (each way, 1 to 8, default 2); `lane_width` (3.2 m); `sidewalk` (3.0 m from the curb's face to its outer edge); `curb` (its height, 0.15 m); `curb_width` (its top, 0.3 m); `line` (a marking's width, 0.15 m); `dash` and `dash_gap` (3 m and 6 m); `centre` (`"double"`, the default, `"dashed"` or `"solid"`); `edge` (the edge line's centre from the curb, 0.3 m, 0 for none); `crosswalks = [distances along the route, m]`, or `every` (m) with `offset` (default half of `every`); `crosswalk_depth` (4 m along the route); `stripe` and `stripe_gap` (a zebra stripe's width and the gap between, 0.5 m and 0.6 m); `step` (the longest step along the route, 1 m: curves step finer, 0.05 rad a step, down to 0.1 m); `seed` (default the object's). Any other key is refused. A listed crosswalk off an open route is refused; `every` keeps the ones that fit.
+- **Pieces:** `<object>.asphalt` (one ribbon, UVs in metres: u across from the left curb, v along the route), `<object>.curbs` (each curb's face and top), `<object>.sidewalks` (their tops and outer faces), `<object>.markings` (lane lines dashed, the centre line and the solid edge lines, 2 mm above the asphalt and broken at crosswalks), `<object>.crosswalks` (zebra stripes, 2 mm up; absent without crosswalks).
+- **Materials:** `road_asphalt` (dark, roughness 0.6), `road_paint` (white, slightly worn through `ageing`) and `road_concrete` (curbs and sidewalks). A recipe `[materials.road_asphalt]` replaces it, for a wet look among others. The seed moves the dashes' phase and wears each zebra stripe's ends by up to 12 cm; the same seed builds the same bytes.
+- **Facts:** `road = { route, length, width, lanes, lane_width, lane_centres, curb, sidewalk = [inner, outer], outer, crosswalks, crosswalk_depth }`. `width` is curb to curb; `lanes` is each way; `lane_centres` are the lanes' lateral offsets from left to right, the positive ones driving along the route; `sidewalk` gives its inner and outer offsets and `outer` where buildings may start; `crosswalks` are the distances built.
+
 ## Includes and uses
 
 Recipes that share a camera, a sky, lights or parts keep them in files of their own: a **rig file** that recipes include, and **part files** that recipes place copies of. Both are plain TOML files beside the recipes, read on every build, so a change to the rig reaches every recipe that includes it.
