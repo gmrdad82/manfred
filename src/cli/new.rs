@@ -193,16 +193,15 @@ fn chase(hero: &Hero) -> ([f64; 3], [f64; 3]) {
 
 fn grade(input: [f64; 3]) -> [f64; 3] {
     let luma = 0.2126 * input[0] + 0.7152 * input[1] + 0.0722 * input[2];
-    let bright = luma.clamp(0.0, 1.0).powf(0.4);
-    let curve = bright + 0.6 * bright * (1.0 - bright) * (bright - 0.5);
-    let lifted = 0.09 + 0.91 * curve.clamp(0.0, 1.0);
-    let high = ((lifted - 0.55) / 0.4).clamp(0.0, 1.0);
-    let high = high * high * (3.0 - 2.0 * high);
-    let lilac = [1.08, 0.82, 1.15];
-    let warm = [1.05, 0.94, 0.98];
+    let curve = luma + 0.5 * luma * (1.0 - luma) * (luma - 0.5);
+    let scale = if luma > 1e-6 { curve / luma } else { 1.0 };
+    let t = ((luma - 0.2) / 0.6).clamp(0.0, 1.0);
+    let t = t * t * (3.0 - 2.0 * t);
+    let shadow = [0.93, 1.04, 1.32];
+    let high = [1.02, 1.02, 1.1];
     [0, 1, 2].map(|k| {
-        let tint = lilac[k] + (warm[k] - lilac[k]) * high;
-        (lifted * tint + 0.4 * (input[k] - luma)).clamp(0.0, 1.0)
+        let gain = shadow[k] + (high[k] - shadow[k]) * t;
+        (input[k] * scale * gain).clamp(0.0, 1.0)
     })
 }
 
@@ -369,7 +368,7 @@ pub(super) fn street(seed: u64) -> Made {
         ])
     );
     let _ = writeln!(w, "fov_y_deg = {}", num(FOV_Y_DEG));
-    let _ = writeln!(w, "fstop = 2.8");
+    let _ = writeln!(w, "fstop = 5.6");
     let _ = writeln!(w);
     let _ = writeln!(w, "[camera.rig]");
     let _ = writeln!(w, "follow = \"hero\"");
@@ -399,7 +398,7 @@ pub(super) fn street(seed: u64) -> Made {
     let _ = writeln!(w);
     let _ = writeln!(w, "[look]");
     let _ = writeln!(w, "view = \"graded\"");
-    let _ = writeln!(w, "exposure = 2.6");
+    let _ = writeln!(w, "exposure = 3.0");
     let _ = writeln!(
         w,
         "grade = {{ vignette = 0.25, saturation = 1.0, warmth = 0.05, bloom = 0.15, haze = 0.0 }}"
@@ -440,7 +439,7 @@ pub(super) fn street(seed: u64) -> Made {
         let _ = writeln!(w);
     }
     let _ = writeln!(w, "[motion_blur]");
-    let _ = writeln!(w, "shutter = 0.5");
+    let _ = writeln!(w, "shutter = 0.95");
     let _ = writeln!(w, "max_px = 48.0");
     let _ = writeln!(w, "samples = 12");
     let _ = writeln!(w);
@@ -776,7 +775,7 @@ mod tests {
         ] {
             assert!(doc[table].is_table(), "{table}");
         }
-        assert_eq!(doc["motion_blur"]["shutter"].as_float(), Some(0.5));
+        assert_eq!(doc["motion_blur"]["shutter"].as_float(), Some(0.95));
     }
 
     #[test]

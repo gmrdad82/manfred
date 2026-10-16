@@ -117,7 +117,7 @@ focus_keys = [[0.0, 5.6089215], [0.033333335, 5.6089215], [0.06666667, 5.609788]
 exposure = 1.1
 
 [[finish.pass]]
-bloom = { down = 2.0, kind = "box", knee = 0.7, knee_width = 0.6, radius = 12.0, sigma = 50.0, soft = 0.15, strength = 0.0, threshold = 0.9 }
+bloom = { down = 2.0, kind = "tent", knee = 0.7, knee_width = 0.6, radius = 12.0, sigma = 50.0, soft = 0.15, strength = 0.0, threshold = 0.9 }
 
 [[finish.pass]]
 vignette = { aspect = 0.8, kind = "power", power = 2.4, scale = 1.28, strength = 0.0 }

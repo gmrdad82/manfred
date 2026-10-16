@@ -28,7 +28,7 @@ far = 1.4108067264497461
 exposure = 1.0
 
 [[finish.pass]]
-bloom = { kind = "box", strength = 0.0, threshold = 0.9, knee = 0.7, knee_width = 0.6, soft = 0.15, radius = 12, sigma = 50.0, down = 2 }
+bloom = { kind = "tent", strength = 0.0, threshold = 0.9, knee = 0.7, knee_width = 0.6, soft = 0.15, radius = 12, sigma = 50.0, down = 2 }
 
 [[finish.pass]]
 vignette = { kind = "power", strength = 0.0, power = 2.4, aspect = 0.8, scale = 1.28 }

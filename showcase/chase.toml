@@ -102,7 +102,7 @@ kind = "perspective"
 position = [1.75, 0.75, -7.57]
 target = [1.75, 2.77, 8.0]
 fov_y_deg = 80.0
-fstop = 2.8
+fstop = 5.6
 
 [camera.rig]
 follow = "hero"
@@ -128,7 +128,7 @@ intensity = 1.5
 
 [look]
 view = "graded"
-exposure = 2.6
+exposure = 3.0
 grade = { vignette = 0.25, saturation = 1.0, warmth = 0.05, bloom = 0.15, haze = 0.0 }
 lut = "lilac.cube"
 lut_amount = 0.8
@@ -178,7 +178,7 @@ lit = true
 seed = 1
 
 [motion_blur]
-shutter = 0.5
+shutter = 0.95
 max_px = 48.0
 samples = 12
 

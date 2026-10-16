@@ -950,7 +950,7 @@ fn standard_or_graded(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
         (
             "bloom",
             format!(
-                "{{ kind = \"box\", strength = {}, threshold = 0.9, knee = 0.7, knee_width = 0.6, soft = 0.15, radius = 12, sigma = 50.0, down = 2 }}",
+                "{{ kind = \"tent\", strength = {}, threshold = 0.9, knee = 0.7, knee_width = 0.6, soft = 0.15, radius = 12, sigma = 50.0, down = 2 }}",
                 number(bloom, "look.grade.bloom")?
             ),
         ),

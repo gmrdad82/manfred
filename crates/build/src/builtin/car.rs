@@ -1037,7 +1037,7 @@ impl Car {
                 name: format!("{name}.taillight_{side}"),
                 position: (at - DVec3::Z * 0.06).to_array(),
                 direction: DVec3::new(0.0, -0.15, -1.0).normalize().to_array(),
-                cone: [30.0, 60.0],
+                cone: [15.0, 35.0],
                 range: 6.0,
                 color: [1.0, 0.06, 0.03],
                 intensity: 6.0,
