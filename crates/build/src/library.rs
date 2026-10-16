@@ -1204,6 +1204,7 @@ pub(crate) fn import(recipe: &Recipe, object: &Object, base: &Path) -> Result<Im
             facts,
             materials,
             lights,
+            ..Generated::default()
         },
         looks,
         morphs,
