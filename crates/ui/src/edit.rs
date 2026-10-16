@@ -18,6 +18,13 @@ pub const POCKET_LOCK: &str =
 pub struct Gesture {
     pub label: String,
     pub patches: Vec<Patch>,
+    pub join: Option<Join>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Join {
+    Into(u64),
+    Cancel(u64),
 }
 
 #[derive(Debug, Default)]
@@ -31,8 +38,17 @@ impl Edits {
             self.pending.push(Gesture {
                 label: label.into(),
                 patches,
+                join: None,
             });
         }
+    }
+
+    pub fn join(&mut self, label: impl Into<String>, patches: Vec<Patch>, join: Join) {
+        self.pending.push(Gesture {
+            label: label.into(),
+            patches,
+            join: Some(join),
+        });
     }
 
     pub fn take(&mut self) -> Vec<Gesture> {
@@ -272,13 +288,24 @@ impl Editor {
     }
 
     pub fn gesture(&mut self, gesture: &Gesture) -> Outcome {
+        let key = match gesture.join {
+            Some(Join::Cancel(key)) => return self.unjoin(key),
+            Some(Join::Into(key)) => Some(key),
+            None => None,
+        };
         match self.commit(&gesture.patches, true) {
             Ok((undo, redo)) => {
-                self.history.done(Entry {
+                let entry = Entry {
                     label: gesture.label.clone(),
                     undo,
                     redo,
-                });
+                    join: key,
+                };
+                if key.is_some() {
+                    self.history.join(entry);
+                } else {
+                    self.history.done(entry);
+                }
                 self.said = Some(Said::Patched(line(&gesture.label, &gesture.patches)));
                 Outcome {
                     changed: true,
@@ -302,6 +329,17 @@ impl Editor {
 
     pub fn undo(&mut self) -> Outcome {
         self.replay(true)
+    }
+
+    fn unjoin(&mut self, key: u64) -> Outcome {
+        if self.history.top_join() != Some(key) {
+            return Outcome::default();
+        }
+        let outcome = self.replay(true);
+        if !outcome.refused {
+            self.history.pop(false);
+        }
+        outcome
     }
 
     pub fn redo(&mut self) -> Outcome {
@@ -967,6 +1005,7 @@ parts = ["mv_lid", "cup"]
         Gesture {
             label: label.into(),
             patches,
+            join: None,
         }
     }
 

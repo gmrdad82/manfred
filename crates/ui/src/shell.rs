@@ -12,8 +12,8 @@ use manfred_scene::Eye;
 use crate::cameras;
 use crate::document::{Document, Lamp};
 use crate::edit::{
-    self, Dial, Editor, Fields, Lit, LitFields, Outcome, Said, Slots, Smoothing, Triple, rename,
-    set_lit, set_material, set_smoothing, set_triple,
+    self, Dial, Editor, Fields, Join, Lit, LitFields, Outcome, Said, Slots, Smoothing, Triple,
+    rename, set_lit, set_material, set_smoothing, set_triple,
 };
 use crate::fixture::{self, Fixture};
 use crate::follow::{self, Seen};
@@ -52,6 +52,7 @@ const CARET_OPEN: &str = "\u{f0d7}";
 const CARET_SHUT: &str = "\u{f0da}";
 const CUBE: &str = "\u{f1b2}";
 const FOLDER: &str = "\u{f07b}";
+const ROUTE: &str = "\u{f018}";
 const CAMERA: &str = "\u{f030}";
 const SUN: &str = "\u{f185}";
 const CLOUD: &str = "\u{f0c2}";
@@ -180,6 +181,7 @@ pub struct Shell {
     timing_drops: u64,
     edits: crate::edit::Edits,
     gizmo: Gizmo,
+    routes: crate::routes::Routes,
     pick: Option<[f32; 2]>,
     spans: crate::spans::Spans,
     clock: Clock,
@@ -450,6 +452,7 @@ impl Shell {
             timing_drops: 0,
             edits: crate::edit::Edits::default(),
             gizmo: Gizmo::default(),
+            routes: crate::routes::Routes::default(),
             pick: None,
             spans: crate::spans::Spans::default(),
             clock: Clock::default(),
@@ -734,6 +737,8 @@ impl Shell {
     }
 
     fn place(&mut self, document: Document, renamed: &[(String, String)]) {
+        let recipe = self.editor.as_ref().and_then(Editor::loaded);
+        self.routes.set(recipe.map(|loaded| &loaded.recipe));
         let follow_rename = |name: String| {
             renamed.iter().fold(
                 name,
@@ -1356,10 +1361,104 @@ impl Shell {
             (Panel::C3, Key::Enter) => self.render(),
             (Panel::C3, Key::Escape) => self.shots.cancel(),
             (Panel::C3, Key::V) => self.full = self.shot_views.is_some(),
+            (Panel::C1, Key::Escape) if self.live() && self.routes.dragging().is_some() => {
+                self.cancel_route();
+            }
             (Panel::C1, Key::G | Key::R | Key::S | Key::L | Key::Escape) if self.live() => {
                 self.gizmo_key(key);
             }
+            (Panel::C1, Key::P) if self.live() && !self.scene => {
+                self.routes.all = !self.routes.all;
+            }
+            (Panel::C1, Key::Delete | Key::Backspace) if self.live() => self.remove_point(),
             _ => {}
+        }
+    }
+
+    fn object_route(&self) -> Option<String> {
+        let object = self.document.objects.get(self.object?)?;
+        let loaded = self.editor.as_ref().and_then(Editor::loaded)?;
+        crate::routes::named_by(&loaded.recipe, &object.name)
+    }
+
+    fn route_click(
+        &mut self,
+        lens: &Lens,
+        object_route: Option<&str>,
+        at: Pos2,
+        add: bool,
+    ) -> bool {
+        if add {
+            let Some(insert) = self.routes.line_at(lens, object_route, at) else {
+                return false;
+            };
+            let Some(loaded) = self.editor.as_ref().and_then(Editor::loaded) else {
+                return true;
+            };
+            match crate::routes::inserted(loaded, &insert) {
+                Ok(patch) => {
+                    self.edits.push(insert.label(), vec![patch]);
+                    self.routes.point = Some((insert.name.clone(), insert.index));
+                }
+                Err(why) => self.refuse_route(&insert.label(), why),
+            }
+            return true;
+        }
+        match self.routes.handle_at(lens, object_route, at) {
+            Some(handle) => {
+                self.routes.point = Some(handle);
+                true
+            }
+            None => {
+                self.routes.point = None;
+                false
+            }
+        }
+    }
+
+    fn refuse_route(&mut self, label: &str, why: String) {
+        if let Some(editor) = self.editor.as_mut() {
+            editor.refuse(format!("{label}: {why}"));
+        }
+    }
+
+    fn move_point(&mut self, drag: &crate::routes::Drag) {
+        let Some(loaded) = self.editor.as_ref().and_then(Editor::loaded) else {
+            return;
+        };
+        match crate::routes::moved(loaded, &drag.name, drag.index, drag.at) {
+            Ok(patch) => self
+                .edits
+                .join(drag.label(), vec![patch], Join::Into(drag.join)),
+            Err(why) => self.refuse_route(&drag.label(), why),
+        }
+    }
+
+    fn cancel_route(&mut self) {
+        if let Some(drag) = self.routes.finish() {
+            self.edits
+                .join(drag.label(), Vec::new(), Join::Cancel(drag.join));
+        }
+        self.grab = None;
+    }
+
+    fn remove_point(&mut self) {
+        let Some((name, index)) = self.routes.point.clone() else {
+            return;
+        };
+        if self.routes.dragging().is_some() {
+            return;
+        }
+        let Some(loaded) = self.editor.as_ref().and_then(Editor::loaded) else {
+            return;
+        };
+        let label = crate::routes::removal_label(&name, index);
+        match crate::routes::removed(loaded, &name, index) {
+            Ok(patch) => {
+                self.edits.push(label, vec![patch]);
+                self.routes.point = None;
+            }
+            Err(why) => self.refuse_route(&label, why),
         }
     }
 
@@ -1547,6 +1646,7 @@ impl Shell {
                     ("wheel", "dolly"),
                     ("g r s", "move rotate scale"),
                     ("l", "local"),
+                    ("p", "routes"),
                     ("ctrl", "snap"),
                     ("esc", "cancel"),
                     ("0", "back to camera"),
@@ -1963,6 +2063,7 @@ impl Shell {
         self.trouble = None;
         self.preparing = None;
         self.gizmo = Gizmo::default();
+        self.routes = crate::routes::Routes::default();
         self.spans = crate::spans::Spans::default();
         self.clock = Clock::default();
         self.chase_eye = None;
@@ -2015,14 +2116,24 @@ impl Shell {
                 input.modifiers.ctrl,
             )
         });
+        let object_route = self.object_route();
         if response.drag_started() {
             self.settle = None;
-            let handled = !middle
-                && !shift
-                && match (origin, self.object) {
-                    (Some(origin), Some(object)) => self.gizmo.begin(object, origin, lens),
-                    _ => false,
-                };
+            let handle = origin.filter(|_| !middle).and_then(|origin| {
+                self.routes
+                    .handle_at(&lens, object_route.as_deref(), origin)
+            });
+            let route = match (handle, origin) {
+                (Some(handle), Some(origin)) => self.routes.begin(lens, handle, origin),
+                _ => false,
+            };
+            let handled = route
+                || !middle
+                    && !shift
+                    && match (origin, self.object) {
+                        (Some(origin), Some(object)) => self.gizmo.begin(object, origin, lens),
+                        _ => false,
+                    };
             if !handled {
                 self.grab = origin.map(|origin| Grab {
                     eye,
@@ -2038,8 +2149,15 @@ impl Shell {
             self.gizmo.to(at, snap);
         }
         if response.dragged()
+            && let Some(at) = pointer
+            && let Some(drag) = self.routes.to(at, shift).cloned()
+        {
+            self.move_point(&drag);
+        }
+        if response.dragged()
             && !self.gizmo.swallowing()
             && self.gizmo.dragging().is_none()
+            && self.routes.dragging().is_none()
             && let Some(grab) = self.grab
             && let Some(at) = pointer
         {
@@ -2059,10 +2177,12 @@ impl Shell {
             if let Some((label, patches)) = self.gizmo.finish() {
                 self.edits.push(label, patches);
             }
+            self.routes.finish();
             self.grab = None;
         }
         if response.clicked()
             && let Some(at) = pointer
+            && !self.route_click(&lens, object_route.as_deref(), at, snap)
         {
             let handle = self
                 .object
@@ -2118,6 +2238,12 @@ impl Shell {
                 viewport::passepartout(painter, image, frame);
             }
             viewport::axes(painter, image, &orbit::basis(&eye));
+            if !self.scene && self.view_error.is_none() {
+                let clipped = painter.with_clip_rect(image);
+                let object_route = self.object_route();
+                self.routes
+                    .draw(&clipped, &Lens::new(&eye, image), object_route.as_deref());
+            }
             if let Some(object) = self.object.filter(|_| self.view_error.is_none()) {
                 let clipped = painter.with_clip_rect(image);
                 self.gizmo.draw(&clipped, &Lens::new(&eye, image), object);
@@ -2203,7 +2329,37 @@ impl Shell {
                         }
                     }
                 }
+                self.route_rows(ui, focused);
             });
+    }
+
+    fn route_rows(&mut self, ui: &mut Ui, focused: bool) {
+        if self.scene || !self.search.is_empty() {
+            return;
+        }
+        let rows: Vec<(String, String)> = self
+            .routes
+            .lines()
+            .iter()
+            .map(|line| {
+                let detail = format!(
+                    "route · {} points · {:.0} m",
+                    line.route.points().len(),
+                    line.route.length()
+                );
+                (line.name.clone(), detail)
+            })
+            .collect();
+        for (name, detail) in rows {
+            let selected = self.routes.chosen.as_deref() == Some(name.as_str());
+            let response = list_row(ui, focused, selected, 0, (ROUTE, ACCENT), &name, &detail)
+                .on_hover_text(
+                    "show or hide this route's line and points in C1; p shows every route",
+                );
+            if response.clicked() {
+                self.routes.toggle(&name);
+            }
+        }
     }
 
     fn copy_note(&self, object: usize) -> Option<String> {
@@ -5525,5 +5681,129 @@ clearcoat_roughness = 0.07
         assert_eq!(shell.editor().unwrap().steps(), (0, 0));
         assert!(shell.document().path.ends_with("a.toml"));
         assert!(!shell.picker.shown());
+    }
+
+    const STREET: &str = r#"manfred = 1
+name = "street"
+
+# the chase line
+[[route]]
+name = "main"
+points = [
+  [-20.0, 0.0, -30.0], # start
+  [0.0, 0.0, 0.0],
+  [15.0, 0.0, 30.0],
+  [5.0, 0.0, 60.0], # end
+]
+
+[[object]]
+name = "ground"
+kind = "box"
+size = [80.0, 0.1, 120.0]
+at = [0.0, -0.05, 15.0]
+
+[[camera]]
+name = "top"
+position = [70.0, 90.0, 15.0]
+target = [0.0, 0.0, 15.0]
+fov_y_deg = 50.0
+
+[sun]
+model = "daylight"
+hour = 15.0
+latitude = 47.0
+heading = 30.0
+
+
+[materials.default]
+family = "plaster"
+base = [0.35, 0.36, 0.38]
+roughness = 0.8
+"#;
+
+    fn route_points(path: &std::path::Path) -> Vec<[f64; 3]> {
+        manfred_recipe::load(path).unwrap().recipe.routes[0]
+            .points
+            .clone()
+    }
+
+    fn route_at(shell: &Shell, point: [f64; 3]) -> Pos2 {
+        shell
+            .lens()
+            .unwrap()
+            .project(glam::DVec3::from_array(point))
+            .unwrap()
+    }
+
+    #[test]
+    fn a_route_point_drags_adds_and_removes_through_the_viewport() {
+        let (mut shell, mut viewer, path) = editing("routes-viewport", STREET);
+        run(&mut shell, SIZE, "frame\nkey p\nframe");
+        viewer.sync(&mut shell);
+        let start = route_points(&path);
+        let a = route_at(&shell, start[1]);
+        let script = format!(
+            "press {} {}\nmove {} {}\nframe\nmove {} {}\nframe\nrelease {} {}\nframe",
+            a.x,
+            a.y,
+            a.x - 10.0,
+            a.y + 10.0,
+            a.x - 40.0,
+            a.y + 50.0,
+            a.x - 40.0,
+            a.y + 50.0
+        );
+        run(&mut shell, SIZE, &script);
+        let moved = route_points(&path);
+        assert_eq!(moved.len(), 4);
+        assert_ne!(moved[1], start[1]);
+        assert_eq!(moved[1][1], 0.0);
+        assert_eq!(shell.editor().unwrap().steps(), (1, 0));
+        viewer.sync(&mut shell);
+        let (b, c) = (route_at(&shell, moved[2]), route_at(&shell, moved[3]));
+        let mid = b + (c - b) * 0.5;
+        run(
+            &mut shell,
+            SIZE,
+            &format!(
+                "press {} {} ctrl\nrelease {} {}\nframe",
+                mid.x, mid.y, mid.x, mid.y
+            ),
+        );
+        let added = route_points(&path);
+        assert_eq!(added.len(), 5);
+        assert_eq!(added[2], moved[2]);
+        assert_eq!(added[4], moved[3]);
+        viewer.sync(&mut shell);
+        let first = route_at(&shell, added[0]);
+        run(
+            &mut shell,
+            SIZE,
+            &format!("click {} {}\nframe\nkey Delete\nframe", first.x, first.y),
+        );
+        let removed = route_points(&path);
+        assert_eq!(removed, added[1..].to_vec());
+        viewer.sync(&mut shell);
+        let end = route_at(&shell, removed[3]);
+        let script = format!(
+            "press {} {} shift\nmove {} {}\nframe\nmove {} {}\nframe\nrelease {} {}\nframe",
+            end.x,
+            end.y,
+            end.x,
+            end.y - 10.0,
+            end.x,
+            end.y - 40.0,
+            end.x,
+            end.y - 40.0
+        );
+        run(&mut shell, SIZE, &script);
+        let lifted = route_points(&path);
+        assert!(lifted[3][1] > 0.0);
+        assert_eq!([lifted[3][0], lifted[3][2]], [removed[3][0], removed[3][2]]);
+        assert_eq!(shell.editor().unwrap().steps(), (4, 0));
+        for _ in 0..4 {
+            run(&mut shell, SIZE, "key ctrl+z\nframe");
+        }
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), STREET);
     }
 }

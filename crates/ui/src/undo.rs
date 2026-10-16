@@ -8,6 +8,7 @@ pub struct Entry {
     pub label: String,
     pub undo: Vec<Patch>,
     pub redo: Vec<Patch>,
+    pub join: Option<u64>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -50,6 +51,25 @@ impl History {
 
     fn stack(&mut self, undo: bool) -> &mut Vec<Entry> {
         if undo { &mut self.undo } else { &mut self.redo }
+    }
+
+    pub fn join(&mut self, entry: Entry) {
+        let Some(top) = self
+            .undo
+            .last_mut()
+            .filter(|top| top.join.is_some() && top.join == entry.join)
+        else {
+            return self.done(entry);
+        };
+        self.redo.clear();
+        top.redo
+            .retain(|kept| entry.redo.iter().all(|fresh| fresh.path != kept.path));
+        top.redo.extend(entry.redo);
+        top.label = entry.label;
+    }
+
+    pub fn top_join(&self) -> Option<u64> {
+        self.undo.last().and_then(|top| top.join)
     }
 
     pub fn pop(&mut self, undo: bool) -> Option<Entry> {
@@ -105,6 +125,7 @@ mod tests {
             label: label.into(),
             undo: vec![patch.clone()],
             redo: vec![patch],
+            join: None,
         }
     }
 

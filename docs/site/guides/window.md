@@ -30,6 +30,14 @@ Drag in the viewport to orbit, Shift+drag or middle-drag to pan, and the wheel t
 - **Drag a handle:** an arrow moves along its axis, a square in its plane, a ring rotates, the centre box scales evenly. Hold Ctrl to snap: 1 mm, 5° or 0.05 of scale. Esc mid-drag cancels.
 - **Release** writes one edit: only the key that changed (`at`, `rotate` or `scale`), in the units the recipe uses.
 
+## Edit a route
+
+A recipe's `[[route]]` lines show in the viewport while one is chosen in the outliner (its row under the objects), while an object whose generator names it in `params.route` is selected, or for every route with `p`.
+
+- **Move a point:** drag its disc. It slides on the ground at its own height; hold Shift to move it up and down. The recipe's `points` change live as you drag, and the release is one edit; Esc mid-drag puts it back.
+- **Add a point:** Ctrl+click on the line inserts one there.
+- **Remove a point:** click its disc, then Delete or Backspace. A route keeps at least 2 points.
+
 ## Change the properties
 
 The properties panel shows the selection's name, location, rotation, scale, material and smoothing. A drag on a number commits on release and a typed value on Enter. The material list holds the recipe's materials; typing a new name and pressing Enter writes it. A rename updates every reference to the object in the same edit.

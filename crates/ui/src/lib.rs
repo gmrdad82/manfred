@@ -9,6 +9,7 @@ mod open;
 mod orbit;
 mod panel;
 mod pick;
+mod routes;
 mod sample;
 mod shell;
 mod shots;

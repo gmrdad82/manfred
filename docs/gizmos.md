@@ -48,6 +48,23 @@ One gesture, labelled like `move ball along x`, through `shell.edits().push(labe
 - In the parent's frame: a child's new `at` is its dragged world position taken back through its parent's transform, and its rotation through its parent's rotation, so the build composes it to the place it was dropped.
 - After the release the preview holds until the rebuilt recipe arrives, so the object never jumps back while the file is written and rebuilt. If the patch code refuses the gesture, it calls `shell.drop_preview()`.
 
+## Routes
+
+A recipe's `[[route]]` entries (`docs/recipe.md`) are edited in C1 as lines with handles. Routes are not objects: they have no gizmo, no pick id and no row in C2.
+
+- **When they show:** a route is drawn while it is chosen, while an object whose generator names it in `params.route` is selected, while one of its points is selected or dragged, and always while the toggle is on. The toggle is `p` with C1 focused (the hint bar lists `p routes`); it is view state, never saved. To choose one route, click its row in B1, listed under the objects with a road icon, its point count and its length (`route · 4 points · 612 m`); a second click hides it again.
+- **Drawing:** the route's spline sampled by `Route::sample` (about 512 steps along it, never under 5 cm), a 1.5-point `accent` line, with each control point a 4.5-point disc, `bg.deep` inside and `accent` round it, filled `accent` when selected or dragged. Sizes are on screen, whatever the distance. Both go through the same lens as the gizmo, clipped to the image, and a run is cut where it passes behind the eye.
+- **Hits:** a disc within 8 points of the pointer, the nearest first; the line within 6 points. A route's discs take a press before the selected object's gizmo and before an orbit, Shift included.
+- **Select a point:** click its disc. A click anywhere else clears it and picks as usual.
+- **Drag a point:** press on a disc and drag. It moves on the horizontal plane through the point's own height, the pointer kept where it grabbed the disc; hold Shift to move it along the vertical line through it instead (Shift can change mid-drag). Values are written in metres rounded to a millimetre.
+  - **Live:** every frame the point moves writes `route[<name>].points` through the same patch code as `manfred route` and `--set route.<name>.points=[...]` (`manfred_recipe::route_patch`), so the file and the build follow the drag. Only the moved point's numbers change; the array keeps every comment and its spacing.
+  - **One gesture:** the writes of one drag join into one undo step, labelled `move route main point 2`. Ctrl+Z puts the file back byte for byte as it was before the press; redo writes where the drag ended.
+  - **Esc** mid-drag puts the file back as before the press and leaves no undo step.
+- **Add a point:** Ctrl+click on the line. The new point lands on the spline under the pointer and is inserted after the control point that starts that segment (`Route::nearest` gives it), so the curve keeps its shape there. One gesture, `add route main point 3`, and the new point is selected.
+- **Remove a point:** with a point selected and C1 focused, Delete or Backspace removes it, one gesture `remove route main point 3`. A route keeps at least 2 points: below that D1 says `remove route main point 0: route[main] keeps at least 2 points; it has 2` and nothing is written.
+- **Refusals** are the editor's: a value from `${params.…}`, a file that doesn't read, or a route the build would refuse puts the reason in D1 and writes nothing.
+- **Scripts and tapes** reach all of it: `press x y` on a disc, `move` and `frame` pairs, `release x y`; `press x y shift` for a vertical drag; `press x y ctrl` then `release x y` on the line to add; `click x y` on a disc then `key Delete` to remove; `key p` to show every route. Nothing depends on hovering.
+
 ## When the gizmo is greyed out
 
 - A key written as `"${params.…}"`: the params file stays its truth, so that mode is greyed with the params path. The other modes still work.

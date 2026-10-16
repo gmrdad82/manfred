@@ -21,6 +21,7 @@ png.workspace = true
 manfred-recipe.workspace = true
 manfred-build.workspace = true
 manfred-scene.workspace = true
+manfred-motion.workspace = true
 glam.workspace = true
 toml_edit.workspace = true
 serde_json.workspace = true
