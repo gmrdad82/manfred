@@ -195,6 +195,31 @@ params = { route = "street", lanes = 2, every = 80, offset = 30 }
 - **Materials:** `road_asphalt` (dark, roughness 0.6), `road_paint` (white, slightly worn through `ageing`) and `road_concrete` (curbs and sidewalks). A recipe `[materials.road_asphalt]` replaces it, for a wet look among others. The seed moves the dashes' phase and wears each zebra stripe's ends by up to 12 cm; the same seed builds the same bytes.
 - **Facts:** `road = { route, length, width, lanes, lane_width, lane_centres, curb, sidewalk = [inner, outer], outer, crosswalks, crosswalk_depth }`. `width` is curb to curb; `lanes` is each way; `lane_centres` are the lanes' lateral offsets from left to right, the positive ones driving along the route; `sidewalk` gives its inner and outer offsets and `outer` where buildings may start; `crosswalks` are the distances built.
 
+### manfred/buildings
+
+`generator = "manfred/buildings"` lines a `[[route]]` with city blocks, built in world coordinates (leave the object's `at` and `rotate` at their defaults). It walks the route from its start, one block after another with a gap between, and stands each block square to the route at its middle, its street front `setback` metres from the centre line. A block that a bend or another stretch of the route would bring nearer than `setback` is pushed back, and dropped after four tries, so nothing stands in the road. Each building has a taller ground storey with shopfronts and a fascia, recessed upper walls between corner piers, a band at every floor, sills under its windows, windows on the front and both sides, a cornice, and one to three plant boxes on a flat roof. One of five palettes per building: concrete, brick, sandstone, white render, or a dark glass curtain wall whose windows run in ribbons.
+
+| param | default | meaning |
+|---|---|---|
+| `route` | required | the `[[route]]` it lines |
+| `side` | `"both"` | `"both"`, `"left"` or `"right"` of the direction of travel |
+| `setback` | `11.0` | metres from the centre line to the street front (a 2x2-lane road and its sidewalk) |
+| `block` | `[8.0, 24.0]` | frontage of a building, metres, at least 4 |
+| `height` | `[12.0, 60.0]` | height, metres, rounded to whole storeys |
+| `depth` | `[12.0, 20.0]` | depth back from the street front, metres |
+| `gap` | `[0.0, 4.0]` | space between neighbours, metres |
+| `storey` | `3.2` | floor height, metres, 2 to 10; the ground storey is 1.25 of it |
+| `window` | `{ width = 1.4, spacing = 3.0 }` | window width and centre spacing, metres; the width is at least 0.2 m less than the spacing; a window is 0.55 of a storey tall |
+| `lit` | `0.25` | the share of windows lit (twice that for shopfronts), 0 to 1 |
+| `seed` | the object's | a whole number; the same seed and params build the same bytes |
+
+A range is a number or `[min, max]`. An unknown param is refused.
+
+- **Pieces:** `<object>.facades` (walls, piers, bands, sills, cornices), `<object>.windows` (glass), `<object>.lit` (the lit windows, emissive), `<object>.roofs` (roof slabs and plant boxes).
+- **Materials** it returns: `buildings_concrete`, `buildings_brick`, `buildings_sandstone`, `buildings_render`, `buildings_curtain`, `buildings_trim_stone`, `buildings_trim_cream`, `buildings_trim_metal`, `buildings_glass`, `buildings_lit` (warm emission), `buildings_roof` and `buildings_plant`; a recipe `[materials]` entry of the same name restyles them.
+- **Facts:** `buildings = { count, setback }`, the buildings placed and the setback used.
+- **Weight:** about 500 to 1,000 triangles a building; a 600 m street lined on both sides stays well under 200,000.
+
 ## Includes and uses
 
 Recipes that share a camera, a sky, lights or parts keep them in files of their own: a **rig file** that recipes include, and **part files** that recipes place copies of. Both are plain TOML files beside the recipes, read on every build, so a change to the rig reaches every recipe that includes it.
