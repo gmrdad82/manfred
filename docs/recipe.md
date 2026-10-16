@@ -141,12 +141,12 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
 - **`sweep`**: `path = [[x, y, z], …]`, `radius` or `radii = [r, …]`, `ring = 16`, `closed`, `caps`. Beads and tubes. Caps are n-gon fans, as Blender's.
   - `along = { outline = <outline>, offset, depth }` replaces `path`. The ring is swept along an outline in the plate frame, pushed out by `offset` along the outline's outward normal, at `depth`. It is closed and capless, with one `radius`. The ring starts on the outward normal and turns toward the camera: a lip round a pocket, a bezel round a slot. Its outline is one contour, with no hole.
 - **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets).
-- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers none. The window builds it through the same registry and lets you place it.
+- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings) and [`manfred/furniture`](#manfredfurniture). The window builds it through the same registry and lets you place it.
   - The generator gets the object, its `params`, the recipe's folder and a seed: the recipe's `seed` mixed with the object's index in the file (`manfred::build::seed`), so two objects never share one.
   - It returns one or more pieces, each a named mesh; each becomes a node with the piece's name. A piece may share its own object's name, never another object's or another piece's.
   - The object's transform, `parent`, `keep_transform`, `shadow`, `two_sided` and `hidden` apply to every piece. The pieces keep their own material slots, normals and UVs unless the object sets `material` (or one name in `materials`), `smooth` or `smooth_angle`, or `uv`.
   - It may also return named materials in the engine's material form, which merge under the recipe's `[materials]`: a recipe entry of the same name wins, and `manfred build` prints a line when the entry differs from the one the generator returned. Two generators returning one name with different values is an error naming both objects. They reach the GLB's material names, `manfred shot`, `manfred render` and the window as the recipe's own do, but never the recipe file. A recipe with a `[bake]` refuses them as it refuses its own.
-  - An unknown name is an error that lists the registered generators, or, when none is registered, says that the app's own build binary builds it; a generator's own error is reported under `object[<name>].generator`.
+  - An unknown name is an error that lists the registered generators, or, when no app generator is registered and the name isn't a `manfred/` one, says that the app's own build binary builds it; a generator's own error is reported under `object[<name>].generator`.
 - **`card`**: `size = [w, h]`, `image = "file.png"` or `slot = "name"`, `face_camera = false`, `alpha_cutoff = 0.5`. A flat surface with content; it casts shadows. The 2D and 2.5D building block.
   - **The quad** lies in the object's XY plane facing +Z, and its UVs span the image: (0, 0) at the top left, (1, 1) at the bottom right. A card keeps these UVs whatever its `uv` says. The GLB carries the plain quad in the card's `material`.
   - **`image`** is a PNG or JPEG path relative to the recipe, read by its first bytes. `manfred shot` and the window decode every card image once per build, pack them with the engine's `ContentAtlas` into content slot 0, and give each card its crop, so the whole image lands on the quad. Cards that name one file share one cell. The image is the card's albedo, laid `Over` its material: where it is opaque it replaces the material's colour, where it is clear the material shows. A missing or unreadable image is an error naming the card.
@@ -219,6 +219,44 @@ A range is a number or `[min, max]`. An unknown param is refused.
 - **Materials** it returns: `buildings_concrete`, `buildings_brick`, `buildings_sandstone`, `buildings_render`, `buildings_curtain`, `buildings_trim_stone`, `buildings_trim_cream`, `buildings_trim_metal`, `buildings_glass`, `buildings_lit` (warm emission), `buildings_roof` and `buildings_plant`; a recipe `[materials]` entry of the same name restyles them.
 - **Facts:** `buildings = { count, setback }`, the buildings placed and the setback used.
 - **Weight:** about 500 to 1,000 triangles a building; a 600 m street lined on both sides stays well under 200,000.
+
+### manfred/furniture
+
+`generator = "manfred/furniture"` lines a route with street furniture: lamp poles on the sidewalk, the cables between them, and a few extras. Its pieces are in world coordinates, laid along the route, so leave the object at the origin (its `at`, `rotate` and `scale` still move every piece and light).
+
+```toml
+[[object]]
+name = "furniture"
+kind = "generator"
+generator = "manfred/furniture"
+params = { route = "main", spacing = [22, 30], crosswalks = [120.0, 310.0] }
+```
+
+| Param | Default | Meaning |
+|---|---|---|
+| `route` | needed | the name of a `[[route]]` |
+| `offset` | `8.2` | the pole line's lateral distance from the route's centre, in metres, on the sidewalk |
+| `spacing` | `[22, 30]` | the gap between poles on a side, drawn in `[min, max]` metres; min is 2 or more |
+| `sides` | `"both"` | `"both"`, `"left"` or `"right"` of travel; each side draws its own gaps |
+| `height` | `8` | the pole's height in metres |
+| `arm` | `1.8` | the arm's reach over the road, below `offset` |
+| `lamp` | `true` | lit heads: an emissive lens and a spot light each; `false` leaves plain lenses and no lights |
+| `wires` | `true` | a cable between each two neighbouring poles of a side, from top to top, hanging `sag` metres at the middle (and from the last pole to the first on a closed route) |
+| `sag` | `0.4` | the cables' drop at their middle |
+| `extras` | `true` | at each crosswalk, a traffic signal and four bollards on each side; signs between poles |
+| `signs` | `0.2` | the chance of a sign between two neighbouring poles, away from crosswalks |
+| `crosswalks` | `[]` | distances along the route, as numbers or tables with `at` (or `distance`), such as a street generator's facts; a pole within 3.5 m of one moves past it |
+| `max_lights` | `24` | the most spot lights it returns, the ones nearest the route's start first |
+| `intensity` | `60` | each lamp's intensity |
+| `range` | `24` | each lamp's range in metres |
+| `color` | `[1.0, 0.72, 0.42]` | each lamp's linear colour, a warm sodium white |
+| `cone` | `[35, 60]` | each lamp's inner and outer cone in degrees |
+| `seed` | the object's seed | the seed for the gaps and the signs |
+
+- **Pieces:** `<object>.poles` (posts, plinths, arms and head shells), `<object>.wires`, `<object>.lamps` (the lenses, emissive warm when lit) and `<object>.extras` (signals, bollards and signs); a piece with nothing in it is left out.
+- **Materials** it returns: `furniture_metal`, `furniture_wire`, `furniture_lamp` (emissive) or `furniture_lamp_off`, `furniture_sign` and `furniture_signal` (the lit red lamp); a recipe entry of the same name wins.
+- **Lights:** each lit lamp is a spot light under its head, `<object>.lamp<n>` counted from the route's start, pointing down and a little over the road, with no shadow. The scene writes them as `[[light]]` tables with `kind = "spot"`, `position`, `direction`, `cone`, `color`, `intensity`, `range` and `shadow`, after the recipe's own lights, while the engine has room (4 local lights with pfx today); `manfred build` prints a line naming the ones left out.
+- **Deterministic:** the same route, params and seed build the same bytes.
 
 ## Includes and uses
 

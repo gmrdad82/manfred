@@ -563,6 +563,7 @@ fn road(object: &str, route: &Route, spec: &Spec) -> Result<Generated, String> {
         pieces,
         facts,
         materials: materials(),
+        ..Generated::default()
     })
 }
 

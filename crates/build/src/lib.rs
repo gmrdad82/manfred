@@ -63,11 +63,24 @@ pub struct Piece {
 
 pub type Generator = fn(&Call) -> Result<Vec<Piece>, String>;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct GeneratedLight {
+    pub name: String,
+    pub position: [f64; 3],
+    pub direction: [f64; 3],
+    pub cone: [f64; 2],
+    pub range: f64,
+    pub color: [f64; 3],
+    pub intensity: f64,
+    pub shadow: bool,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Generated {
     pub pieces: Vec<Piece>,
     pub facts: serde_json::Map<String, serde_json::Value>,
     pub materials: BTreeMap<String, serde_json::Value>,
+    pub lights: Vec<GeneratedLight>,
 }
 
 pub type FactsGenerator = fn(&Call) -> Result<Generated, String>;
@@ -83,8 +96,7 @@ impl Entry {
         match self {
             Entry::Pieces(generator) => generator(call).map(|pieces| Generated {
                 pieces,
-                facts: serde_json::Map::new(),
-                materials: BTreeMap::new(),
+                ..Generated::default()
             }),
             Entry::Facts(generator) => generator(call),
         }
@@ -227,6 +239,7 @@ pub struct Built {
     pub timeline: Option<Timeline>,
     pub tracks: Vec<Track>,
     generated: serde_json::Map<String, serde_json::Value>,
+    pub lights: Vec<GeneratedLight>,
     nest: Vec<Option<(usize, DMat4)>>,
 }
 
@@ -654,7 +667,8 @@ fn generate(
     };
     let Some(&entry) = registry.generators.get(generator) else {
         let known: Vec<&str> = registry.names().collect();
-        let text = if known.is_empty() {
+        let app = known.iter().any(|name| !name.starts_with("manfred/"));
+        let text = if !app && !generator.starts_with("manfred/") {
             format!(
                 "`{generator}` is built by the app's own build binary, which registers it through the Manfred library"
             )
@@ -740,6 +754,7 @@ struct Made {
     nodes: Vec<Node>,
     facts: serde_json::Map<String, serde_json::Value>,
     materials: BTreeMap<String, serde_json::Value>,
+    lights: Vec<GeneratedLight>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -785,6 +800,19 @@ fn key(
     Some(format!("{:?}", (object, base, entry, cuts, matrix, eye)))
 }
 
+fn placed(light: GeneratedLight, matrix: DMat4) -> GeneratedLight {
+    let direction = matrix
+        .transform_vector3(DVec3::from(light.direction))
+        .normalize_or(DVec3::NEG_Y);
+    GeneratedLight {
+        position: matrix
+            .transform_point3(DVec3::from(light.position))
+            .to_array(),
+        direction: direction.to_array(),
+        ..light
+    }
+}
+
 fn make(
     recipe: &Recipe,
     index: usize,
@@ -820,17 +848,23 @@ fn make(
         pieces,
         facts,
         materials,
+        lights,
     } = generated;
     let mut made = Made {
         nodes: Vec::with_capacity(pieces.len()),
         facts,
         materials,
+        lights: Vec::new(),
     };
     taken(
         pieces.iter().map(|piece| piece.name.as_str()).collect(),
         &made,
     )?;
     let matrix = matrix?;
+    made.lights = lights
+        .into_iter()
+        .map(|light| placed(light, matrix))
+        .collect();
     for Piece { name, mut mesh } in pieces {
         let mut morph = morph.take();
         let follow = |morph: &mut Option<Morph>, sources: Option<Vec<u32>>| {
@@ -911,6 +945,7 @@ fn assemble(
     let mut parts = Vec::new();
     let mut generated = serde_json::Map::new();
     let mut offered: BTreeMap<String, (&str, serde_json::Value)> = BTreeMap::new();
+    let mut lights = Vec::new();
     for (index, object) in recipe.objects.iter().enumerate() {
         if matches!(object.kind, Kind::Pocket { .. }) {
             continue;
@@ -950,6 +985,9 @@ fn assemble(
         if let Some(key) = key {
             used.insert(key);
         }
+        if !object.hidden {
+            lights.extend(made.lights);
+        }
         for node in made.nodes {
             parts.push(Part {
                 node,
@@ -977,10 +1015,12 @@ fn assemble(
     }
     let catalogue = catalogue(&parts, registry, recipe, &mut notes);
     notes.extend(scene::left_out(recipe));
+    notes.extend(scene::lights_left_out(recipe, &lights));
     Ok(Built {
         materials,
         catalogue,
         notes,
+        lights,
         extras: extras::of(recipe, &parts, &facts.movers),
         nest: nest(recipe, &parts),
         timeline: recipe.timeline,

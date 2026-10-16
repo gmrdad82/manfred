@@ -1,5 +1,5 @@
 use crate::bake::{Section, absolute, list, number, shade_at, string};
-use crate::{Built, Error, Part, local_matrix, world};
+use crate::{Built, Error, GeneratedLight, Part, local_matrix, world};
 use glam::{DMat4, DVec3};
 use manfred_recipe::toml_edit::{DocumentMut, Item, Value};
 use manfred_recipe::{
@@ -978,7 +978,9 @@ fn lights(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
             ),
         ));
     }
-    for light in &recipe.lights {
+    let room = MAX_LIGHTS.saturating_sub(recipe.lights.len());
+    let generated: Vec<manfred_recipe::Light> = built.lights.iter().take(room).map(generated).collect();
+    for light in recipe.lights.iter().chain(&generated) {
         let at = format!("light[{}]", light.name);
         let parent = match &light.parent {
             Some((name, place)) => Some((
@@ -1017,6 +1019,40 @@ fn lights(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
         s.put("shadow", &light.shadow.to_string());
     }
     Ok(())
+}
+
+fn generated(light: &GeneratedLight) -> manfred_recipe::Light {
+    manfred_recipe::Light {
+        name: light.name.clone(),
+        kind: LightKind::Spot,
+        position: light.position,
+        parent: None,
+        direction: Some(light.direction),
+        cone: Some(light.cone),
+        color: light.color,
+        intensity: light.intensity,
+        radius: 0.0,
+        range: light.range,
+        shadow: light.shadow,
+    }
+}
+
+pub(crate) fn lights_left_out(recipe: &Recipe, generated: &[GeneratedLight]) -> Option<String> {
+    recipe.output.scene.as_ref()?;
+    let room = MAX_LIGHTS.saturating_sub(recipe.lights.len());
+    let left: Vec<&str> = generated
+        .iter()
+        .skip(room)
+        .map(|light| light.name.as_str())
+        .collect();
+    (!left.is_empty()).then(|| {
+        format!(
+            "output.scene: the engine draws {MAX_LIGHTS} local lights at most, so {} generated lights are left out ({}{})",
+            left.len(),
+            left[..left.len().min(4)].join(", "),
+            if left.len() > 4 { ", …" } else { "" }
+        )
+    })
 }
 
 fn objects(

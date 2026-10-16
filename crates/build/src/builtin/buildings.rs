@@ -585,6 +585,7 @@ pub fn street(object: &str, route: &Route, params: &Params, seed: u64) -> Genera
         pieces,
         facts,
         materials: materials(),
+        ..Generated::default()
     }
 }
 

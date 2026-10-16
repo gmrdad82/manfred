@@ -18,6 +18,7 @@ fn stack(call: &Call) -> Result<Generated, String> {
         pieces: vec![piece],
         facts,
         materials: [("wood".to_string(), json!({ "base_color": [0.5, 0.3, 0.1] }))].into(),
+        ..Generated::default()
     })
 }
 
