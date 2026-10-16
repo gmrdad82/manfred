@@ -83,7 +83,7 @@ pub(crate) fn text(
         s.list("max", &volume.max)?;
         s.num("spacing", volume.spacing)?;
     }
-    for light in &recipe.lights {
+    for light in recipe.lights.iter().filter(|light| light.parent.is_none()) {
         let at = format!("light[{}]", light.name);
         if light.radius <= 0.0 {
             return Err(Error::new(

@@ -286,7 +286,7 @@ fn parse_errors_name_the_key_the_line_and_what_was_expected() {
         ),
         (
             "unknown_top",
-            "line 3: sky_colour: unknown key `sky_colour` in the top level, expected one of: manfred, include, name, seed, params, plate, output, object, use, camera, sun, sky, light, mover, route, variant, sidecar, look, trace, bake, materials",
+            "line 3: sky_colour: unknown key `sky_colour` in the top level, expected one of: manfred, include, name, seed, params, plate, output, object, use, camera, sun, sky, light, mover, route, variant, sidecar, look, trace, bake, materials, particles, flare, motion_blur, haze, sound",
         ),
         (
             "missing_manfred",

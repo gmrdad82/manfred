@@ -1648,7 +1648,7 @@ dependencies = [
  "pfx-load",
  "pfx-materials",
  "pfx-post",
- "pfx-scene 1.0.1",
+ "pfx-scene 1.1.0",
  "pfx-trace",
  "png",
  "serde_json",
@@ -1702,7 +1702,7 @@ dependencies = [
  "manfred-mesh",
  "manfred-motion",
  "pfx-materials",
- "pfx-scene 1.0.1",
+ "pfx-scene 1.1.0",
  "serde",
  "serde_json",
  "toml_edit",
@@ -1786,7 +1786,7 @@ dependencies = [
  "pfx-gpu",
  "pfx-live",
  "pfx-load",
- "pfx-scene 1.0.1",
+ "pfx-scene 1.1.0",
  "png",
  "serde_json",
  "toml_edit",
@@ -2690,8 +2690,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-scene"
-version = "1.0.1"
-source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.0.1#9cc72b4b43cdfe25b85e25db3c338a1c3465b313"
+version = "1.1.0"
+source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.1.0#eedeccbbdf3840d8927c4748b679bbc4790b0f60"
 dependencies = [
  "serde",
  "toml 1.1.6+spec-1.1.0",

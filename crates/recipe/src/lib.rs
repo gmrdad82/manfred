@@ -18,6 +18,7 @@ pub use patch::{
     string, value_at, write,
 };
 pub use path::{CameraPath, Ease, Orbit, PathKey, PathKind};
+pub use read::effects::{Colour, Effects, Particles, Setting, Settings};
 pub use read::{load, materials, parse};
 pub use route::{PointEdit, route_patch};
 pub use set::apply_set;
@@ -61,6 +62,7 @@ pub struct Recipe {
     pub trace: Trace,
     pub bake: Option<Bake>,
     pub materials: BTreeMap<String, serde_json::Value>,
+    pub effects: Effects,
     pub uses: Vec<Use>,
     pub files: Files,
     pub source: String,
@@ -458,12 +460,22 @@ pub struct Sky {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Light {
     pub name: String,
+    pub kind: LightKind,
     pub position: [f64; 3],
+    pub parent: Option<(String, [f64; 3])>,
+    pub direction: Option<[f64; 3]>,
+    pub cone: Option<[f64; 2]>,
     pub color: [f64; 3],
     pub intensity: f64,
     pub radius: f64,
     pub range: f64,
     pub shadow: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LightKind {
+    Point,
+    Spot,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -520,6 +532,8 @@ pub struct Look {
     pub view: View,
     pub exposure: f64,
     pub grade: Grade,
+    pub lut: Option<String>,
+    pub lut_amount: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

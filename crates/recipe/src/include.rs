@@ -6,26 +6,31 @@ use toml_edit::{ArrayOfTables, Document, DocumentMut, Item, Table, Value};
 use crate::read::Source;
 use crate::{Error, OLD_HEADER, Output, Problem, Recipe, SCHEMA, Use, Variant};
 
-pub(crate) const ARRAYS: [(&str, &str); 6] = [
+pub(crate) const ARRAYS: [(&str, &str); 7] = [
     ("object", "name"),
     ("camera", "name"),
     ("light", "name"),
+    ("particles", "name"),
     ("mover", "group"),
     ("use", "prefix"),
     ("route", "name"),
 ];
-const SINGLE: [&str; 3] = ["sun", "sky", "look"];
-const INCLUDED: [&str; 12] = [
+const SINGLE: [&str; 6] = ["sun", "sky", "look", "flare", "motion_blur", "haze"];
+const INCLUDED: [&str; 16] = [
     "manfred",
     "include",
     "use",
     "object",
     "camera",
     "light",
+    "particles",
     "mover",
     "sun",
     "sky",
     "look",
+    "flare",
+    "motion_blur",
+    "haze",
     "materials",
     "route",
 ];

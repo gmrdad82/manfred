@@ -61,6 +61,8 @@ With `[output] bake`, `manfred build` writes a `pfx bake` recipe in the engine's
 
 With `[output] scene`, `manfred build` writes the engine's runtime scene, a `*.scene.toml` ([pfx-scene](https://docs.pitomd.com/pfx-scene/)). `manfred gui` opens one too, read only, and reloads it as it is saved.
 
+A recipe's shot effects (spot and parented lights, particle systems, flare, motion blur, outdoor haze, wet materials, a LUT and a sound file) pass into the scene under pfx-scene 1.1.0's keys; [the recipe](../recipe/) lists them under "Shot effects".
+
 ## `manfred render --progress json`
 
 One JSON object a line on stderr, at most about one a second while tracing. Every line has `stage` and `elapsed_s` (wall seconds since the render began).

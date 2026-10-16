@@ -5,13 +5,15 @@ use toml_edit::{Document, DocumentMut, Item, Table, TableLike, Value};
 
 use crate::include::{self, Assembly, Edit, File, Files, Role, Sources};
 
+pub(crate) mod effects;
+
 use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
-    Casters, Cup, Curl, Daylight, DetailUv, Ease, Error, Grade, Kind, Light, Lines, Loaded, Look,
-    Mover, NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey,
-    PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy,
-    REFERENCE_HOUR, Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight,
-    Span, Sun, TextSpace, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
+    Casters, Cup, Curl, Daylight, DetailUv, Ease, Error, Grade, Kind, Lines, Loaded, Look, Mover,
+    NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey, PathKind,
+    Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy, REFERENCE_HOUR,
+    Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun, TextSpace, Trace,
+    Use, Uv, Variant, VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -2191,22 +2193,6 @@ fn read_lamp(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Resul
     Ok(lamp)
 }
 
-fn read_light(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Result<Light, Error> {
-    let path = format!("light[{}]", label(t, "name", index));
-    let mut tab = Tab::new(cx, t, path, format!("light#{index}"), line);
-    let light = Light {
-        name: tab.req(cx, "name", STR)?,
-        position: tab.req(cx, "position", V3)?,
-        color: tab.or(cx, "color", [1.0, 1.0, 1.0], V3)?,
-        intensity: tab.req(cx, "intensity", NUM)?,
-        radius: tab.or(cx, "radius", 0.0, NUM)?,
-        range: tab.or(cx, "range", 0.0, NUM)?,
-        shadow: tab.or(cx, "shadow", false, BOOL)?,
-    };
-    tab.finish(cx)?;
-    Ok(light)
-}
-
 fn read_route(
     cx: &mut Cx,
     t: &dyn TableLike,
@@ -2367,6 +2353,35 @@ fn read_look(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Option<Look>, Error> {
         &[("graded", View::Graded), ("standard", View::Standard)],
     )?;
     let exposure = tab.or(cx, "exposure", 1.0, NUM)?;
+    let lut = tab.opt(cx, "lut", STR)?;
+    if let Some(file) = &lut
+        && (!file.ends_with(".cube") || file.len() == ".cube".len())
+    {
+        return Err(Error::new(
+            tab.kpath("lut"),
+            cx.lines.get(&tab.kipath("lut")).copied(),
+            format!("expected a path to a .cube file, found \"{file}\""),
+        ));
+    }
+    let lut_amount = tab.opt(cx, "lut_amount", NUM)?;
+    if let Some(amount) = lut_amount {
+        let path = tab.kpath("lut_amount");
+        let line = cx.lines.get(&tab.kipath("lut_amount")).copied();
+        if lut.is_none() {
+            return Err(Error::new(
+                path,
+                line,
+                "expected a `lut` beside `lut_amount`",
+            ));
+        }
+        if !(0.0..=1.0).contains(&amount) {
+            return Err(Error::new(
+                path,
+                line,
+                format!("expected a number from 0 to 1, found {amount}"),
+            ));
+        }
+    }
     let grade = match tab.sub(cx, "grade")? {
         Some(mut sub) => {
             let grade = Grade {
@@ -2392,6 +2407,8 @@ fn read_look(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Option<Look>, Error> {
         view,
         exposure,
         grade,
+        lut,
+        lut_amount,
     }))
 }
 
@@ -2764,7 +2781,7 @@ fn read_root(
     let (sun, daylight) = read_sun(cx, &mut root)?;
     let mut sky = read_sky(cx, &mut root)?;
     relocate(cx, &mut objects, &mut sky);
-    let lights = tables(cx, &mut root, "light", read_light)?;
+    let lights = tables(cx, &mut root, "light", effects::read_light)?;
     let movers = tables(cx, &mut root, "mover", read_mover)?;
     let routes = tables(cx, &mut root, "route", read_route)?;
     let variants = read_variants(cx, &mut root)?;
@@ -2773,6 +2790,7 @@ fn read_root(
     let trace = read_trace(cx, &mut root)?;
     let bake = read_bake(cx, &mut root)?;
 
+    let mut wet = BTreeMap::new();
     let materials = match root.peek(cx, "materials") {
         Some(item) => match item.as_table_like() {
             Some(table) => {
@@ -2784,14 +2802,24 @@ fn read_root(
                             cx.lines
                                 .insert(format!("materials.{name}.{key}"), cx.item_line(value));
                         }
+                        if let Some(item) = keys.get("wet") {
+                            wet.insert(name.to_string(), effects::read_wet(cx, name, item)?);
+                        }
                     }
                 }
-                json_map(table)
+                let mut map: BTreeMap<String, serde_json::Value> = json_map(table);
+                for value in map.values_mut() {
+                    if let Some(keys) = value.as_object_mut() {
+                        keys.remove("wet");
+                    }
+                }
+                map
             }
             None => return Err(bad_item(cx, "materials", item, "a table of materials")),
         },
         None => BTreeMap::new(),
     };
+    let effects = effects::read_effects(cx, &mut root, wet)?;
     root.finish(cx)?;
 
     Ok(Recipe {
@@ -2815,6 +2843,7 @@ fn read_root(
         trace,
         bake,
         materials,
+        effects,
         uses,
         files: Files::default(),
         source: text.to_string(),
