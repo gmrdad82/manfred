@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+if (($# > 1)); then
+  echo "usage: bin/breakdown [<out dir>]" >&2
+  exit 2
+fi
+out="${1:-${XDG_VIDEOS_DIR:-$HOME/Videos}/chase-film/breakdown}"
+manfred="${MANFRED:-manfred}"
+recipe=showcase/chase.toml
+mkdir -p "$out"
+shopt -s nullglob
+tapes=(showcase/chase-film/breakdown/*.tape)
+if ((${#tapes[@]} == 0)); then
+  echo "bin/breakdown: no tapes in showcase/chase-film/breakdown" >&2
+  exit 1
+fi
+for tape in "${tapes[@]}"; do
+  echo "bin/breakdown: $(basename "$tape" .tape)" >&2
+  pgpu run --class clip --as manfred -- "$manfred" gui "$recipe" --clip "$out" --tape "$tape" --fps 60 --size 2160x3840 --scale 2 --bare --strip --frames --json
+done
