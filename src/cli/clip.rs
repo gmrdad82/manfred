@@ -385,20 +385,19 @@ impl Renderer {
         match self {
             Renderer::Live(reel, _) => {
                 let (rgba, gpu_ms) = reel.shoot(&reel.eye(camera)).map_err(|e| e.0)?;
-                manfred_scene::write_png(to, size, &rgba).map_err(|e| e.0)?;
+                manfred_scene::write_frame(to, size, &rgba).map_err(|e| e.0)?;
                 Ok(format!("{gpu_ms:.0} ms on the GPU"))
             }
             Renderer::Traced(reel, samples) => {
                 let rendered = reel
                     .frame(camera, size, *samples, &mut |_: Step| {})
                     .map_err(|e| e.to_string())?;
-                manfred_render::write_with(
-                    to,
+                let rgba = manfred_render::looked_with(
                     &rendered.film,
                     (&rendered.finish, &rendered.overlay),
                     true,
-                )
-                .map_err(|e| e.to_string())?;
+                )?;
+                manfred_scene::write_frame(to, rendered.film.size, &rgba).map_err(|e| e.0)?;
                 let paced = rendered.paced;
                 Ok(format!(
                     "{} submissions, the longest {:.2} ms, {:.0} ms on the GPU",
@@ -697,13 +696,44 @@ mod tests {
     }
 
     #[test]
+    fn an_opaque_frame_is_written_as_rgb_and_a_transparent_one_keeps_its_alpha() {
+        let dir = scratch("colour");
+        let colour = |path: &Path| {
+            let file = std::fs::File::open(path).unwrap();
+            png::Decoder::new(std::io::BufReader::new(file))
+                .read_info()
+                .unwrap()
+                .info()
+                .color_type
+        };
+        let opaque: Vec<u8> = (0..4 * 2 * 4)
+            .map(|n| if n % 4 == 3 { 255 } else { (n * 7) as u8 })
+            .collect();
+        let mut clear = opaque.clone();
+        clear[7] = 128;
+        for (rgba, wanted) in [
+            (&opaque, png::ColorType::Rgb),
+            (&clear, png::ColorType::Rgba),
+        ] {
+            let path = dir.join(format!("{wanted:?}.png"));
+            manfred_scene::write_frame(&path, [4, 2], rgba).unwrap();
+            assert_eq!(colour(&path), wanted);
+            assert_eq!(
+                manfred_scene::read_png(&path).unwrap(),
+                ([4, 2], rgba.clone())
+            );
+            assert!(finished(&path, [4, 2]));
+        }
+    }
+
+    #[test]
     fn resuming_skips_finished_frames() {
         let dir = scratch("resume");
         let size = [4, 2];
         let rgba = vec![200u8; 4 * 2 * 4];
-        for frame in [0, 2] {
-            manfred_scene::write_png(&dir.join(name(frame, 5)), size, &rgba).unwrap();
-        }
+        let opaque = vec![255u8; 4 * 2 * 4];
+        manfred_scene::write_png(&dir.join(name(0, 5)), size, &rgba).unwrap();
+        manfred_scene::write_frame(&dir.join(name(2, 5)), size, &opaque).unwrap();
         manfred_scene::write_png(&dir.join(name(3, 5)), [2, 2], &rgba[..16]).unwrap();
         let whole = std::fs::read(dir.join(name(0, 5))).unwrap();
         std::fs::write(dir.join(name(4, 5)), &whole[..whole.len() - 20]).unwrap();

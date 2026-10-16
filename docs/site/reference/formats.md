@@ -112,7 +112,7 @@ One JSON object on stdout. `list` prints `recipe` (the path as given) and `route
 
 `manfred clip --out <dir>` writes:
 
-- `frame-0000.png`, `frame-0001.png`…: 8-bit RGBA PNGs, wider than four digits when the last frame needs it. A frame under its own name is whole;
+- `frame-0000.png`, `frame-0001.png`…: 8-bit RGB PNGs, or RGBA for a frame with any transparent pixel, wider than four digits when the last frame needs it. A frame under its own name is whole;
 - `clip.txt`: the line that made the frames (recipe, camera, frames, size, timeline, spin and its turns, renderer and samples, variant, sets). A run with a different line into the folder is refused;
 - `frames.ffconcat`: an ffconcat list holding each frame for its share of a second, to the microsecond, for `--video` or any encoder.
 

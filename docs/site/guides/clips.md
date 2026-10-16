@@ -102,10 +102,10 @@ A recipe with a `[timeline]` (the recipe guide's "Timeline") films with `--timel
 ## Make the video
 
 ```sh
-manfred clip showcase/workshop.toml --camera orbit --frames 120 --fps 30 --size 1280x800 --out orbit --video orbit.webm
+manfred clip showcase/workshop.toml --camera orbit --frames 120 --fps 30 --size 1280x800 --out orbit --video orbit.mp4
 ```
 
-With [pconv](https://docs.pitomd.com/pconv/) on the `PATH`, `--video` encodes the frames into a `.webm` (VP9). Use `.webm`: pconv 0.14 refuses the clip's RGBA frames for an `.mp4`. Without pconv, the frames and a `frames.ffconcat` list stay in the folder and the command exits 1; any encoder makes the video from the list:
+With [pconv](https://docs.pitomd.com/pconv/) on the `PATH`, `--video` encodes the frames into an `.mp4` (H.264) or a `.webm` (VP9). Opaque frames are written as RGB PNGs, which both take; a frame with transparent pixels keeps its alpha, which only `.webm` carries. Without pconv, the frames and a `frames.ffconcat` list stay in the folder and the command exits 1; any encoder makes the video from the list:
 
 ```sh
 ffmpeg -f concat -i orbit/frames.ffconcat -r 30 -pix_fmt yuv420p orbit.mp4
