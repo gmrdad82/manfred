@@ -40,6 +40,8 @@ fn a_rig_reads_every_key_and_stands_in_for_position_and_target() {
             look: [0.0, 0.5, 1.0],
             lag: 0.25,
             look_ahead: 0.3,
+            yaw_lag: 0.0,
+            bank: 0.0,
             shake: Some(RigShake {
                 translation: 0.03,
                 roll: 0.4,

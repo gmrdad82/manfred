@@ -797,6 +797,16 @@ fn camera_rig(out: &mut Out<'_>, camera: &At, c: &Camera, rig: &Rig) {
     if !(rig.look_ahead >= 0.0 && rig.look_ahead.is_finite()) {
         out.at(&at, "look_ahead", "expected seconds of 0 or more");
     }
+    if !(rig.yaw_lag >= 0.0 && rig.yaw_lag.is_finite()) {
+        out.at(&at, "yaw_lag", "expected seconds of 0 or more");
+    }
+    if !rig.bank.is_finite() {
+        out.at(
+            &at,
+            "bank",
+            "expected degrees per m/s² of sideways acceleration",
+        );
+    }
     if let Some(shake) = &rig.shake {
         let at = at.child("shake", "shake");
         if !(shake.translation >= 0.0 && shake.translation.is_finite()) {

@@ -2064,6 +2064,8 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
     let look = sub.or(cx, "look", RIG_LOOK, V3)?;
     let lag = sub.or(cx, "lag", 0.0, NUM)?;
     let look_ahead = sub.or(cx, "look_ahead", 0.0, NUM)?;
+    let yaw_lag = sub.or(cx, "yaw_lag", 0.0, NUM)?;
+    let bank = sub.or(cx, "bank", 0.0, NUM)?;
     let shake = match sub.sub(cx, "shake")? {
         Some(mut shake) => {
             let read = RigShake {
@@ -2103,6 +2105,8 @@ fn read_rig(cx: &mut Cx, tab: &mut Tab<'_>) -> Result<Option<Rig>, Error> {
         look,
         lag,
         look_ahead,
+        yaw_lag,
+        bank,
         shake,
         focus,
     }))

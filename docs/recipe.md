@@ -515,13 +515,17 @@ offset = [0.0, 1.1, -5.5]
 look = [0.0, 0.6, 0.0]
 lag = 0.25
 look_ahead = 0.3
+yaw_lag = 0.4
+bank = 4.0
 shake = { translation = 0.03, roll = 0.4, frequency = 2.5, seed = 9 }
 focus = "follow"
 ```
 
 - `follow` (required) names the object the rig chases, one with a `[[follow]]` (an object that doesn't move is followed where it stands). Its frame has +Z forward and +Y up.
 - `offset` (`[0, 1.1, -5.5]`, behind and above) is where the camera wants to sit and `look` (`[0, 0.6, 0]`) the point it aims at, both in the followed object's frame, so the camera turns with it. They must differ.
-- `lag` (0, seconds) damps the camera's position toward the offset, so it trails on speed-ups and swings wide on turns; 0 holds it exactly at the offset. `look_ahead` (0, seconds) leads the aim by the object's velocity times that many seconds, eased in over a quarter second. Both are pfx's `rig::Follow`, stepped at the timeline's fixed step `1 / fps`.
+- `lag` (0, seconds) damps the camera's velocity toward the offset's, so at a steady speed the camera sits at the offset and it trails on speed-ups and swings wide on turns; 0 holds it exactly at the offset. `look_ahead` (0, seconds) leads the aim by the object's velocity times that many seconds, eased over a quarter second. Both are pfx's `rig::Follow`, stepped at the timeline's fixed step `1 / fps`, and start settled: frame 0 is the offset and the look-ahead already in place, with no catch-up in the first frames.
+- `yaw_lag` (0, seconds) damps the heading the offset and the aim turn with, so the camera stays with the road while the car yaws in a drift and shows its flank; it starts settled at frame 0's turn rate, and 0 turns them with the object exactly.
+- `bank` (0, degrees per m/s²) rolls the camera into the turns by the followed object's sideways acceleration, its route's curvature times its speed squared, eased over half a second and held within 30 degrees; 0 keeps the horizon level, and an object without a `[[follow]]` never banks. A drift's wander doesn't bank it. `bank = 4` rolls about 8 to 14 degrees at the peaks of `manfred new street`'s S bends at 30 m/s.
 - `shake` is pfx's `fx::Shake` at full trauma: `translation` (0, metres, across the frame's right and up), `roll` (0, degrees, below 90), `frequency` (2, hertz, above 0) and `seed` (the timeline's seed). The same seed gives the same shake.
 - `focus` sets depth of field and needs the camera's `fstop` above 0: `"follow"` keeps the focus on the aim point, written into the scene's `[camera]` as `focus_keys = [[t, metres], ...]` one key a frame; a number is a fixed focus distance in metres, written as `focus`.
 - The camera's `position` and `target` are optional with a rig (they default to `offset` and `look`) and serve only where there is no timeline. A rig is for a perspective camera, and a camera takes `path` or `rig`, not both.

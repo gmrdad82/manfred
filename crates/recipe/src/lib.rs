@@ -444,6 +444,8 @@ pub struct Rig {
     pub look: [f64; 3],
     pub lag: f64,
     pub look_ahead: f64,
+    pub yaw_lag: f64,
+    pub bank: f64,
     pub shake: Option<RigShake>,
     pub focus: Option<RigFocus>,
 }
