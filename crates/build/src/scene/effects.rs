@@ -38,26 +38,66 @@ pub(super) fn file(paths: &Paths, base: &Path, file: &str, key: &str) -> Result<
     paths.relative(&path, key)
 }
 
+pub(super) struct Parent {
+    object: String,
+    node: Option<String>,
+}
+
+impl Parent {
+    pub(super) fn put(&self, s: &mut Section<'_>) {
+        s.put("parent", &string(&self.object));
+        if let Some(node) = &self.node {
+            s.put("node", &string(node));
+        }
+    }
+}
+
+pub(super) fn whole(recipe: &Recipe, built: &Built, format: u32, glb: &Path) -> Option<String> {
+    if format != 1 || recipe.timeline.is_none() || built.tracks.is_empty() {
+        return None;
+    }
+    let stem = glb.file_stem().and_then(|stem| stem.to_str()).unwrap_or("");
+    let named = !stem.is_empty()
+        && stem
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-');
+    Some(if named { stem } else { "timeline" }.to_string())
+}
+
 pub(super) fn parent(
     built: &Built,
     recipe: &Recipe,
+    whole: Option<&str>,
     name: &str,
     key: &str,
-) -> Result<String, Error> {
+) -> Result<Parent, Error> {
     let mut parts = built.parts.iter().filter(|part| shown(part));
-    if parts.clone().any(|part| part.node.name == name) {
-        return Ok(name.to_string());
-    }
-    let owner = recipe.objects.iter().position(|object| object.name == name);
-    match owner.and_then(|index| parts.find(|part| part.object == index)) {
-        Some(part) => Ok(part.node.name.clone()),
-        None => Err(Error::new(
-            key,
-            format!(
-                "\"{name}\" names no object or piece of the built scene, expected a shown object's name or one of its pieces' node names"
-            ),
-        )),
-    }
+    let node = if parts.clone().any(|part| part.node.name == name) {
+        name.to_string()
+    } else {
+        let owner = recipe.objects.iter().position(|object| object.name == name);
+        match owner.and_then(|index| parts.find(|part| part.object == index)) {
+            Some(part) => part.node.name.clone(),
+            None => {
+                return Err(Error::new(
+                    key,
+                    format!(
+                        "\"{name}\" names no object or piece of the built scene, expected a shown object's name or one of its pieces' node names"
+                    ),
+                ));
+            }
+        }
+    };
+    Ok(match whole {
+        Some(object) => Parent {
+            object: object.to_string(),
+            node: Some(node),
+        },
+        None => Parent {
+            object: node,
+            node: None,
+        },
+    })
 }
 
 fn colour(value: &Colour, key: &str) -> Result<String, Error> {
@@ -97,17 +137,22 @@ pub(super) fn put(s: &mut Section<'_>, settings: &Settings) -> Result<(), Error>
     Ok(())
 }
 
-pub(super) fn particles(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error> {
+pub(super) fn particles(
+    out: &mut String,
+    recipe: &Recipe,
+    built: &Built,
+    whole: Option<&str>,
+) -> Result<(), Error> {
     for particles in &recipe.effects.particles {
         let at = format!("particles[{}]", particles.name);
         let parent = match &particles.parent {
-            Some(name) => Some(parent(built, recipe, name, &format!("{at}.parent"))?),
+            Some(name) => Some(parent(built, recipe, whole, name, &format!("{at}.parent"))?),
             None => None,
         };
         let mut s = Section::new(out, "[[particles]]", &at);
         s.put("name", &string(&particles.name));
         if let Some(parent) = parent {
-            s.put("parent", &string(&parent));
+            parent.put(&mut s);
         }
         put(&mut s, &particles.settings)?;
     }

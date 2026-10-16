@@ -226,3 +226,29 @@ fn a_parent_that_names_nothing_is_refused_at_build() {
     assert_eq!(error.path, "particles[spray].parent");
     assert!(error.text.contains("\"bus\""), "{}", error.text);
 }
+
+#[test]
+fn a_timeline_scene_is_one_animated_object_whose_lights_and_particles_ride_its_nodes() {
+    let root = project(
+        "effects-timeline",
+        &[(
+            "[[camera]]\nname = \"chase\"\nposition = [0.0, 2.0, -8.0]\ntarget = [0.0, 0.5, 0.0]\nfov_y_deg = 50.0\n",
+            "[timeline]\nfps = 30\nframes = 6\nsize = [1080, 1920]\n\n[[route]]\nname = \"main\"\npoints = [[0.0, 0.0, 0.0], [0.0, 0.0, 20.0], [6.0, 0.0, 40.0]]\n\n[[follow]]\nobject = \"car\"\nroute = \"main\"\nspeed = [[0.0, 10.0]]\n\n[[camera]]\nname = \"chase\"\nfov_y_deg = 50.0\nfstop = 2.8\n\n[camera.rig]\nfollow = \"car\"\nlag = 0.25\nfocus = \"follow\"\n",
+        )],
+    );
+    emit(&root, &[]).unwrap();
+    let here = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/scene/format1");
+    let made = std::fs::read_to_string(root.join("scenes/street.scene.toml")).unwrap();
+    let golden = here.join("timeline.scene.toml");
+    if std::env::var_os("UPDATE_GOLDEN").is_some() {
+        std::fs::write(&golden, &made).unwrap();
+    }
+    let want = std::fs::read_to_string(&golden).unwrap();
+    assert!(
+        made == want,
+        "the timeline scene differs from its format 1 golden; UPDATE_GOLDEN=1 regenerates it\n{made}"
+    );
+    let diagnostics = Project::open(&root).unwrap().check();
+    let lines: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
+    assert!(lines.is_empty(), "{}", lines.join("\n"));
+}

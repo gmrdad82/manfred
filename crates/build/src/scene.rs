@@ -180,10 +180,14 @@ pub(crate) fn text(
         Some(file) => Some((file, proxies::of(built, recipe)?)),
         None => None,
     };
-    lights(&mut out, recipe, built)?;
-    effects::particles(&mut out, recipe, built)?;
+    let whole = effects::whole(recipe, built, format, glb);
+    lights(&mut out, recipe, built, whole.as_deref())?;
+    effects::particles(&mut out, recipe, built, whole.as_deref())?;
     let glb_name = paths.relative(glb, "output.glb")?;
-    objects(&mut out, built, recipe, &glb_name, &cards, paths.pick())?;
+    match &whole {
+        Some(name) => animated(&mut out, built, recipe, &glb_name, name, paths.pick())?,
+        None => objects(&mut out, built, recipe, &glb_name, &cards, paths.pick())?,
+    }
     contents(&mut out, &cards, &paths, base)?;
     let fonts = texts(&mut out, built, recipe, scene, &paths, base)?;
     let mut written = Written {
@@ -993,7 +997,12 @@ fn trace(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
     Ok(())
 }
 
-fn lights(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error> {
+fn lights(
+    out: &mut String,
+    recipe: &Recipe,
+    built: &Built,
+    whole: Option<&str>,
+) -> Result<(), Error> {
     if recipe.lights.len() > MAX_LIGHTS {
         return Err(Error::new(
             "light",
@@ -1010,7 +1019,7 @@ fn lights(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
         let at = format!("light[{}]", light.name);
         let parent = match &light.parent {
             Some((name, place)) => Some((
-                effects::parent(built, recipe, name, &format!("{at}.parent"))?,
+                effects::parent(built, recipe, whole, name, &format!("{at}.parent"))?,
                 place,
             )),
             None => None,
@@ -1021,8 +1030,8 @@ fn lights(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
             s.put("kind", &string("spot"));
         }
         match parent {
-            Some((name, place)) => {
-                s.put("parent", &string(&name));
+            Some((parent, place)) => {
+                parent.put(&mut s);
                 s.list("at", place)?;
             }
             None => s.list("position", &light.position)?,
@@ -1164,6 +1173,59 @@ fn objects(
             s.put("dynamic", &dynamic.to_string());
         }
     }
+    Ok(())
+}
+
+fn animated(
+    out: &mut String,
+    built: &Built,
+    recipe: &Recipe,
+    glb: &str,
+    name: &str,
+    pick: &str,
+) -> Result<(), Error> {
+    let ip = format!("object[{name}]");
+    let mesh = format!("mesh.{}", key(name));
+    let mut s = Section::new(out, &format!("[{mesh}]"), &ip);
+    s.put("file", &string(glb));
+    for part in built.parts.iter().filter(|part| !part.hidden) {
+        let names: BTreeSet<&str> = part
+            .node
+            .mesh
+            .slots
+            .iter()
+            .map(|slot| slot.material.as_str())
+            .collect();
+        let material = match (names.len(), names.first()) {
+            (1, Some(one)) => Some(*one),
+            _ => None,
+        };
+        let shadow = match part.shadow {
+            Shadow::Cast => None,
+            Shadow::Only => Some("only"),
+            Shadow::None => Some("none"),
+        };
+        if material.is_none() && shadow.is_none() && !part.two_sided {
+            continue;
+        }
+        let at = format!("object[{}]", recipe.objects[part.object].name);
+        let mut s = Section::new(out, &format!("[{mesh}.nodes.{}]", key(&part.node.name)), at);
+        if let Some(material) = material {
+            s.put("material", &string(material));
+        }
+        if let Some(shadow) = shadow {
+            s.put("shadow", &string(shadow));
+        }
+        if part.two_sided {
+            s.put("two_sided", "true");
+        }
+    }
+    let mut s = Section::new(out, "[[object]]", &ip);
+    s.put("name", &string(name));
+    s.put("mesh", &string(name));
+    s.put(pick, "1");
+    let mut s = Section::new(out, "[object.animation]", &ip);
+    s.put("clip", &string(manfred_glb::ANIMATION));
     Ok(())
 }
 
