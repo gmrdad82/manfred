@@ -25,6 +25,8 @@ pub(super) struct Args {
         help = "A recipe, a .scene.toml, or a folder to pick one from [default: the start scene]"
     )]
     pub(super) target: Option<String>,
+    #[command(flatten)]
+    pub(super) pick: super::Picks,
     #[arg(
         long,
         value_name = "png",
@@ -231,10 +233,9 @@ pub fn run(
         shell = shell.with_installed_showcase();
     }
     let viewer = match &choice {
-        Target::Recipe(path) | Target::Start(path) => Some(Viewer::with(Follow::idle_with(
-            path,
-            Mode::Stage,
-            registry.clone(),
+        Target::Recipe(path) | Target::Start(path) => Some(Viewer::with(picked(
+            Follow::idle_with(path, Mode::Stage, registry.clone()),
+            &args.pick,
         ))),
         Target::Scene(path) => Some(Viewer::scene(path, Mode::Stage)),
         Target::Empty | Target::Folder(_) => None,
@@ -246,6 +247,17 @@ pub fn run(
             ExitCode::FAILURE
         }
     }
+}
+
+pub(super) fn picked(mut follow: Follow, pick: &super::Picks) -> Follow {
+    if pick.stage.is_some() || !pick.only.is_empty() {
+        follow.set_shape(manfred_ui::Shape {
+            stage: pick.stage.clone(),
+            only: pick.only.clone(),
+            ..manfred_ui::Shape::default()
+        });
+    }
+    follow
 }
 
 #[cfg(test)]

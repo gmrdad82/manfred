@@ -80,6 +80,7 @@ pub fn stamp(path: &Path) -> Option<Stamp> {
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Shape {
     pub stage: Option<String>,
+    pub only: Vec<String>,
     pub reveal: BTreeMap<String, f64>,
 }
 
@@ -91,6 +92,10 @@ impl Shape {
             }
             None => recipe,
         };
+        if !self.only.is_empty() {
+            recipe = manfred_recipe::apply_only(&recipe, &self.only)
+                .map_err(|error| error.to_string())?;
+        }
         for (name, fraction) in &self.reveal {
             if let Some(object) = recipe
                 .objects

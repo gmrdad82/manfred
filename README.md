@@ -225,6 +225,8 @@ manfred timeline <recipe> [--json]                           builds the recipe a
 manfred shoot <recipe> --out <dir> [--draft|--final] [--range a..b] [--camera <name>] [--json]
                                                           builds the recipe and renders its timeline with `pfx shot` on the live renderer: frames, the scene's sound as a WAV and shoot.json; resumes where it stopped
 manfred gui [<recipe>|<folder>]                              the window; without a recipe, Manfred's own mark, selected on a floor grid; Ctrl+O, a picker of recipes
+manfred gui <recipe> [--stage N|name] [--only <glob>[,<glob>]]
+                                                          the window on stages 1 to N, or only those objects or pieces; with --shot or --clip too
 manfred gui [<recipe>|<folder>] --wireframe [--blend 0..1] [--xray]
                                                           the viewport as a wireframe (z in the window), part way from shaded with --blend; with --shot or --clip too
 manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--fake] [--fixture <name>] [--start] [--bare]

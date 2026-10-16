@@ -32,7 +32,7 @@ use pfx_editor_style::widgets;
 pub use app::Manfred;
 pub use curves::{Change, CurveEdit, TRACKS as CURVE_TRACKS};
 pub use fixture::Fixture;
-pub use follow::{Follow, Mode};
+pub use follow::{Follow, Mode, Shape};
 pub use pfx_editor_shell::{Error, Pulse, Script, shot, window};
 pub use shell::Shell;
 pub use start::{start_recipe, start_recipe_here};
