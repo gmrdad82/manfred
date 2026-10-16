@@ -13,14 +13,18 @@ mod facts;
 mod holes;
 mod scene;
 mod shape;
+mod timeline;
 mod uv;
 
 pub use manfred_glb::{
     CameraFacts, DaylightFacts, FACTS, GradeFacts, LampFacts, LookFacts, MoverFacts, RoomFacts,
     SceneFacts, SidecarWriter, SkyFacts, SunFacts, facts as facts_sidecar, merge, mover_json,
 };
+pub use manfred_glb::{Lens, Track};
+pub use manfred_motion::{Route, Timeline, Trs, matrix, sample, trs_from_matrix};
 pub use manfred_recipe::NO_SIDECAR;
 pub use scene::object_ids;
+pub use timeline::{Animates, Bake, Baker, camera_track, lens, pose, time_refusal};
 
 pub const GENERATOR: &str = concat!("manfred ", env!("CARGO_PKG_VERSION"));
 
@@ -29,6 +33,25 @@ pub struct Call<'a> {
     pub params: &'a BTreeMap<String, serde_json::Value>,
     pub seed: u64,
     pub base: &'a Path,
+    pub routes: &'a BTreeMap<String, Route>,
+}
+
+impl Call<'_> {
+    pub fn route(&self, name: &str) -> Option<&Route> {
+        self.routes.get(name)
+    }
+}
+
+fn routes(recipe: &Recipe) -> Result<BTreeMap<String, Route>, Error> {
+    recipe
+        .routes
+        .iter()
+        .map(|spec| {
+            Route::new(&spec.points, spec.closed)
+                .map(|route| (spec.name.clone(), route))
+                .map_err(|text| Error::new(format!("route[{}]", spec.name), text))
+        })
+        .collect()
 }
 
 #[derive(Clone, Debug)]
@@ -72,6 +95,8 @@ pub struct Registry {
     generators: BTreeMap<String, Entry>,
     sidecars: BTreeMap<String, SidecarWriter>,
     materials: BTreeMap<String, serde_json::Value>,
+    bakers: Vec<(String, Baker)>,
+    animates: Vec<Animates>,
 }
 
 impl Default for Registry {
@@ -88,7 +113,22 @@ impl Registry {
             generators: BTreeMap::new(),
             sidecars,
             materials: BTreeMap::new(),
+            bakers: bake::BAKERS
+                .iter()
+                .map(|&(name, baker)| (name.to_string(), baker))
+                .collect(),
+            animates: bake::ANIMATES.to_vec(),
         }
+    }
+
+    pub fn register_baker(&mut self, name: &str, baker: Baker, animates: Animates) {
+        self.bakers.retain(|(have, _)| have != name);
+        self.bakers.push((name.to_string(), baker));
+        self.animates.push(animates);
+    }
+
+    pub fn baker_names(&self) -> impl Iterator<Item = &str> {
+        self.bakers.iter().map(|(name, _)| name.as_str())
     }
 
     pub fn register(&mut self, name: &str, generator: Generator) {
@@ -181,6 +221,9 @@ pub struct Built {
     pub materials: BTreeMap<String, serde_json::Value>,
     pub catalogue: BTreeMap<String, serde_json::Value>,
     pub notes: Vec<String>,
+    pub timeline: Option<Timeline>,
+    pub tracks: Vec<Track>,
+    generated: serde_json::Map<String, serde_json::Value>,
     nest: Vec<Option<(usize, DMat4)>>,
 }
 
@@ -228,11 +271,22 @@ impl Built {
         for (position, &at) in visible.iter().enumerate() {
             placed[at] = Some(position);
         }
+        let tracked = |at: usize| {
+            self.tracks
+                .iter()
+                .any(|t| t.camera.is_none() && t.node == self.parts[at].node.name)
+        };
         let mut nodes = Vec::with_capacity(visible.len());
         let mut parents = Vec::with_capacity(visible.len());
         for &at in &visible {
             let mut node = self.parts[at].node.clone();
-            let parent = match self.nest.get(at).copied().flatten() {
+            let nested = self
+                .nest
+                .get(at)
+                .copied()
+                .flatten()
+                .filter(|&(parent, _)| !tracked(at) && !tracked(parent));
+            let parent = match nested {
                 Some((parent, local)) => {
                     node.transform = local;
                     node.keep_transform = true;
@@ -243,7 +297,20 @@ impl Built {
             nodes.push(node);
             parents.push(parent);
         }
-        manfred_glb::write_tree(&nodes, &parents, &extras, self.order, GENERATOR)
+        let tracks: Vec<Track> = self
+            .tracks
+            .iter()
+            .filter(|t| t.camera.is_some() || nodes.iter().any(|n| n.name == t.node))
+            .cloned()
+            .collect();
+        let animation = self
+            .timeline
+            .filter(|_| !tracks.is_empty())
+            .map(|timeline| manfred_glb::Animation {
+                fps: timeline.fps,
+                tracks: &tracks,
+            });
+        manfred_glb::write_animated(&nodes, &parents, &extras, self.order, GENERATOR, animation)
             .map_err(|e| Error::new("", e.0))
     }
 
@@ -576,6 +643,7 @@ fn generate(
     index: usize,
     base: &Path,
     registry: &Registry,
+    routes: &BTreeMap<String, Route>,
 ) -> Result<Generated, Error> {
     let object = &recipe.objects[index];
     let Kind::Generator { generator, params } = &object.kind else {
@@ -600,6 +668,7 @@ fn generate(
         params,
         seed: seed(recipe.seed, index),
         base,
+        routes,
     };
     entry
         .run(&call)
@@ -701,9 +770,11 @@ fn key(
     let object = &recipe.objects[index];
     let entry = match &object.kind {
         Kind::Mesh { .. } => return None,
-        Kind::Generator { generator, .. } => {
-            Some((registry.generators.get(generator), seed(recipe.seed, index)))
-        }
+        Kind::Generator { generator, .. } => Some((
+            registry.generators.get(generator),
+            seed(recipe.seed, index),
+            &recipe.routes,
+        )),
         _ => None,
     };
     let eye =
@@ -714,7 +785,7 @@ fn key(
 fn make(
     recipe: &Recipe,
     index: usize,
-    base: &Path,
+    (base, routes): (&Path, &BTreeMap<String, Route>),
     registry: &Registry,
     cuts: &[&Object],
     matrix: Result<DMat4, Error>,
@@ -723,7 +794,7 @@ fn make(
     let object = &recipe.objects[index];
     let mut morph: Option<Morph> = None;
     let generated = if matches!(object.kind, Kind::Generator { .. }) {
-        generate(recipe, index, base, registry)?
+        generate(recipe, index, base, registry, routes)?
     } else {
         let mesh = match &object.kind {
             Kind::Mesh { path, node, .. } => {
@@ -801,8 +872,18 @@ pub fn build_cached(
 ) -> Result<Built, Error> {
     cache.rebuilt.clear();
     let mut used = std::collections::BTreeSet::new();
-    let built = assemble(recipe, base, registry, cache, &mut used);
-    if built.is_ok() {
+    let animated = timeline::animated(recipe, registry);
+    let kept;
+    let staged = if animated.is_empty() {
+        recipe
+    } else {
+        kept = timeline::kept(recipe, &animated);
+        &kept
+    };
+    let routes = routes(recipe)?;
+    let mut built = assemble(staged, base, registry, cache, &mut used, &routes);
+    if let Ok(made) = &mut built {
+        made.tracks = timeline::bake(staged, made, &routes, registry)?;
         cache.made.retain(|key, _| used.contains(key));
     }
     built
@@ -814,6 +895,7 @@ fn assemble(
     registry: &Registry,
     cache: &mut Cache,
     used: &mut std::collections::BTreeSet<String>,
+    routes: &BTreeMap<String, Route>,
 ) -> Result<Built, Error> {
     let names_of: BTreeMap<&str, usize> = recipe
         .objects
@@ -855,7 +937,7 @@ fn assemble(
             }
             None => {
                 cache.rebuilt.push(index);
-                let made = make(recipe, index, base, registry, cuts, matrix, take)?;
+                let made = make(recipe, index, (base, routes), registry, cuts, matrix, take)?;
                 if let Some(key) = &key {
                     cache.made.insert(key.clone(), made.clone());
                 }
@@ -898,6 +980,9 @@ fn assemble(
         notes,
         extras: extras::of(recipe, &parts, &facts.movers),
         nest: nest(recipe, &parts),
+        timeline: recipe.timeline,
+        tracks: Vec::new(),
+        generated,
         parts,
         order: glb_order(recipe.output.order),
         sidecar,

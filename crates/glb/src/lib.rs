@@ -8,10 +8,11 @@ pub use reader::summary;
 pub use sidecars::{
     FACTS, SidecarWriter, facts, grade_json, merge, mover_json, room_json, sidecar_text,
 };
-pub use writer::{write, write_tree, write_with_extras};
+pub use writer::{write, write_animated, write_tree, write_with_extras};
 
 pub use glam::DMat4;
 use manfred_mesh::{Mesh, Morph};
+pub use manfred_motion::Trs;
 use serde::Serialize;
 use std::fmt;
 
@@ -22,6 +23,38 @@ pub struct Node {
     pub transform: DMat4,
     pub keep_transform: bool,
     pub targets: Option<Box<Targets>>,
+}
+
+pub const ANIMATION: &str = "timeline";
+pub const CAMERA_PREFIX: &str = "camera.";
+pub const ZNEAR: f64 = 0.05;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Lens {
+    pub yfov: f64,
+    pub aspect: f64,
+    pub znear: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Track {
+    pub node: String,
+    pub keys: Vec<Trs>,
+    pub camera: Option<Lens>,
+    pub focus: Option<Vec<f64>>,
+}
+
+impl Track {
+    pub fn camera_name(&self) -> Option<&str> {
+        self.camera?;
+        self.node.strip_prefix(CAMERA_PREFIX)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Animation<'a> {
+    pub fps: u32,
+    pub tracks: &'a [Track],
 }
 
 #[derive(Clone, Debug)]

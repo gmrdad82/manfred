@@ -26,6 +26,15 @@ manfred render: 800x500, 7.3 samples a pixel on average, 12 at most of 12, thres
 draft.png
 ```
 
+## A moment of the timeline
+
+```sh
+manfred render chase.toml --camera chase --time 2.5 --draft --out chase-2.5.png
+manfred shot chase.toml --camera chase --time 2.5 --size 540x960 --out chase-2.5-live.png
+```
+
+A recipe with a `[timeline]` poses at `--time <seconds>`: every animated object and camera is where its keys put it at that time, interpolated between frames. `--time` without a `[timeline]`, or outside 0 to its length, is refused before the GPU queue.
+
 ## Samples and noise
 
 | Flag | Default | Meaning |

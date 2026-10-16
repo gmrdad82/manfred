@@ -9,11 +9,11 @@ pub(crate) mod effects;
 
 use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
-    Casters, Cup, Curl, Daylight, DetailUv, Ease, Error, Grade, Kind, Lines, Loaded, Look, Mover,
-    NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey, PathKind,
-    Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy, REFERENCE_HOUR,
-    Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun, TextSpace, Trace,
-    Use, Uv, Variant, VariantOutput, View, Volume,
+    Casters, Cup, Curl, Daylight, DetailUv, Ease, Error, Grade, Kind, Lines, Loaded, Look,
+    Mover, NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey,
+    PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy,
+    REFERENCE_HOUR, Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight,
+    Span, Sun, TextSpace, Timeline, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -2433,6 +2433,95 @@ fn read_trace(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Trace, Error> {
     })
 }
 
+fn read_timeline(cx: &mut Cx, root: &mut Tab<'_>, seed: u64) -> Result<Option<Timeline>, Error> {
+    let Some(mut tab) = root.sub(cx, "timeline")? else {
+        return Ok(None);
+    };
+    let at = |cx: &Cx, tab: &Tab<'_>, key: &str| {
+        cx.lines.get(&tab.kipath(key)).copied().or(Some(tab.line))
+    };
+    let fps = tab.or(cx, "fps", Timeline::FPS, UINT)?;
+    if !(1..=Timeline::MAX_FPS).contains(&fps) {
+        return Err(Error::new(
+            tab.kpath("fps"),
+            at(cx, &tab, "fps"),
+            format!("expected frames per second from 1 to {}", Timeline::MAX_FPS),
+        ));
+    }
+    let seconds = tab.opt(cx, "seconds", NUM)?;
+    let frames = tab.opt(cx, "frames", UINT)?;
+    let frames = match (seconds, frames) {
+        (Some(_), Some(_)) => {
+            return Err(Error::new(
+                tab.kpath("frames"),
+                at(cx, &tab, "frames"),
+                "`seconds` and `frames` both give the length, expected one of them",
+            ));
+        }
+        (None, None) => return Err(tab.missing("seconds", "the length, `seconds` or `frames`")),
+        (Some(seconds), None) => {
+            if !(seconds.is_finite() && seconds > 0.0) {
+                return Err(Error::new(
+                    tab.kpath("seconds"),
+                    at(cx, &tab, "seconds"),
+                    "expected a number above 0",
+                ));
+            }
+            (seconds * f64::from(fps)).round().max(1.0)
+        }
+        (None, Some(frames)) => {
+            if frames == 0 {
+                return Err(Error::new(
+                    tab.kpath("frames"),
+                    at(cx, &tab, "frames"),
+                    "expected a whole number from 1 up",
+                ));
+            }
+            f64::from(frames)
+        }
+    };
+    if frames > f64::from(Timeline::MAX_FRAMES) {
+        let key = if seconds.is_some() {
+            "seconds"
+        } else {
+            "frames"
+        };
+        return Err(Error::new(
+            tab.kpath(key),
+            at(cx, &tab, key),
+            format!(
+                "comes to {frames} frames, expected at most {}",
+                Timeline::MAX_FRAMES
+            ),
+        ));
+    }
+    let size = tab.or(cx, "size", Timeline::SIZE, U2)?;
+    if size
+        .iter()
+        .any(|&side| !(1..=Timeline::MAX_SIDE).contains(&side))
+    {
+        return Err(Error::new(
+            tab.kpath("size"),
+            at(cx, &tab, "size"),
+            format!(
+                "expected [width, height] with each side from 1 to {}",
+                Timeline::MAX_SIDE
+            ),
+        ));
+    }
+    let seed = match tab.peek(cx, "seed") {
+        Some(item) => as_u64(cx, &tab.kpath("seed"), item)?,
+        None => seed,
+    };
+    tab.finish(cx)?;
+    Ok(Some(Timeline {
+        fps,
+        frames: frames as u32,
+        size,
+        seed,
+    }))
+}
+
 fn read_bake(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Option<Bake>, Error> {
     let Some(mut tab) = root.sub(cx, "bake")? else {
         return Ok(None);
@@ -2789,6 +2878,7 @@ fn read_root(
     let look = read_look(cx, &mut root)?;
     let trace = read_trace(cx, &mut root)?;
     let bake = read_bake(cx, &mut root)?;
+    let timeline = read_timeline(cx, &mut root, seed)?;
 
     let mut wet = BTreeMap::new();
     let materials = match root.peek(cx, "materials") {
@@ -2842,6 +2932,7 @@ fn read_root(
         look,
         trace,
         bake,
+        timeline,
         materials,
         effects,
         uses,

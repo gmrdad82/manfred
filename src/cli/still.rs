@@ -4,7 +4,7 @@ use std::process::ExitCode;
 use manfred_build::Registry;
 use manfred_scene::Error;
 
-use super::{pair, refuse, size};
+use super::{pair, refuse, seconds, size};
 
 #[derive(clap::Args, Debug, PartialEq)]
 pub(super) struct Args {
@@ -33,11 +33,23 @@ pub(super) struct Args {
         help = "Replace a value the recipe has; repeatable"
     )]
     set: Vec<String>,
+    #[arg(
+        long,
+        value_name = "S",
+        value_parser = seconds,
+        help = "Pose the recipe's [timeline] at this many seconds"
+    )]
+    time: Option<f64>,
 }
 
 fn still(args: &Args, registry: &Registry) -> Result<Vec<u8>, Error> {
-    let (recipe, built) =
-        manfred_scene::load(&args.recipe, args.variant.as_deref(), &args.set, registry)?;
+    let (recipe, built) = manfred_scene::load_at(
+        &args.recipe,
+        args.variant.as_deref(),
+        &args.set,
+        registry,
+        args.time,
+    )?;
     let gpu = manfred_scene::headless()?;
     manfred_scene::shoot(&gpu, &recipe, &built.parts, &args.camera, args.size)
 }
@@ -79,6 +91,8 @@ mod tests {
             "bare",
             "--set",
             "sky.intensity=0.4",
+            "--time",
+            "2",
         ])
         .unwrap();
         assert_eq!(
@@ -90,6 +104,7 @@ mod tests {
                 out: "tmp/a.png".into(),
                 variant: Some("bare".into()),
                 set: vec!["sky.intensity=0.4".into()],
+                time: Some(2.0),
             }
         );
         for words in [

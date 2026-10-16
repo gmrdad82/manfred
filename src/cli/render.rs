@@ -11,7 +11,7 @@ use manfred_render::{
     Step, View,
 };
 
-use super::{pair, refuse, size};
+use super::{pair, refuse, seconds, size};
 
 const PROGRESS_LINES: u32 = 20;
 const JSON_EVERY: Duration = Duration::from_secs(1);
@@ -140,6 +140,13 @@ pub(super) struct Args {
     set: Vec<String>,
     #[arg(
         long,
+        value_name = "S",
+        value_parser = seconds,
+        help = "Pose the recipe's [timeline] at this many seconds"
+    )]
+    time: Option<f64>,
+    #[arg(
+        long,
         value_name = "off|on",
         action = clap::ArgAction::Set,
         hide_possible_values = true,
@@ -264,6 +271,7 @@ fn precheck(args: &Args) -> Result<Trace, String> {
         args.variant.as_deref(),
         &args.set,
         &args.camera,
+        args.time,
     )
     .map(|(_, trace)| trace)
 }
@@ -452,6 +460,7 @@ fn traced(
             finished: args.finished(),
         }),
         denoise: args.denoising(),
+        time: args.time,
     };
     let rendered = manfred_render::render(&request, registry, progress)?;
     progress(Step::Write);
@@ -558,7 +567,7 @@ mod tests {
     #[test]
     fn every_flag_is_read() {
         let args = parse(&strings(
-            "table.toml --camera main --spp 64 --threshold 0.02 --min-samples 16 --seed 9 --size 320x200 --ortho --crop 10,20,30,40 --variant bare --set sky.intensity=0.4 --set object.a.params.b=/x/y --denoise off --out tmp/a.exr --master tmp/a.master.png --progress json",
+            "table.toml --camera main --spp 64 --threshold 0.02 --min-samples 16 --seed 9 --size 320x200 --ortho --crop 10,20,30,40 --variant bare --set sky.intensity=0.4 --set object.a.params.b=/x/y --time 1.5 --denoise off --out tmp/a.exr --master tmp/a.master.png --progress json",
         ))
         .unwrap();
         assert_eq!(
@@ -577,6 +586,7 @@ mod tests {
                 crop: Some([10, 20, 30, 40]),
                 variant: Some("bare".into()),
                 set: vec!["sky.intensity=0.4".into(), "object.a.params.b=/x/y".into()],
+                time: Some(1.5),
                 denoise: Some(false),
                 out: "tmp/a.exr".into(),
                 master: Some("tmp/a.master.png".into()),

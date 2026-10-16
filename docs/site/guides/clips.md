@@ -60,6 +60,14 @@ The first draws each frame on the live renderer; `--trace` path-traces them (64 
 - **A run resumes:** a frame is written whole or not at all, and a second run into the same folder skips the finished frames. A run with different settings into that folder is refused, so frames never mix.
 - **Same input, same bytes:** each frame depends on its pose, the recipe and the flags only.
 
+## Film the timeline
+
+```sh
+manfred clip chase.toml --camera chase --timeline --size 1080x1920 --out chase
+```
+
+A recipe with a `[timeline]` (the recipe guide's "Timeline") films with `--timeline` in place of `--frames` and `--fps`: frames 0 to the timeline's last at its `fps`, each the scene posed at `n / fps`, through `--camera`, which the timeline moves when it keys that camera. `--video` encodes at the timeline's `fps`.
+
 ## Make the video
 
 ```sh

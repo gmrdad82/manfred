@@ -12,6 +12,7 @@ description = "Manfred's builder: a recipe to GLB nodes, sidecar facts and a bak
 [dependencies]
 manfred-recipe.workspace = true
 manfred-mesh.workspace = true
+manfred-motion.workspace = true
 manfred-glb.workspace = true
 pfx-materials.workspace = true
 pfx-core.workspace = true

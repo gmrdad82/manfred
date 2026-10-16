@@ -1,7 +1,7 @@
 use crate::picture::{Film, Reach};
 use crate::staging::{Staging, View, eyepiece};
 use crate::text::Overlay;
-use manfred_build::Registry;
+use manfred_build::{Built, Registry};
 use manfred_recipe::{Camera, Recipe};
 use pfx::adapter::{Report, TurnState, turn_reporting};
 use pfx_denoise::Denoiser;
@@ -109,6 +109,7 @@ pub struct Request<'a> {
     pub set: &'a [String],
     pub crop: Option<Crop>,
     pub denoise: bool,
+    pub time: Option<f64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -360,8 +361,13 @@ pub fn render(
     }
     progress(Step::Stage);
     let mut turn = turn_reporting;
-    let (recipe, built) =
-        manfred_scene::load(request.recipe, request.variant, request.set, registry)?;
+    let (recipe, built) = manfred_scene::load_at(
+        request.recipe,
+        request.variant,
+        request.set,
+        registry,
+        request.time,
+    )?;
     turn(Report::default());
     let staging = Staging::of(&recipe, &built.parts)?;
     let camera = manfred_scene::camera(&recipe, request.camera)?;
@@ -462,6 +468,8 @@ pub fn render(
 pub struct Reel {
     pub recipe: Recipe,
     pub seed: u32,
+    base: Recipe,
+    built: Built,
     staging: Staging,
     gpu: Gpu,
     denoiser: Option<Denoiser>,
@@ -481,12 +489,25 @@ impl Reel {
         let gpu = manfred_scene::headless()?;
         let seed = seed.unwrap_or_else(|| manfred_scene::seed(&recipe));
         Ok(Reel {
+            base: recipe.clone(),
             recipe,
             seed,
+            built,
             staging,
             gpu,
             denoiser: None,
         })
+    }
+
+    pub fn timeline(&self) -> Option<manfred_recipe::Timeline> {
+        self.base.timeline
+    }
+
+    pub fn pose(&mut self, time: f64) -> Result<(), Fault> {
+        let (recipe, built) = manfred_scene::posed(&self.base, &self.built, time)?;
+        self.staging = Staging::of(&recipe, &built.parts)?;
+        self.recipe = recipe;
+        Ok(())
     }
 
     pub fn frame(
@@ -998,6 +1019,7 @@ mod tests {
             set: &[],
             crop: None,
             denoise: false,
+            time: None,
         };
         assert!(render(&request, &Registry::new(), &mut |s| steps.push(s)).is_err());
         assert!(steps.is_empty());

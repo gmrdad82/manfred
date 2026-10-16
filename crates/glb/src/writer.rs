@@ -1,4 +1,4 @@
-use crate::{Error, Node, Order};
+use crate::{ANIMATION, Animation, Error, Lens, Node, Order, Track, Trs};
 use gltf_json as json;
 use json::accessor::{ComponentType, GenericComponentType, Type};
 use json::buffer::Target;
@@ -45,7 +45,7 @@ impl Builder {
         }
     }
 
-    fn view(&mut self, bytes: &[u8], target: Target) -> Index<json::buffer::View> {
+    fn view(&mut self, bytes: &[u8], target: Option<Target>) -> Index<json::buffer::View> {
         self.pad();
         let offset = self.bin.len();
         self.bin.extend_from_slice(bytes);
@@ -57,7 +57,7 @@ impl Builder {
             extensions: None,
             extras: Default::default(),
             name: None,
-            target: Some(Checked::Valid(target)),
+            target: target.map(Checked::Valid),
         });
         Index::new(self.root.buffer_views.len() as u32 - 1)
     }
@@ -102,7 +102,7 @@ impl Builder {
                 bytes.extend_from_slice(&value.to_le_bytes());
             }
         }
-        let view = self.view(&bytes, Target::ArrayBuffer);
+        let view = self.view(&bytes, Some(Target::ArrayBuffer));
         let range = bounds(data).map(|(lo, hi)| {
             (
                 lo.iter().map(|v| short(*v)).collect(),
@@ -117,7 +117,7 @@ impl Builder {
         for value in data {
             bytes.extend_from_slice(&value.to_le_bytes());
         }
-        let view = self.view(&bytes, Target::ElementArrayBuffer);
+        let view = self.view(&bytes, Some(Target::ElementArrayBuffer));
         let lo = data.iter().copied().min().unwrap_or(0);
         let hi = data.iter().copied().max().unwrap_or(0);
         self.accessor(
@@ -127,6 +127,28 @@ impl Builder {
             Type::Scalar,
             Some((vec![Value::from(lo)], vec![Value::from(hi)])),
         )
+    }
+
+    fn keyed<const N: usize>(&mut self, data: &[[f32; N]]) -> Index<json::accessor::Accessor> {
+        let kind = match N {
+            1 => Type::Scalar,
+            3 => Type::Vec3,
+            _ => Type::Vec4,
+        };
+        let mut bytes = Vec::with_capacity(data.len() * N * 4);
+        for item in data {
+            for value in item {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+        }
+        let view = self.view(&bytes, None);
+        let range = (N == 1).then(|| bounds(data)).flatten().map(|(lo, hi)| {
+            (
+                lo.iter().map(|v| short(*v)).collect(),
+                hi.iter().map(|v| short(*v)).collect(),
+            )
+        });
+        self.accessor(view, data.len(), ComponentType::F32, kind, range)
     }
 
     fn material(&mut self, name: &str) -> Index<json::material::Material> {
@@ -328,7 +350,169 @@ pub fn write_tree(
     order: Order,
     generator: &str,
 ) -> Result<Vec<u8>, Error> {
-    let parents = resolved(parents, nodes.len());
+    write_animated(nodes, parents, extras, order, generator, None)
+}
+
+fn pose(trs: &Trs) -> ([f32; 3], json::scene::UnitQuaternion, [f32; 3]) {
+    (
+        trs.translation.map(|v| v as f32),
+        json::scene::UnitQuaternion(trs.rotation.map(|v| v as f32)),
+        trs.scale.map(|v| v as f32),
+    )
+}
+
+fn lens(builder: &mut Builder, name: &str, lens: &Lens) -> Index<json::camera::Camera> {
+    builder.root.cameras.push(json::camera::Camera {
+        name: Some(name.to_string()),
+        orthographic: None,
+        perspective: Some(json::camera::Perspective {
+            aspect_ratio: Some(lens.aspect as f32),
+            yfov: lens.yfov as f32,
+            zfar: None,
+            znear: lens.znear as f32,
+            extensions: None,
+            extras: Default::default(),
+        }),
+        type_: Checked::Valid(json::camera::Type::Perspective),
+        extensions: None,
+        extras: Default::default(),
+    });
+    Index::new(builder.root.cameras.len() as u32 - 1)
+}
+
+fn rotations(keys: &[Trs]) -> Vec<[f32; 4]> {
+    let mut out: Vec<[f32; 4]> = Vec::with_capacity(keys.len());
+    for key in keys {
+        let mut q = key.rotation.map(|v| v as f32);
+        if let Some(last) = out.last() {
+            let dot: f32 = (0..4).map(|i| last[i] * q[i]).sum();
+            if dot < 0.0 {
+                q = q.map(|v| -v);
+            }
+        }
+        out.push(q);
+    }
+    out
+}
+
+fn moves<const N: usize>(data: &[[f32; N]]) -> bool {
+    data.windows(2).any(|pair| pair[0] != pair[1])
+}
+
+fn animate(
+    builder: &mut Builder,
+    animation: Animation<'_>,
+    at: &BTreeMap<String, u32>,
+) -> Result<(), Error> {
+    let Some(first) = animation.tracks.first() else {
+        return Ok(());
+    };
+    let count = first.keys.len();
+    if count == 0 || animation.fps == 0 {
+        return Err(Error(format!(
+            "the track of `{}` has no keys or the timeline no frame rate",
+            first.node
+        )));
+    }
+    if let Some(odd) = animation.tracks.iter().find(|t| t.keys.len() != count) {
+        return Err(Error(format!(
+            "the track of `{}` has {} keys, expected {count} like the others",
+            odd.node,
+            odd.keys.len()
+        )));
+    }
+    let mut channels = Vec::new();
+    let mut samplers = Vec::new();
+    let mut input = None;
+    for track in animation.tracks {
+        let Some(&node) = at.get(&track.node) else {
+            return Err(Error(format!(
+                "the track names `{}`, expected a node of the GLB",
+                track.node
+            )));
+        };
+        let translations: Vec<[f32; 3]> = track
+            .keys
+            .iter()
+            .map(|k| k.translation.map(|v| v as f32))
+            .collect();
+        let turns = rotations(&track.keys);
+        let scales: Vec<[f32; 3]> = track
+            .keys
+            .iter()
+            .map(|k| k.scale.map(|v| v as f32))
+            .collect();
+        let mut channel = |builder: &mut Builder, output, path| {
+            let times = *input.get_or_insert_with(|| {
+                let times: Vec<[f32; 1]> = (0..count)
+                    .map(|n| [(n as f64 / f64::from(animation.fps)) as f32])
+                    .collect();
+                builder.keyed(&times)
+            });
+            samplers.push(json::animation::Sampler {
+                extensions: None,
+                extras: Default::default(),
+                input: times,
+                interpolation: Checked::Valid(json::animation::Interpolation::Linear),
+                output,
+            });
+            channels.push(json::animation::Channel {
+                sampler: Index::new(samplers.len() as u32 - 1),
+                target: json::animation::Target {
+                    extensions: None,
+                    extras: Default::default(),
+                    node: Index::new(node),
+                    path: Checked::Valid(path),
+                },
+                extensions: None,
+                extras: Default::default(),
+            });
+        };
+        if moves(&translations) {
+            let output = builder.keyed(&translations);
+            channel(builder, output, json::animation::Property::Translation);
+        }
+        if moves(&turns) {
+            let output = builder.keyed(&turns);
+            channel(builder, output, json::animation::Property::Rotation);
+        }
+        if moves(&scales) {
+            let output = builder.keyed(&scales);
+            channel(builder, output, json::animation::Property::Scale);
+        }
+    }
+    if !channels.is_empty() {
+        builder.root.animations.push(json::Animation {
+            extensions: None,
+            extras: Default::default(),
+            channels,
+            name: Some(ANIMATION.to_string()),
+            samplers,
+        });
+    }
+    Ok(())
+}
+
+pub fn write_animated(
+    nodes: &[Node],
+    parents: &[Option<usize>],
+    extras: &[Option<Value>],
+    order: Order,
+    generator: &str,
+    animation: Option<Animation<'_>>,
+) -> Result<Vec<u8>, Error> {
+    let tracks: &[Track] = animation.map_or(&[], |a| a.tracks);
+    let keyed: BTreeMap<&str, &Track> = tracks
+        .iter()
+        .filter(|t| t.camera.is_none())
+        .map(|t| (t.node.as_str(), t))
+        .collect();
+    let mut parents = resolved(parents, nodes.len());
+    for (at, node) in nodes.iter().enumerate() {
+        if keyed.contains_key(node.name.as_str()) {
+            parents[at] = None;
+        }
+    }
     let mut sequence: Vec<(usize, &Node, Option<&Value>)> = nodes
         .iter()
         .enumerate()
@@ -371,17 +555,50 @@ pub fn write_tree(
             Some(Index::new(builder.root.meshes.len() as u32 - 1))
         };
         let children = std::mem::take(&mut children[at]);
+        let start = keyed
+            .get(node.name.as_str())
+            .and_then(|t| t.keys.first())
+            .map(pose);
         builder.root.nodes.push(json::Node {
-            matrix: matrix(node),
+            matrix: if start.is_some() { None } else { matrix(node) },
             mesh,
             name: Some(node.name.clone()),
             extras: raw(extras),
             children: (!children.is_empty()).then_some(children),
+            translation: start.map(|p| p.0),
+            rotation: start.map(|p| p.1),
+            scale: start.map(|p| p.2),
             ..Default::default()
         });
         if parents[at].is_none() {
             scene_nodes.push(Index::new(builder.root.nodes.len() as u32 - 1));
         }
+    }
+    for track in tracks {
+        let Some(lens_of) = &track.camera else {
+            continue;
+        };
+        let camera = lens(&mut builder, &track.node, lens_of);
+        let start = track.keys.first().map(pose);
+        builder.root.nodes.push(json::Node {
+            camera: Some(camera),
+            name: Some(track.node.clone()),
+            translation: start.map(|p| p.0),
+            rotation: start.map(|p| p.1),
+            scale: start.map(|p| p.2),
+            ..Default::default()
+        });
+        scene_nodes.push(Index::new(builder.root.nodes.len() as u32 - 1));
+    }
+    if let Some(animation) = animation {
+        let at: BTreeMap<String, u32> = builder
+            .root
+            .nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, n)| Some((n.name.clone()?, i as u32)))
+            .collect();
+        animate(&mut builder, animation, &at)?;
     }
     builder.root.scenes.push(json::Scene {
         extensions: None,

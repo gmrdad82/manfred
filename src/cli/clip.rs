@@ -1,8 +1,8 @@
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-use manfred_build::Registry;
-use manfred_recipe::{Camera, CameraPath};
+use manfred_build::{Built, Registry};
+use manfred_recipe::{Camera, CameraPath, Recipe};
 use manfred_render::Step;
 
 use super::process::on_path;
@@ -21,7 +21,7 @@ fn video(text: &str) -> Result<PathBuf, String> {
     }
 }
 
-#[derive(clap::Args, Debug, PartialEq)]
+#[derive(clap::Args, Clone, Debug, PartialEq)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to film")]
     recipe: PathBuf,
@@ -35,16 +35,25 @@ pub(super) struct Args {
         long,
         value_name = "N",
         value_parser = clap::value_parser!(u32).range(1..),
+        required_unless_present = "timeline",
+        conflicts_with = "timeline",
         help = "How many frames"
     )]
-    frames: u32,
+    frames: Option<u32>,
     #[arg(
         long,
         value_name = "F",
         value_parser = clap::value_parser!(u32).range(1..=MAX_FPS),
+        required_unless_present = "timeline",
+        conflicts_with = "timeline",
         help = "Frames per second, from 1 to 240"
     )]
-    fps: u32,
+    fps: Option<u32>,
+    #[arg(
+        long,
+        help = "Film the recipe's [timeline], frames 0 to its last at its fps, the camera from its rig when it has one"
+    )]
+    timeline: bool,
     #[arg(long, value_name = "WxH", value_parser = size, help = "Each frame's size in pixels")]
     size: [u32; 2],
     #[arg(
@@ -89,6 +98,36 @@ impl Args {
     fn samples(&self) -> Option<u32> {
         self.trace.then(|| self.spp.unwrap_or(SAMPLES))
     }
+
+    fn count(&self) -> u32 {
+        self.frames.unwrap_or(1)
+    }
+
+    fn rate(&self) -> u32 {
+        self.fps.unwrap_or(1)
+    }
+}
+
+fn resolved(args: &Args) -> Result<Args, String> {
+    if !args.timeline {
+        return Ok(args.clone());
+    }
+    let file = args.recipe.display().to_string();
+    let failed = |e: manfred_recipe::Error| super::read_failure(&file, &e);
+    let loaded = manfred_recipe::load(&args.recipe).map_err(failed)?;
+    let chosen = match &args.variant {
+        Some(name) => manfred_recipe::apply_variant(&loaded.recipe, name).map_err(failed)?,
+        None => loaded.recipe,
+    };
+    let chosen = manfred_recipe::apply_set(&chosen, &args.set).map_err(failed)?;
+    let timeline = chosen.timeline.ok_or_else(|| {
+        format!("{file}: --timeline films the recipe's [timeline], and the recipe has none (docs/recipe.md, Timeline)")
+    })?;
+    Ok(Args {
+        frames: Some(timeline.frames + 1),
+        fps: Some(timeline.fps),
+        ..args.clone()
+    })
 }
 
 fn name(frame: u32, frames: u32) -> String {
@@ -109,10 +148,13 @@ fn manifest(args: &Args) -> String {
         "manfred clip\nrecipe {}\ncamera {}\nframes {}\nsize {}x{}\n",
         recipe.display(),
         args.camera,
-        args.frames,
+        args.count(),
         args.size[0],
         args.size[1]
     );
+    if args.timeline {
+        text.push_str("timeline\n");
+    }
     match args.samples() {
         Some(samples) => text.push_str(&format!("renderer traced, {samples} spp\n")),
         None => text.push_str("renderer live\n"),
@@ -190,7 +232,11 @@ fn precheck(args: &Args) -> Result<(), String> {
         args.variant.as_deref(),
         &args.set,
         &args.camera,
+        None,
     )?;
+    if args.timeline {
+        return Ok(());
+    }
     path_of(&camera).map(|_| ())
 }
 
@@ -208,14 +254,33 @@ fn path_of(camera: &Camera) -> Result<&CameraPath, String> {
 }
 
 enum Renderer {
-    Live(Box<manfred_scene::Reel>),
+    Live(Box<manfred_scene::Reel>, Box<(Recipe, Built)>),
     Traced(Box<manfred_render::Reel>, u32),
 }
 
 impl Renderer {
+    fn pose(&mut self, time: f64, name: &str) -> Result<Camera, String> {
+        match self {
+            Renderer::Live(reel, base) => {
+                let (recipe, built) =
+                    manfred_scene::posed(&base.0, &base.1, time).map_err(|e| e.0)?;
+                reel.pose(&recipe, &built.parts).map_err(|e| e.0)?;
+                manfred_scene::camera(&recipe, name)
+                    .cloned()
+                    .map_err(|e| e.0)
+            }
+            Renderer::Traced(reel, _) => {
+                reel.pose(time).map_err(|e| e.to_string())?;
+                manfred_scene::camera(&reel.recipe, name)
+                    .cloned()
+                    .map_err(|e| e.0)
+            }
+        }
+    }
+
     fn frame(&mut self, camera: &Camera, size: [u32; 2], to: &Path) -> Result<String, String> {
         match self {
-            Renderer::Live(reel) => {
+            Renderer::Live(reel, _) => {
                 let (rgba, gpu_ms) = reel.shoot(&reel.eye(camera)).map_err(|e| e.0)?;
                 manfred_scene::write_png(to, size, &rgba).map_err(|e| e.0)?;
                 Ok(format!("{gpu_ms:.0} ms on the GPU"))
@@ -247,11 +312,15 @@ fn open(args: &Args, registry: &Registry) -> Result<(Renderer, Camera), String> 
             let (recipe, built) =
                 manfred_scene::load(&args.recipe, args.variant.as_deref(), &args.set, registry)
                     .map_err(|e| e.0)?;
-            path_of(manfred_scene::camera(&recipe, &args.camera).map_err(|e| e.0)?)?;
+            let camera = manfred_scene::camera(&recipe, &args.camera).map_err(|e| e.0)?;
+            if !args.timeline {
+                path_of(camera)?;
+            }
             let gpu = manfred_scene::headless().map_err(|e| e.0)?;
             let reel = manfred_scene::Reel::new(&gpu, &recipe, &built.parts, args.size)
                 .map_err(|e| e.0)?;
-            (Renderer::Live(Box::new(reel)), recipe)
+            let base = Box::new((recipe.clone(), built));
+            (Renderer::Live(Box::new(reel), base), recipe)
         }
         Some(samples) => {
             let reel = manfred_render::Reel::open(
@@ -267,18 +336,20 @@ fn open(args: &Args, registry: &Registry) -> Result<(Renderer, Camera), String> 
         }
     };
     let camera = manfred_scene::camera(&recipe, &args.camera).map_err(|e| e.0)?;
-    path_of(camera)?;
+    if !args.timeline {
+        path_of(camera)?;
+    }
     Ok((renderer, camera.clone()))
 }
 
 fn frames(args: &Args, registry: &Registry, progress: &mut dyn FnMut(u32)) -> Result<(), String> {
     claim(&args.out, &manifest(args))?;
-    let todo = pending(&args.out, args.frames, args.size);
-    let done = args.frames - todo.len() as u32;
+    let count = args.count();
+    let todo = pending(&args.out, count, args.size);
+    let done = count - todo.len() as u32;
     eprintln!(
-        "manfred clip: {} of {} frames to make, {done} already finished in {}",
+        "manfred clip: {} of {count} frames to make, {done} already finished in {}",
         todo.len(),
-        args.frames,
         args.out.display()
     );
     progress(done);
@@ -286,11 +357,18 @@ fn frames(args: &Args, registry: &Registry, progress: &mut dyn FnMut(u32)) -> Re
         return Ok(());
     }
     let (mut renderer, camera) = open(args, registry)?;
-    let path = path_of(&camera)?;
+    let path = if args.timeline {
+        None
+    } else {
+        Some(path_of(&camera)?)
+    };
     for (made, &frame) in todo.iter().enumerate() {
-        let pose = camera.at(path.time(frame, args.frames));
-        let part = args.out.join(partial(frame, args.frames));
-        let to = args.out.join(name(frame, args.frames));
+        let pose = match path {
+            Some(path) => camera.at(path.time(frame, count)),
+            None => renderer.pose(f64::from(frame) / f64::from(args.rate()), &args.camera)?,
+        };
+        let part = args.out.join(partial(frame, count));
+        let to = args.out.join(name(frame, count));
         let summary = renderer.frame(&pose, args.size, &part)?;
         std::fs::rename(&part, &to).map_err(|e| format!("{}: {e}", to.display()))?;
         eprintln!("manfred clip: {}, {summary}", to.display());
@@ -313,12 +391,12 @@ fn unencoded(out: &Path, list: &Path, video: &Path) -> String {
 
 fn encode(args: &Args, video: &Path, pconv: bool) -> Result<(), String> {
     let list = args.out.join(LIST);
-    std::fs::write(&list, concat(args.frames, args.fps))
+    std::fs::write(&list, concat(args.count(), args.rate()))
         .map_err(|e| format!("{}: {e}", list.display()))?;
     if !pconv {
         return Err(unencoded(&args.out, &list, video));
     }
-    let line = encode_line(&list, video, args.fps)?;
+    let line = encode_line(&list, video, args.rate())?;
     eprintln!("manfred clip: pconv {}", line.join(" "));
     let status = Command::new("pconv")
         .args(&line)
@@ -336,6 +414,10 @@ fn encode(args: &Args, video: &Path, pconv: bool) -> Result<(), String> {
 }
 
 pub fn run(parsed: &Args, args: &[String], registry: &Registry) -> ExitCode {
+    let parsed = &match resolved(parsed) {
+        Ok(parsed) => parsed,
+        Err(message) => return refuse("clip", &message),
+    };
     if parsed.samples().is_some() {
         if let Err(message) = precheck(parsed) {
             return refuse("clip", &message);
@@ -415,8 +497,9 @@ mod tests {
             Args {
                 recipe: "table.toml".into(),
                 camera: "main".into(),
-                frames: 24,
-                fps: 30,
+                frames: Some(24),
+                fps: Some(30),
+                timeline: false,
                 size: [320, 200],
                 out: "tmp/c".into(),
                 trace: true,
@@ -443,6 +526,11 @@ mod tests {
     fn mistakes_are_refused() {
         let base = "a.toml --camera main --frames 3 --fps 24 --size 8x8 --out d";
         assert!(parse(&strings(base)).is_ok());
+        let filmed = parse(&strings(
+            "a.toml --camera main --timeline --size 8x8 --out d",
+        ))
+        .unwrap();
+        assert!(filmed.timeline && filmed.frames.is_none() && filmed.fps.is_none());
         for extra in [
             "--spp 8",
             "--trace --spp 0",
@@ -451,6 +539,7 @@ mod tests {
             "--nope",
             "b.toml",
             "--set",
+            "--timeline",
         ] {
             assert!(
                 parse(&strings(&format!("{base} {extra}"))).is_err(),
@@ -683,6 +772,7 @@ mod tests {
             set: &[],
             crop: None,
             denoise: true,
+            time: None,
         };
         let rendered = manfred_render::render(&request, &Registry::new(), &mut |_| {}).unwrap();
         let still = dir.join("render.png");

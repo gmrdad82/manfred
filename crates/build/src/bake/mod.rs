@@ -8,6 +8,10 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::path::{Component, Path, PathBuf};
 
+pub(crate) const BAKERS: &[(&str, crate::Baker)] = &[];
+
+pub(crate) const ANIMATES: &[crate::Animates] = &[];
+
 pub(crate) const LIBRARY: &str = "bake-materials.toml";
 
 pub(crate) struct Written {
@@ -560,7 +564,7 @@ mod tests {
     use super::*;
     use manfred_recipe::{parse, validate};
 
-    const SMALL: &str = include_str!("../tests/sky/small.toml");
+    const SMALL: &str = include_str!("../../tests/sky/small.toml");
     const CATALOGUE: &str = "[materials.wood]\nbase = [0.4, 0.25, 0.12]\nroughness = 0.6\n";
 
     fn registry() -> crate::Registry {
@@ -601,7 +605,7 @@ mod tests {
     fn a_small_recipe_writes_the_hand_written_bake() {
         assert_eq!(
             bake_of(&small()).unwrap(),
-            include_str!("../tests/sky/small.bake.toml")
+            include_str!("../../tests/sky/small.bake.toml")
         );
     }
 
@@ -705,7 +709,7 @@ mod tests {
         let base = written("sky-bake-write");
         assert_eq!(
             std::fs::read_to_string(base.join("bake.toml")).unwrap(),
-            include_str!("../tests/sky/small.bake.toml")
+            include_str!("../../tests/sky/small.bake.toml")
         );
         assert!(base.join("scene/small.glb").is_file());
     }

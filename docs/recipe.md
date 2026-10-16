@@ -500,6 +500,29 @@ amount = 0.8
 - **`sound`:** a path ending in `.sound.toml`, relative to the recipe, written as the scene's `sound`.
 - **Paths:** `look.lut` and `sound` must be files when the scene is written, and are written relative to the project root, as the scene's other paths are.
 
+## Timeline
+
+```toml
+[timeline]
+fps = 60
+seconds = 6.0
+size = [1080, 1920]
+seed = 7
+```
+
+`[timeline]` gives the recipe a clock: frame `n` is at `t = n / fps`, from frame 0 to the last.
+
+- `fps`: frames per second, a whole number from 1 to 240; 60 when absent.
+- `seconds` or `frames`: the length, one of them. `seconds` is above 0 and rounds to the nearest whole frame at `fps`; `frames` is a whole number from 1 up. Both are an error, and so is neither. The frames run from 0 to the last, so `seconds = 6.0` at 60 fps keys 361 frames, at 0 to 6 seconds; a million frames at most.
+- `size`: `[width, height]` in pixels, each side from 1 to 16384; `[1080, 1920]`, 9:16, when absent. It is the aspect of the timeline's cameras.
+- `seed`: the seed of what the timeline animates (drift, shake); the recipe's own `seed` when absent.
+
+Every key takes `--set` and a variant's `set`, as `--set timeline.fps=30`. A recipe without `[timeline]` has no animation, and builds the same bytes it always did.
+
+- **What animates:** Manfred's own bakers key the objects and cameras the recipe animates, one key a frame. An animated object keeps its mesh in its own frame, as `keep_transform` does, so its key is its whole world transform.
+- **The GLB:** the keys are one glTF animation named `timeline`, with one LINEAR sampler a channel: the input is the frame times `n / fps` with their `min` and `max`, the output the translation, rotation (a unit quaternion, x, y, z, w) or scale. A channel whose keys never change is left out. Every animated node is at the top level of the GLB, named after its object or piece (`hero.body`), and starts at its key at 0. A camera the timeline moves is a top-level node `camera.<name>` holding a glTF perspective camera: `yfov` from the camera's `fov_y_deg`, or its `focal_mm` and `sensor_mm` at the timeline's aspect, `aspectRatio` the timeline's width over its height, `znear` 0.05 and no `zfar`. It looks down its own -Z, as glTF's cameras do.
+- **Posing:** `manfred shot` and `manfred render` take `--time <seconds>` and draw the scene at that time: each key is interpolated as glTF's LINEAR is, the rotation by slerp, and a camera the timeline moves looks from its pose there. `--time` without a `[timeline]`, or outside 0 to its length, is refused before anything is drawn. `manfred clip <recipe> --timeline` films the timeline: frames 0 to the last at its `fps`, through `--camera`, posed by the timeline when it moves that camera, in place of `--frames`, `--fps` and a camera path.
+
 ## Variants, look and bake
 
 ```toml

@@ -112,6 +112,7 @@ fn manfred_traced(case: &Case, recipe: &Path) -> Vec<u8> {
             set: &set,
             crop: None,
             denoise: false,
+            time: None,
         },
         &Registry::new(),
         &mut |_| {},

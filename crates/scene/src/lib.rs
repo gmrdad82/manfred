@@ -80,6 +80,20 @@ pub fn load(
     set: &[String],
     registry: &Registry,
 ) -> Result<(Recipe, Built), Error> {
+    load_at(path, variant, set, registry, None)
+}
+
+pub fn posed(recipe: &Recipe, built: &Built, time: f64) -> Result<(Recipe, Built), Error> {
+    manfred_build::pose(recipe, built, time).map_err(|e| Error(e.to_string()))
+}
+
+pub fn load_at(
+    path: &Path,
+    variant: Option<&str>,
+    set: &[String],
+    registry: &Registry,
+    time: Option<f64>,
+) -> Result<(Recipe, Built), Error> {
     let failed = |e: manfred_recipe::Error| Error(e.to_string());
     let loaded = manfred_recipe::load(path).map_err(failed)?;
     let recipe = match variant {
@@ -90,7 +104,11 @@ pub fn load(
     let base = path.parent().unwrap_or(Path::new(""));
     let built =
         manfred_build::build_with(&recipe, base, registry).map_err(|e| Error(e.to_string()))?;
-    Ok((built.recipe(&recipe), built))
+    let recipe = built.recipe(&recipe);
+    match time {
+        Some(time) => posed(&recipe, &built, time),
+        None => Ok((recipe, built)),
+    }
 }
 
 pub fn seed(recipe: &Recipe) -> u32 {
@@ -154,6 +172,10 @@ impl Reel {
             turns: TurnState::default(),
             size,
         })
+    }
+
+    pub fn pose(&mut self, recipe: &Recipe, parts: &[Part]) -> Result<(), Error> {
+        self.stage.apply(Prepared::of(recipe, parts)?).map(|_| ())
     }
 
     pub fn eye(&self, camera: &Camera) -> Eye {

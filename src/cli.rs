@@ -120,6 +120,13 @@ fn size(text: &str) -> Result<[u32; 2], String> {
     }
 }
 
+fn seconds(text: &str) -> Result<f64, String> {
+    match text.parse::<f64>() {
+        Ok(at) if at.is_finite() && at >= 0.0 => Ok(at),
+        _ => Err("not a number of seconds from 0 up".into()),
+    }
+}
+
 fn pair(text: &str) -> Result<String, String> {
     match text.split_once('=') {
         Some((key, _)) if !key.trim().is_empty() => Ok(text.to_string()),
@@ -153,6 +160,7 @@ fn precheck(
     variant: Option<&str>,
     set: &[String],
     camera: &str,
+    time: Option<f64>,
 ) -> Result<(Camera, Trace), String> {
     let file = recipe.display().to_string();
     let loaded = load(recipe).map_err(|e| read_failure(&file, &e))?;
@@ -166,6 +174,9 @@ fn precheck(
     print_problems(&mut problems, &file, &validate(&chosen));
     if !problems.is_empty() {
         return Err(String::from_utf8_lossy(&problems).trim_end().to_string());
+    }
+    if let Some(refusal) = time.and_then(|at| manfred_build::time_refusal(&chosen, at)) {
+        return Err(refusal);
     }
     manfred_scene::camera(&chosen, camera)
         .cloned()
@@ -329,22 +340,30 @@ mod tests {
 
     #[test]
     fn the_precheck_names_what_is_wrong_before_any_queue() {
-        let ok = precheck(Path::new(FULL), None, &[], "wide").unwrap();
+        let ok = precheck(Path::new(FULL), None, &[], "wide", None).unwrap();
         assert_eq!(ok.0.name, "wide");
-        let camera = precheck(Path::new(FULL), None, &[], "nope").unwrap_err();
+        let camera = precheck(Path::new(FULL), None, &[], "nope", None).unwrap_err();
         assert!(camera.contains("camera.nope: no such camera"), "{camera}");
         assert!(camera.contains("main, wide, plan"), "{camera}");
-        let missing = precheck(Path::new("nowhere/none.toml"), None, &[], "main").unwrap_err();
+        let missing =
+            precheck(Path::new("nowhere/none.toml"), None, &[], "main", None).unwrap_err();
         assert_eq!(
             missing,
             "nowhere/none.toml: cannot read the recipe: no such file"
         );
-        let variant = precheck(Path::new(FULL), Some("nope"), &[], "main").unwrap_err();
+        let variant = precheck(Path::new(FULL), Some("nope"), &[], "main", None).unwrap_err();
         assert!(variant.contains("nope"), "{variant}");
-        let set = precheck(Path::new(FULL), None, &["no.such.key=1".into()], "main").unwrap_err();
+        let set = precheck(
+            Path::new(FULL),
+            None,
+            &["no.such.key=1".into()],
+            "main",
+            None,
+        )
+        .unwrap_err();
         assert!(set.contains("no.such.key"), "{set}");
         let loop_file = "crates/recipe/tests/fixtures/errors/v_parent_loop.toml";
-        let invalid = precheck(Path::new(loop_file), None, &[], "main").unwrap_err();
+        let invalid = precheck(Path::new(loop_file), None, &[], "main", None).unwrap_err();
         assert!(invalid.contains("the parents form a loop"), "{invalid}");
     }
 

@@ -26,6 +26,7 @@ pub use text::{ANCHORS, MONO, anchor_names, anchor_point, default_anchor};
 pub use validate::{bake_product, missing_material_text, slug, validate};
 pub use variant::apply_variant;
 
+pub use manfred_motion::Timeline;
 pub use toml_edit;
 
 pub const SCHEMA: u32 = 1;
@@ -61,6 +62,7 @@ pub struct Recipe {
     pub look: Option<Look>,
     pub trace: Trace,
     pub bake: Option<Bake>,
+    pub timeline: Option<Timeline>,
     pub materials: BTreeMap<String, serde_json::Value>,
     pub effects: Effects,
     pub uses: Vec<Use>,

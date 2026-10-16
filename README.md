@@ -213,11 +213,11 @@ manfred build <recipe> [--variant <name> | --all-variants] [--set key=value]... 
 manfred check <recipe>                                       validate and list problems
 manfred diff <a.glb> <b.glb> [--json] [--render --recipe <recipe> [--camera <name>] [--size WxH] [--floor <dB>]]
                                                           structure, side by side, or both drawn alike and compared by PSNR
-manfred shot <recipe> --camera <name> --size WxH --out <png> [--variant <name>] [--set key=value]...
+manfred shot <recipe> --camera <name> --size WxH --out <png> [--variant <name>] [--set key=value]... [--time S]
                                                           one still on the live renderer, headless; --set overrides a value the recipe has
-manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--crop x,y,w,h] [--variant V] [--set key=value]... [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file.png|file.exr|file.hdr>
+manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--crop x,y,w,h] [--variant V] [--set key=value]... [--time S] [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file.png|file.exr|file.hdr>
                                                           path-traced on the engine's tracer
-manfred clip <recipe> --camera <name> --frames N --fps F --size WxH --out <dir> [--trace [--spp N]] [--variant V] [--set key=value]... [--video <file.mp4|file.webm>]
+manfred clip <recipe> --camera <name> (--frames N --fps F | --timeline) --size WxH --out <dir> [--trace [--spp N]] [--variant V] [--set key=value]... [--video <file.mp4|file.webm>]
                                                           a camera moving along the recipe's path, as frames and a video
 manfred gui [<recipe>|<folder>]                              the window; without a recipe, Manfred's own mark, selected on a floor grid; Ctrl+O, a picker of recipes
 manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--fake] [--fixture <name>] [--start]
