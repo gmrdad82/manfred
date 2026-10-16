@@ -409,7 +409,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, curve, set, get, key, unkey, new, timeline, shoot, library, add, remove, duplicate, list, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, curve, key, unkey, new, timeline, shoot, library, add, remove, duplicate, list, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),
