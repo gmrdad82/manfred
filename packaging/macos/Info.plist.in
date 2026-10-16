@@ -7,7 +7,7 @@
 	<key>CFBundleDisplayName</key>
 	<string>Manfred</string>
 	<key>CFBundleExecutable</key>
-	<string>manfred-desk</string>
+	<string>applet</string>
 	<key>CFBundleIconFile</key>
 	<string>manfred</string>
 	<key>CFBundleIdentifier</key>
@@ -18,8 +18,6 @@
 	<string>Manfred</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
-	<key>CFBundleSignature</key>
-	<string>????</string>
 	<key>CFBundleShortVersionString</key>
 	<string>@VERSION@</string>
 	<key>CFBundleVersion</key>

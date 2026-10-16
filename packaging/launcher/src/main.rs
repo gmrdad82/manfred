@@ -19,10 +19,9 @@ fn main() -> ExitCode {
     match args.first().and_then(|arg| arg.to_str()) {
         Some("--install-cli") => return command_line(&manfred, true),
         Some("--remove-cli") => return command_line(&manfred, false),
+        Some("--first-launch") => return first_launch(&manfred),
         _ => {}
     }
-    #[cfg(target_os = "macos")]
-    macos::offer(&manfred);
     let mut command = Command::new(manfred);
     command.arg("gui").args(args);
     launch(command)
@@ -60,6 +59,18 @@ fn command_line(manfred: &std::path::Path, install: bool) -> ExitCode {
 #[cfg(not(target_os = "macos"))]
 fn command_line(_: &std::path::Path, _: bool) -> ExitCode {
     eprintln!("manfred-desk: --install-cli and --remove-cli are for macOS");
+    ExitCode::FAILURE
+}
+
+#[cfg(target_os = "macos")]
+fn first_launch(manfred: &std::path::Path) -> ExitCode {
+    macos::offer(manfred);
+    ExitCode::SUCCESS
+}
+
+#[cfg(not(target_os = "macos"))]
+fn first_launch(_: &std::path::Path) -> ExitCode {
+    eprintln!("manfred-desk: --first-launch is for macOS");
     ExitCode::FAILURE
 }
 

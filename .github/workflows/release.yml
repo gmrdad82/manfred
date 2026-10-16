@@ -187,15 +187,29 @@ jobs:
           [ -f packaging/macos/manfred.icns ] || { echo "packaging/macos/manfred.icns is missing" >&2; exit 1; }
           version=${TAG#v}
           app=dist/app/Manfred.app
-          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/licenses"
+          plist="$app/Contents/Info.plist"
+          mkdir -p dist/app
+          osacompile -o "$app" packaging/macos/main.applescript
+          [ -x "$app/Contents/MacOS/applet" ] && [ -f "$app/Contents/Resources/Scripts/main.scpt" ] || { echo "osacompile made no applet" >&2; exit 1; }
+          rm -rf "$app/Contents/_CodeSignature" "$app/Contents/Resources/applet.icns"
+          mkdir -p "$app/Contents/Resources/licenses"
           cp target/release/manfred-desk target/release/manfred "$app/Contents/MacOS/"
           cp packaging/macos/manfred.icns LICENSE NOTICE "$app/Contents/Resources/"
           cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt "$app/Contents/Resources/licenses/"
-          printf 'APPL????' > "$app/Contents/PkgInfo"
-          sed -e "s/@VERSION@/$version/" -e "s/@BUNDLE_VERSION@/${version%%-*}/" -e "s/@MINIMUM_SYSTEM_VERSION@/$MACOSX_DEPLOYMENT_TARGET/" packaging/macos/Info.plist.in > "$app/Contents/Info.plist"
-          if grep -q '@[A-Z_]*@' "$app/Contents/Info.plist"; then echo "Info.plist has an unfilled placeholder" >&2; exit 1; fi
-          plutil -lint "$app/Contents/Info.plist"
+          mv "$plist" dist/app/applet.plist
+          sed -e "s/@VERSION@/$version/" -e "s/@BUNDLE_VERSION@/${version%%-*}/" -e "s/@MINIMUM_SYSTEM_VERSION@/$MACOSX_DEPLOYMENT_TARGET/" packaging/macos/Info.plist.in > "$plist"
+          if grep -q '@[A-Z_]*@' "$plist"; then echo "Info.plist has an unfilled placeholder" >&2; exit 1; fi
+          /usr/libexec/PlistBuddy -c "Merge dist/app/applet.plist" "$plist" || true
+          plutil -lint "$plist"
+          for pair in CFBundleExecutable=applet CFBundleIdentifier=com.pitomd.manfred CFBundleIconFile=manfred "CFBundleShortVersionString=$version"; do
+            [ "$(/usr/libexec/PlistBuddy -c "Print :${pair%%=*}" "$plist")" = "${pair#*=}" ] || { echo "Info.plist: ${pair%%=*} is not ${pair#*=}" >&2; exit 1; }
+          done
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDocumentTypes:0:LSItemContentTypes:0" "$plist" | grep -qx com.pitomd.manfred.document
           [ "$(NO_COLOR=1 "$app/Contents/MacOS/manfred" --version)" = "manfred $version" ]
+          codesign --force --sign - "$app/Contents/MacOS/manfred"
+          codesign --force --sign - "$app/Contents/MacOS/manfred-desk"
+          codesign --force --sign - "$app"
+          codesign --verify --strict --verbose=2 "$app"
           (cd dist/app && ditto -c -k --keepParent Manfred.app "../$APPZIP")
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
