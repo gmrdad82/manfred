@@ -142,7 +142,7 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
 - **`sweep`**: `path = [[x, y, z], …]`, `radius` or `radii = [r, …]`, `ring = 16`, `closed`, `caps`. Beads and tubes. Caps are n-gon fans, as Blender's.
   - `along = { outline = <outline>, offset, depth }` replaces `path`. The ring is swept along an outline in the plate frame, pushed out by `offset` along the outline's outward normal, at `depth`. It is closed and capless, with one `radius`. The ring starts on the outward normal and turns toward the camera: a lip round a pocket, a bezel round a slot. Its outline is one contour, with no hole.
 - **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets). It keeps the file's material texture maps, and the recipe's `[materials]` set or replace them; see [Texture maps](#texture-maps).
-- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings), [`manfred/furniture`](#manfredfurniture) and [`manfred/car`](#manfredcar). The window builds it through the same registry and lets you place it.
+- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings), [`manfred/furniture`](#manfredfurniture), [`manfred/car`](#manfredcar) and [`manfred/loft`](#manfredloft). The window builds it through the same registry and lets you place it.
   - The generator gets the object, its `params`, the recipe's folder and a seed: the recipe's `seed` mixed with the object's index in the file (`manfred::build::seed`), so two objects never share one.
   - It returns one or more pieces, each a named mesh; each becomes a node with the piece's name. A piece may share its own object's name, never another object's or another piece's.
   - The object's transform, `parent`, `keep_transform`, `shadow`, `two_sided` and `hidden` apply to every piece. The pieces keep their own material slots, normals and UVs unless the object sets `material` (or one name in `materials`), `smooth` or `smooth_angle`, or `uv`.
@@ -349,6 +349,48 @@ params = { style = "sports", paint = "#c8102e" }
 - **Materials** it returns, in the engine's form: `car_paint_<rrggbb>` for a `"#rrggbb"` paint and `car_paint_linear_<rrggbb>` for an `[r, g, b]` one (lacquer with a clear coat), `car_glass` (tinted, transmissive), `car_tyre`, `car_rim` (metal), `car_trim` (dark plastic), and `car_head` and `car_tail` (emissive warm white and red), or `car_head_off` and `car_tail_off` with `lights = false`. A recipe's own `[materials.<name>]` of the same name replaces one.
 - **Facts,** in the car's own frame (before the object's `at`, `rotate` and `scale`): `style`, `length`, `width`, `height`, `wheelbase`, `track`, and `wheels = { fl = { centre = [x, y, z], radius, axle = [1, 0, 0] }, fr = …, rl = …, rr = … }`, the point and axis each wheel spins and steers about.
 - **Deterministic:** the same params and seed give the same bytes. `showcase/car.toml` shows a sports car, a sedan and a van on a floor.
+
+### manfred/loft
+
+`generator = "manfred/loft"` lofts one closed, watertight surface through cross-sections along an axis, in the object's own frame, in metres: a fuselage, a wing as spanwise sections, a hull, a bottle, any smooth lofted shape. It skins a NURBS surface across the stations, fits it to the silhouettes you draw, fairs it with Catmull-Clark subdivision with semi-sharp creases, and tessellates it into triangles with smooth normals.
+
+```toml
+[[object]]
+name = "pod"
+kind = "generator"
+generator = "manfred/loft"
+
+[object.params]
+axis = "z"
+subdivide = 2
+samples = { around = 32, along = 40 }
+stations = [
+  { at = -1.0, half = true, curve = [[0.0, 0.2], [0.2, 0.1], [0.2, -0.1], [0.0, -0.2]] },
+  { at = 0.0, half = true, crease = [1], sharpness = 2.5, curve = [[0.0, 0.5], [0.45, 0.3], [0.45, -0.3], [0.0, -0.4]] },
+  { at = 1.0, half = true, curve = [[0.0, 0.15], [0.15, 0.1], [0.15, -0.1], [0.0, -0.15]] },
+]
+silhouettes = { side = [[-1.0, 0.2], [0.0, 0.5], [1.0, 0.15]], top = [[-1.0, 0.25], [0.0, 0.47], [1.0, 0.2]] }
+```
+
+- **Frames.** `axis` (`"z"` by default, or `"x"` or `"y"`) is the axis the stations run along; each station's `curve` lies in the plane across it, as `[a, b]` with `a` across and `b` up in the section's own frame:
+
+  | `axis` | `at` along | `curve = [a, b]` | `side` view `[[at, b]]` | `top` view `[[at, a]]` | `front` and `rear` views `[[a, b]]` |
+  |---|---|---|---|---|---|
+  | `"z"` | z | `[x, y]` | `[[z, y]]` | `[[z, x]]` | `[[x, y]]` |
+  | `"x"` | x | `[z, y]` | `[[x, y]]` | `[[x, z]]` | `[[z, y]]` |
+  | `"y"` | y | `[x, z]` | `[[y, z]]` | `[[y, x]]` | `[[x, z]]` |
+
+  The side and top views see the axis horizontally; the front view looks back along the axis from its far end, the rear view from its near end.
+- **Params,** `stations` required, the rest optional; an unknown one is an error naming the params there are:
+  - `stations`: two or more, `at` strictly increasing (metres along the axis). `curve = [[a, b], …]` is the cross-section there, a closed loop. With `half = true` it runs from the upper centre line (a = 0, largest b) round one side to the lower centre line, its first and last points are put on a = 0, and it is mirrored in a into the full loop, so a half curve of n points makes a loop of 2n − 2 points and a shape symmetric about a = 0. Every station's loop has the same number of points; the point with the same index runs the length of the loft as one line. `crease = [<point indices>]` marks points of that station's curve as a crease line, with `sharpness` from 0 to 10 (10, the default, is infinitely sharp; 1 to 9 hold the crease for that many subdivision levels and then round it, fractions blend). A crease fades linearly to the next station's sharpness at that index, so it starts and ends where the stations say. The section curve has a corner at a crease point.
+  - `silhouettes = { side, top, front, rear }`, each a curve of `[a, b]` points in its view's frame (the table above), constraining the loft's extremes in that view, interpolated along the axis. `side` is the upper line seen from the side; drawn as a loop (out along the upper line and back along the lower one) it sets the lower line too. `top` is the half width seen from above; as a loop it sets both sides. `front` and `rear` are the outlines looking along the axis: the loft's widest |a| at each b of its far half and of its near half follows them, blended smoothly along the axis, holding the nearest ratio past the curve's ends. They apply in the order side, front and rear, top, so `top` wins where it and `front` disagree. Each is fitted on the control cage and again on the final mesh, so the final silhouette follows the curve.
+  - `subdivide`: Catmull-Clark levels, 0 to 4, default 2. Each level makes four times the faces.
+  - `samples = { around, along }`: the control cage. `around` points round each section, at least the loop's point count (and its default, 24, when that is fewer); points between a station's own points are placed on a centripetal Catmull-Rom curve through them, shared out by the segments' mean length. `along` rings, at least 2, default the station count or 16, whichever is more, evenly spaced from the first station to the last.
+  - `seed`: a whole number. The loft has no random part, so it changes nothing.
+- **How it is built:** every column of the stations' points (the same index on each) is interpolated by a B-spline of degree 3 (or the station count less one) with the stations' `at` as its parameters and knots by averaging, so each ring is a plane section at its own place along the axis; the rings close with an n-gon cap at each end. The cage is fitted to the silhouettes, subdivided with OpenSubdiv's Catmull-Clark rules (smooth, crease and corner vertex rules, semi-sharp edges blended by their fractional sharpness, uniform sharpness decrement), fitted again, and triangulated. Normals are smooth, split along every edge still at least 1 sharp after the last level. UVs: u is metres along the axis from the first station, v metres round the girth from the lower centre line, with a seam there.
+- **Piece:** one, named as the object, a closed mesh with every edge shared by two triangles, in the `loft` material (a grey lacquer the generator returns) unless the object sets `material`. 32 around, 40 along and `subdivide = 2` make about 40,000 triangles.
+- **Facts:** `loft = { length, width, height, stations }`: the built extents in metres along the axis, across (a) and up (b), and the station count.
+- **Deterministic:** the same params build the same bytes. `showcase/loft-car.toml` lofts a made-up fastback coupe along z from fifteen half stations with a shoulder crease and all four silhouettes; `showcase/loft-bottle.toml` lofts a plain bottle up y, its profile held by the side and top silhouettes.
 
 ### Levels of detail
 

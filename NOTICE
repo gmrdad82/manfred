@@ -158,3 +158,56 @@ Its edge hasher mixes words as rustc-hash 1.1's FxHasher does
 (https://github.com/rust-lang/rustc-hash, tag v1.1.0), copyright the Rust
 Project Developers, dual licensed MIT or Apache-2.0 and used here under the
 Apache License 2.0 (assets/licenses/Apache-2.0.txt).
+
+crates/build/src/builtin/loft.rs ports the loft of curvo
+(https://github.com/mattatz/curvo, version 0.3.2, commit
+6f6a51847a50092507936e9fd5735feedfecb69c): NurbsSurface::try_loft, the
+curve interpolation by knot averaging and the B-spline basis. Its licence:
+
+  MIT License
+
+  Copyright (c) 2024 mattatz
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+  THE SOFTWARE.
+
+The same file ports OpenSubdiv's Catmull-Clark subdivision with semi-sharp
+creases (https://github.com/PixarAnimationStudios/OpenSubdiv, tag v3_7_0,
+commit 9dab8a47bfbb1388ec8388fe61f5f916e6123f38): the masks of
+opensubdiv/sdc/catmarkScheme.h and scheme.h and the sharpness rules of
+opensubdiv/sdc/crease.cpp, changed from C++ into Rust. Its NOTICE:
+
+  OpenSubdiv
+  Copyright 2013 Pixar
+  All rights reserved.
+
+  This product includes software developed at:
+      Pixar (http://www.pixar.com/).
+      Dreamworks Animation (http://www.dreamworksanimation.com/)
+      Autodesk, Inc. (http://www.autodesk.com/).
+      Google, Inc. (http://www.google.com/).
+      DigitalFish (http://digitalfish.com/).
+
+crease.cpp is Copyright 2014 DreamWorks Animation LLC. OpenSubdiv is under the
+Tomorrow Open Source Technology License 1.0, which is the Apache License 2.0
+(assets/licenses/Apache-2.0.txt) with Section 6 replaced by:
+
+  6. Trademarks. This License does not grant permission to use the trade
+     names, trademarks, service marks, or product names of the Licensor
+     and its affiliates, except as required to comply with Section 4(c) of
+     the License and to reproduce the content of the NOTICE file.
