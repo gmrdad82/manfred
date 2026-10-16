@@ -6,6 +6,7 @@ mod include;
 mod patch;
 mod path;
 mod read;
+mod route;
 mod set;
 mod text;
 mod validate;
@@ -18,6 +19,7 @@ pub use patch::{
 };
 pub use path::{CameraPath, Ease, Orbit, PathKey, PathKind};
 pub use read::{load, materials, parse};
+pub use route::{PointEdit, route_patch};
 pub use set::apply_set;
 pub use text::{ANCHORS, MONO, anchor_names, anchor_point, default_anchor};
 pub use validate::{bake_product, missing_material_text, slug, validate};
@@ -52,6 +54,7 @@ pub struct Recipe {
     pub sky: Option<Sky>,
     pub lights: Vec<Light>,
     pub movers: Vec<Mover>,
+    pub routes: Vec<RouteSpec>,
     pub variants: BTreeMap<String, Variant>,
     pub sidecar: serde_json::Map<String, serde_json::Value>,
     pub look: Option<Look>,
@@ -475,6 +478,13 @@ pub struct Mover {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct RouteSpec {
+    pub name: String,
+    pub points: Vec<[f64; 3]>,
+    pub closed: bool,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Variant {
     pub drop: Vec<String>,
     pub set: BTreeMap<String, serde_json::Value>,
@@ -794,6 +804,10 @@ impl Recipe {
             }
         }
         false
+    }
+
+    pub fn route(&self, name: &str) -> Option<&RouteSpec> {
+        self.routes.iter().find(|route| route.name == name)
     }
 
     pub fn line_of(&self, index_path: &str) -> Option<usize> {

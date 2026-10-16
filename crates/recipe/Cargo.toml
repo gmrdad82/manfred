@@ -11,6 +11,7 @@ description = "Manfred's recipe: parse, validate, patch and write scene recipes"
 
 [dependencies]
 manfred-mesh.workspace = true
+manfred-motion.workspace = true
 pfx-materials.workspace = true
 pfx-scene.workspace = true
 serde.workspace = true

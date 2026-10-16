@@ -1616,6 +1616,7 @@ dependencies = [
  "manfred-generators",
  "manfred-glb",
  "manfred-mesh",
+ "manfred-motion",
  "manfred-recipe",
  "manfred-render",
  "manfred-runtime",
@@ -1687,10 +1688,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "manfred-motion"
+version = "1.3.0"
+dependencies = [
+ "glam 0.33.12",
+]
+
+[[package]]
 name = "manfred-recipe"
 version = "1.3.0"
 dependencies = [
  "manfred-mesh",
+ "manfred-motion",
  "pfx-materials",
  "pfx-scene 1.0.1",
  "serde",

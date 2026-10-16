@@ -48,6 +48,7 @@ manfred-scene = { path = "crates/scene" }
 manfred-generators = { path = "crates/generators" }
 manfred-render = { path = "crates/render" }
 manfred-runtime = { path = "crates/runtime" }
+manfred-motion = { path = "crates/motion" }
 
 [package]
 name = "manfred"
@@ -86,6 +87,7 @@ manfred-scene.workspace = true
 manfred-generators.workspace = true
 manfred-render.workspace = true
 manfred-runtime.workspace = true
+manfred-motion.workspace = true
 serde_json.workspace = true
 clap.workspace = true
 

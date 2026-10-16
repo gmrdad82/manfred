@@ -5,6 +5,7 @@ mod diff;
 mod gui;
 mod process;
 mod render;
+mod route;
 mod shot;
 mod still;
 mod tape;
@@ -69,6 +70,10 @@ enum Verb {
     Clip(clip::Args),
     #[command(about = "The window, or one frame of it offscreen with --shot")]
     Gui(gui::Args),
+    #[command(
+        about = "List a recipe's routes, or move, add or remove a route's points in the file"
+    )]
+    Route(route::Args),
 }
 
 fn line(host: &Host) -> clap::Command {
@@ -215,6 +220,7 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::Render(parsed) => render::run(&parsed, rest, registry),
         Verb::Clip(parsed) => clip::run(&parsed, rest, registry),
         Verb::Gui(parsed) => gui::run(&parsed, rest, registry, host, installed),
+        Verb::Route(parsed) => route::run(&parsed, registry),
     }
 }
 
@@ -287,7 +293,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),

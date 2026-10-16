@@ -87,6 +87,7 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     plate(&mut out);
     lights(&mut out);
     movers(&mut out);
+    routes(&mut out);
     output(&mut out);
     sky(&mut out);
     look(&mut out);
@@ -867,6 +868,18 @@ fn movers(out: &mut Out<'_>) {
                 "group",
                 format!("no object named `{by_name}` or `{prefix}<part>`, and no `parts`, so the mover moves nothing"),
             );
+        }
+    }
+}
+
+fn routes(out: &mut Out<'_>) {
+    let r = out.r;
+    let names: Vec<&str> = r.routes.iter().map(|route| route.name.as_str()).collect();
+    duplicates(out, "route", "name", &names);
+    for (i, route) in r.routes.iter().enumerate() {
+        if let Err(text) = manfred_motion::Route::new(&route.points, route.closed) {
+            let at = At::new(format!("route[{}]", route.name), format!("route#{i}"));
+            out.at(&at, "points", text);
         }
     }
 }

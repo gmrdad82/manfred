@@ -10,8 +10,8 @@ use crate::{
     Casters, Cup, Curl, Daylight, DetailUv, Ease, Error, Grade, Kind, Light, Lines, Loaded, Look,
     Mover, NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey,
     PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy,
-    REFERENCE_HOUR, Recipe, Room, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun,
-    TextSpace, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
+    REFERENCE_HOUR, Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight,
+    Span, Sun, TextSpace, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -366,6 +366,7 @@ const COUNT: Rd<u32> = Rd("a whole number", as_count);
 const GRID: Rd<[u32; 2]> = Rd("an array of 2 whole numbers", as_grid);
 const STRS: Rd<Vec<String>> = Rd("an array of strings", as_strings);
 const NUMS: Rd<Vec<f64>> = Rd("an array of numbers", as_nums);
+const V3S: Rd<Vec<[f64; 3]>> = Rd("an array of [x, y, z] points", as_points::<3>);
 const AWAY: [f64; 2] = [-1.0, -1.0];
 
 pub(crate) struct Tab<'a> {
@@ -2206,6 +2207,23 @@ fn read_light(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Resu
     Ok(light)
 }
 
+fn read_route(
+    cx: &mut Cx,
+    t: &dyn TableLike,
+    index: usize,
+    line: usize,
+) -> Result<RouteSpec, Error> {
+    let path = format!("route[{}]", label(t, "name", index));
+    let mut tab = Tab::new(cx, t, path, format!("route#{index}"), line);
+    let route = RouteSpec {
+        name: tab.req(cx, "name", STR)?,
+        points: tab.req(cx, "points", V3S)?,
+        closed: tab.or(cx, "closed", false, BOOL)?,
+    };
+    tab.finish(cx)?;
+    Ok(route)
+}
+
 fn missing_pair(tab: &Tab<'_>, key: &str, twin: &str, what: &str) -> Error {
     tab.missing(key, &format!("{what}, or `{twin}` in plate pixels"))
 }
@@ -2748,6 +2766,7 @@ fn read_root(
     relocate(cx, &mut objects, &mut sky);
     let lights = tables(cx, &mut root, "light", read_light)?;
     let movers = tables(cx, &mut root, "mover", read_mover)?;
+    let routes = tables(cx, &mut root, "route", read_route)?;
     let variants = read_variants(cx, &mut root)?;
     let sidecar = read_sidecar(cx, &mut root)?;
     let look = read_look(cx, &mut root)?;
@@ -2789,6 +2808,7 @@ fn read_root(
         sky,
         lights,
         movers,
+        routes,
         variants,
         sidecar,
         look,

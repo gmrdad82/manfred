@@ -33,6 +33,7 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 | `manfred render` | a still path-traced on the GPU: PNG, EXR or HDR |
 | `manfred clip` | a camera moving along a path, as frames and a video |
 | `manfred gui` | the window: pick, move, re-material, set cameras, render |
+| `manfred route` | lists a recipe's routes, or moves, adds and removes their points in the file |
 
 ## Where to start
 
