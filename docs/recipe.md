@@ -221,26 +221,30 @@ params = { route = "street", lanes = 2, every = 80, offset = 30 }
 
 ### manfred/buildings
 
-`generator = "manfred/buildings"` lines a `[[route]]` with city blocks, built in world coordinates (leave the object's `at` and `rotate` at their defaults). It walks the route from its start, one block after another with a gap between, and stands each block square to the route at its middle, its street front `setback` metres from the centre line. A block that a bend or another stretch of the route would bring nearer than `setback` is pushed back, and dropped after four tries, so nothing stands in the road. Each building has a taller ground storey with shopfronts and a fascia, recessed upper walls between corner piers, a band at every floor, sills under its windows, windows on the front and both sides, a cornice, and one to three plant boxes on a flat roof. One of five palettes per building: concrete, brick, sandstone, white render, or a dark glass curtain wall whose windows run in ribbons.
+`generator = "manfred/buildings"` lines a `[[route]]` with city blocks, built in world coordinates (leave the object's `at` and `rotate` at their defaults). It walks the route from its start, one block after another with a gap between, and stands each block square to the route at its middle, its street front `setback` metres from the centre line. A block that a bend or another stretch of the route would bring nearer than `setback` is pushed back, and dropped after four tries, so nothing stands in the road. Every building has a taller ground storey with shopfronts, a flat roof with one to three plant boxes, and windows of dark reflective glass, a few of them lit.
 
-| param | default | meaning |
+- `style = "towers"` (the default): recessed upper walls between corner piers, a band at every floor, sills under its windows, windows on the front and both sides, and a cornice, in one of five palettes per building: concrete, brick, sandstone, white render, or a dark glass curtain wall whose windows run in ribbons.
+- `style = "lowrise"`: three to five storeys of brick in one of four red-brown palettes, standing wall to wall (one in eight leaves a gap, from the `gap` range). Shopfronts, most under a fabric awning; taller, narrower windows with sills and lintels on the front only; a band at every floor and a deep cornice; and, picked by seed, a bay window up the middle, small balconies with iron railings under some upper windows, a fire escape over two window columns (black iron landings, railings, stairs and a drop ladder), or a plain front.
+
+| param | default (towers / lowrise) | meaning |
 |---|---|---|
 | `route` | required | the `[[route]]` it lines |
 | `side` | `"both"` | `"both"`, `"left"` or `"right"` of the direction of travel |
+| `style` | `"towers"` | `"towers"` or `"lowrise"`; it picks the defaults below |
 | `setback` | `11.0` | metres from the centre line to the street front (a 2x2-lane road and its sidewalk) |
-| `block` | `[8.0, 24.0]` | frontage of a building, metres, at least 4 |
-| `height` | `[12.0, 60.0]` | height, metres, rounded to whole storeys |
-| `depth` | `[12.0, 20.0]` | depth back from the street front, metres |
-| `gap` | `[0.0, 4.0]` | space between neighbours, metres |
+| `block` | `[8.0, 24.0]` / `[7.0, 14.0]` | frontage of a building, metres, at least 4 |
+| `height` | `[12.0, 60.0]` / three to five storeys | height, metres, rounded to whole storeys |
+| `depth` | `[12.0, 20.0]` / `[10.0, 16.0]` | depth back from the street front, metres |
+| `gap` | `[0.0, 4.0]` / `[1.0, 3.0]` | space between neighbours, metres (lowrise: one building in eight) |
 | `storey` | `3.2` | floor height, metres, 2 to 10; the ground storey is 1.25 of it |
-| `window` | `{ width = 1.4, spacing = 3.0 }` | window width and centre spacing, metres; the width is at least 0.2 m less than the spacing; a window is 0.55 of a storey tall |
-| `lit` | `0.25` | the share of windows lit (twice that for shopfronts), 0 to 1 |
+| `window` | `{ width = 1.4, spacing = 3.0 }` / `{ width = 1.1, spacing = 2.4 }` | window width and centre spacing, metres; the width is at least 0.2 m less than the spacing; a window is 0.55 (towers) or 0.6 (lowrise) of a storey tall |
+| `lit` | `0.06` / `0.03` | the share of windows lit (2.5 times that for shopfronts), 0 to 1; the rest are dark glass that reflects the sky |
 | `seed` | the object's | a whole number; the same seed and params build the same bytes |
 
 A range is a number or `[min, max]`. An unknown param is refused.
 
-- **Pieces:** `<object>.facades` (walls, piers, bands, sills, cornices), `<object>.windows` (glass), `<object>.lit` (the lit windows, emissive), `<object>.roofs` (roof slabs and plant boxes).
-- **Materials** it returns: `buildings_concrete`, `buildings_brick`, `buildings_sandstone`, `buildings_render`, `buildings_curtain`, `buildings_trim_stone`, `buildings_trim_cream`, `buildings_trim_metal`, `buildings_glass`, `buildings_lit` (warm emission), `buildings_roof` and `buildings_plant`; a recipe `[materials]` entry of the same name restyles them.
+- **Pieces:** `<object>.facades` (walls, piers, bands, sills, lintels, cornices, bays, awnings, balconies, fire escapes), `<object>.windows` (dark reflective glass, no emission), `<object>.lit` (the lit windows, each picked by seed from four emissive materials), `<object>.roofs` (roof slabs and plant boxes).
+- **Materials** it returns: `buildings_concrete`, `buildings_brick`, `buildings_brick_dark`, `buildings_brick_brown`, `buildings_brick_orange`, `buildings_sandstone`, `buildings_render`, `buildings_curtain`, `buildings_trim_stone`, `buildings_trim_cream`, `buildings_trim_metal`, `buildings_iron` (fire escapes and railings), `buildings_awning_green`, `buildings_awning_red`, `buildings_awning_navy`, `buildings_glass` (dark tinted, low roughness), `buildings_lit` (warm), `buildings_lit_soft` (dimmer amber), `buildings_lit_neutral` (neutral white), `buildings_lit_curtain` (a curtain drawn, dimmest; upper floors only), `buildings_roof` and `buildings_plant`; a recipe `[materials]` entry of the same name restyles them.
 - **Facts:** `buildings = { count, setback }`, the buildings placed and the setback used.
 - **Weight:** about 500 to 1,000 triangles a building; a 600 m street lined on both sides stays well under 200,000.
 

@@ -7,9 +7,9 @@ use std::collections::BTreeMap;
 
 pub const NAME: &str = "manfred/buildings";
 
-const PARAMS: [&str; 11] = [
-    "route", "side", "setback", "block", "height", "depth", "gap", "storey", "window", "lit",
-    "seed",
+const PARAMS: [&str; 12] = [
+    "route", "side", "style", "setback", "block", "height", "depth", "gap", "storey", "window",
+    "lit", "seed",
 ];
 
 const STEP: f64 = 0.5;
@@ -22,6 +22,19 @@ const PROUD: f64 = 0.03;
 
 const GLASS: &str = "buildings_glass";
 const LIT: &str = "buildings_lit";
+const LIT_SOFT: &str = "buildings_lit_soft";
+const LIT_NEUTRAL: &str = "buildings_lit_neutral";
+const LIT_CURTAIN: &str = "buildings_lit_curtain";
+
+type Choices = [(&'static str, f64)];
+
+const UPPER: &Choices = &[
+    (LIT, 0.2),
+    (LIT_SOFT, 0.3),
+    (LIT_NEUTRAL, 0.2),
+    (LIT_CURTAIN, 0.3),
+];
+const SHOPFRONT: &Choices = &[(LIT, 0.45), (LIT_NEUTRAL, 0.35), (LIT_SOFT, 0.2)];
 const ROOF: &str = "buildings_roof";
 const PLANT: &str = "buildings_plant";
 
@@ -59,8 +72,66 @@ const PALETTES: [Palette; 5] = [
     },
 ];
 
+const BRICKS: [Palette; 4] = [
+    Palette {
+        wall: "buildings_brick",
+        trim: "buildings_trim_cream",
+        curtain: false,
+    },
+    Palette {
+        wall: "buildings_brick_dark",
+        trim: "buildings_trim_stone",
+        curtain: false,
+    },
+    Palette {
+        wall: "buildings_brick_brown",
+        trim: "buildings_trim_cream",
+        curtain: false,
+    },
+    Palette {
+        wall: "buildings_brick_orange",
+        trim: "buildings_trim_stone",
+        curtain: false,
+    },
+];
+
+const IRON: &str = "buildings_iron";
+const AWNINGS: [&str; 3] = [
+    "buildings_awning_green",
+    "buildings_awning_red",
+    "buildings_awning_navy",
+];
+
 fn materials() -> BTreeMap<String, Value> {
     [
+        (
+            "buildings_brick_dark",
+            json!({ "family": "lacquer", "base": [0.22, 0.10, 0.07], "roughness": 0.7 }),
+        ),
+        (
+            "buildings_brick_brown",
+            json!({ "family": "lacquer", "base": [0.30, 0.17, 0.11], "roughness": 0.68 }),
+        ),
+        (
+            "buildings_brick_orange",
+            json!({ "family": "lacquer", "base": [0.42, 0.19, 0.11], "roughness": 0.66 }),
+        ),
+        (
+            IRON,
+            json!({ "family": "metal", "base": [0.035, 0.035, 0.038], "roughness": 0.55, "metalness": 1.0 }),
+        ),
+        (
+            AWNINGS[0],
+            json!({ "family": "plaster", "base": [0.06, 0.20, 0.12], "roughness": 0.9 }),
+        ),
+        (
+            AWNINGS[1],
+            json!({ "family": "plaster", "base": [0.32, 0.06, 0.06], "roughness": 0.9 }),
+        ),
+        (
+            AWNINGS[2],
+            json!({ "family": "plaster", "base": [0.05, 0.08, 0.20], "roughness": 0.9 }),
+        ),
         (
             "buildings_concrete",
             json!({ "family": "plaster", "base": [0.52, 0.51, 0.48], "roughness": 0.88 }),
@@ -95,11 +166,23 @@ fn materials() -> BTreeMap<String, Value> {
         ),
         (
             GLASS,
-            json!({ "family": "glass", "base": [0.04, 0.05, 0.06], "roughness": 0.03, "ior": 1.5 }),
+            json!({ "family": "lacquer", "base": [0.018, 0.024, 0.03], "roughness": 0.04 }),
         ),
         (
             LIT,
-            json!({ "family": "emissive", "base": [1.0, 0.78, 0.5], "emission": [4.0, 2.9, 1.6] }),
+            json!({ "family": "emissive", "base": [1.0, 0.8, 0.56], "emission": [2.4, 1.75, 1.0] }),
+        ),
+        (
+            LIT_SOFT,
+            json!({ "family": "emissive", "base": [1.0, 0.74, 0.46], "emission": [1.4, 0.95, 0.52] }),
+        ),
+        (
+            LIT_NEUTRAL,
+            json!({ "family": "emissive", "base": [0.96, 0.95, 0.9], "emission": [1.25, 1.2, 1.08] }),
+        ),
+        (
+            LIT_CURTAIN,
+            json!({ "family": "emissive", "base": [0.9, 0.62, 0.4], "emission": [0.6, 0.4, 0.22] }),
         ),
         (ROOF, json!({ "base": [0.11, 0.11, 0.115], "roughness": 0.92 })),
         (
@@ -119,10 +202,17 @@ pub enum Side {
     Right,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Style {
+    Towers,
+    Lowrise,
+}
+
 #[derive(Clone, Debug)]
 pub struct Params {
     pub route: String,
     pub side: Side,
+    pub style: Style,
     pub setback: f64,
     pub block: [f64; 2],
     pub height: [f64; 2],
@@ -159,8 +249,20 @@ impl Params {
                 ));
             }
         };
+        let style = match params.get("style") {
+            None => Style::Towers,
+            Some(Value::String(s)) if s == "towers" => Style::Towers,
+            Some(Value::String(s)) if s == "lowrise" => Style::Lowrise,
+            Some(other) => {
+                return Err(format!(
+                    "params.style: expected \"towers\" or \"lowrise\", found {other}"
+                ));
+            }
+        };
+        let towers = style == Style::Towers;
         let storey = number(params, "storey", 3.2, 2.0, 10.0)?;
-        let (window_width, window_spacing) = window(params, storey)?;
+        let windows = if towers { (1.4, 3.0) } else { (1.1, 2.4) };
+        let (window_width, window_spacing) = window(params, storey, windows)?;
         let seed =
             match params.get("seed") {
                 None => None,
@@ -168,19 +270,33 @@ impl Params {
                     format!("params.seed: expected a whole number, found {value}")
                 })?),
             };
-        let height = range(params, "height", [12.0, 60.0], storey, 1000.0)?;
+        let pick = |a: [f64; 2], b: [f64; 2]| if towers { a } else { b };
+        let height = range(
+            params,
+            "height",
+            pick([12.0, 60.0], [3.0 * storey, 5.0 * storey]),
+            storey,
+            1000.0,
+        )?;
         Ok(Params {
             route,
             side,
+            style,
             setback: number(params, "setback", 11.0, 0.0, 1000.0)?,
-            block: range(params, "block", [8.0, 24.0], 4.0, 500.0)?,
+            block: range(params, "block", pick([8.0, 24.0], [7.0, 14.0]), 4.0, 500.0)?,
             height,
-            depth: range(params, "depth", [12.0, 20.0], 2.0, 500.0)?,
-            gap: range(params, "gap", [0.0, 4.0], 0.0, 500.0)?,
+            depth: range(
+                params,
+                "depth",
+                pick([12.0, 20.0], [10.0, 16.0]),
+                2.0,
+                500.0,
+            )?,
+            gap: range(params, "gap", pick([0.0, 4.0], [1.0, 3.0]), 0.0, 500.0)?,
             storey,
             window_width,
             window_spacing,
-            lit: number(params, "lit", 0.25, 0.0, 1.0)?,
+            lit: number(params, "lit", if towers { 0.06 } else { 0.03 }, 0.0, 1.0)?,
             seed,
         })
     }
@@ -229,8 +345,11 @@ fn range(
     }
 }
 
-fn window(params: &BTreeMap<String, Value>, storey: f64) -> Result<(f64, f64), String> {
-    let (mut width, mut spacing) = (1.4, 3.0);
+fn window(
+    params: &BTreeMap<String, Value>,
+    storey: f64,
+    (mut width, mut spacing): (f64, f64),
+) -> Result<(f64, f64), String> {
     match params.get("window") {
         None => {}
         Some(Value::Object(table)) => {
@@ -300,6 +419,18 @@ impl Rng {
 
     fn pick(&mut self, n: usize) -> usize {
         (self.next() % n as u64) as usize
+    }
+
+    fn weighted(&mut self, choices: &Choices) -> &'static str {
+        let total: f64 = choices.iter().map(|(_, w)| w).sum();
+        let mut roll = self.unit() * total;
+        for (name, w) in choices {
+            if roll < *w {
+                return name;
+            }
+            roll -= w;
+        }
+        choices[choices.len() - 1].0
     }
 }
 
@@ -373,6 +504,27 @@ impl Sink {
                 continue;
             }
             self.quad(material, place, ids.map(corner), DVec3::from(*n));
+        }
+    }
+
+    fn face(&mut self, material: &'static str, place: &Place, c: [DVec3; 4]) {
+        let n = (c[1] - c[0])
+            .cross(c[2] - c[0])
+            .try_normalize()
+            .unwrap_or(DVec3::Y);
+        self.quad(material, place, c, n);
+    }
+
+    fn prism(&mut self, material: &'static str, place: &Place, corner: impl Fn(usize) -> DVec3) {
+        for ids in [
+            [0, 4, 6, 2],
+            [1, 3, 7, 5],
+            [0, 1, 5, 4],
+            [2, 6, 7, 3],
+            [0, 2, 3, 1],
+            [4, 5, 7, 6],
+        ] {
+            self.face(material, place, ids.map(&corner));
         }
     }
 
@@ -501,7 +653,11 @@ pub fn street(object: &str, route: &Route, params: &Params, seed: u64) -> Genera
         let mut d = 0.0;
         while d + params.block[0] <= length + 1e-9 {
             let w = rng.within(params.block).min(length - d);
-            let gap = rng.within(params.gap);
+            let gap = match params.style {
+                Style::Towers => rng.within(params.gap),
+                Style::Lowrise if rng.chance(LOWRISE_GAPS) => rng.within(params.gap),
+                Style::Lowrise => 0.0,
+            };
             let at = d;
             d += w + gap;
             if w < params.block[0] - 1e-9 {
@@ -532,7 +688,11 @@ pub fn street(object: &str, route: &Route, params: &Params, seed: u64) -> Genera
                 foot.origin += z * (params.setback - clear + CLEAR);
             }
             let storeys = (rng.within(params.height) / params.storey).round().max(1.0);
-            let palette = &PALETTES[rng.pick(PALETTES.len())];
+            let palettes: &[Palette] = match params.style {
+                Style::Towers => &PALETTES,
+                Style::Lowrise => &BRICKS,
+            };
+            let palette = &palettes[rng.pick(palettes.len())];
             if !placed {
                 continue;
             }
@@ -550,16 +710,32 @@ pub fn street(object: &str, route: &Route, params: &Params, seed: u64) -> Genera
                 base,
                 top: base + (storeys - 1.0) * params.storey,
             };
-            shape.facade(&mut facades, &place);
-            shape.windows(
-                &mut facades,
-                &mut windows,
-                &mut lit,
-                &place,
-                params,
-                &mut rng,
-            );
-            shape.roof(&mut roofs, &place, &mut rng);
+            let front = match params.style {
+                Style::Towers => {
+                    shape.facade(&mut facades, &place);
+                    shape.windows(
+                        &mut facades,
+                        &mut windows,
+                        &mut lit,
+                        &place,
+                        params,
+                        &mut rng,
+                    );
+                    0.0
+                }
+                Style::Lowrise => {
+                    shape.lowrise(
+                        &mut facades,
+                        &mut windows,
+                        &mut lit,
+                        &place,
+                        params,
+                        &mut rng,
+                    );
+                    WALL
+                }
+            };
+            shape.roof(&mut roofs, &place, front, &mut rng);
             count += 1;
         }
     }
@@ -609,6 +785,43 @@ fn columns(span: f64, spacing: f64, width: f64) -> Vec<f64> {
 }
 
 const SHOP: f64 = 3.4;
+const WALL: f64 = 1.3;
+const BAY: f64 = 0.8;
+const LOWRISE_GAPS: f64 = 0.12;
+const RAIL: f64 = 0.05;
+
+#[derive(Clone, Copy, PartialEq)]
+enum Feature {
+    Plain,
+    Bay,
+    Balconies,
+    Escape,
+}
+
+fn rails(sink: &mut Sink, place: &Place, l: f64, r: f64, y: f64, out: f64, w: f64) {
+    let v = DVec3::new;
+    for (lo, hi) in [(y + 0.9, y + 0.9 + RAIL), (y + 0.45, y + 0.45 + RAIL)] {
+        sink.cuboid(IRON, place, v(l, lo, out), v(r, hi, out + RAIL), &[]);
+        for x in [l, r - RAIL] {
+            sink.cuboid(
+                IRON,
+                place,
+                v(x, lo, out + RAIL),
+                v(x + RAIL, hi, w),
+                &[BACK],
+            );
+        }
+    }
+    for x in [l, (l + r - RAIL) * 0.5, r - RAIL] {
+        sink.cuboid(
+            IRON,
+            place,
+            v(x, y, out),
+            v(x + RAIL, y + 0.9, out + RAIL),
+            &[],
+        );
+    }
+}
 
 impl Shape<'_> {
     fn facade(&self, sink: &mut Sink, place: &Place) {
@@ -660,9 +873,9 @@ impl Shape<'_> {
         };
         let tall = if curtain { s - 0.5 } else { s * 0.55 };
         let v = DVec3::new;
-        let mut pane = |rng: &mut Rng, chance: f64, c: [DVec3; 4], n: DVec3| {
+        let mut pane = |rng: &mut Rng, chance: f64, choices: &Choices, c: [DVec3; 4], n: DVec3| {
             if rng.chance(chance) {
-                lit.quad(LIT, place, c, n);
+                lit.quad(rng.weighted(choices), place, c, n);
             } else {
                 glass.quad(GLASS, place, c, n);
             }
@@ -672,7 +885,7 @@ impl Shape<'_> {
             let (a, b) = (x - SHOP * 0.5, x + SHOP * 0.5);
             let (lo, hi, z) = (0.3, base - 1.1, 0.2 - PROUD);
             let c = [v(b, lo, z), v(a, lo, z), v(a, hi, z), v(b, hi, z)];
-            pane(rng, (params.lit * 2.0).min(1.0), c, front);
+            pane(rng, (params.lit * 2.5).min(1.0), SHOPFRONT, c, front);
         }
         let across = columns(2.0 * (h - PIER) - 0.4, params.window_spacing, width);
         let span = d - RECESS - 1.6;
@@ -684,7 +897,7 @@ impl Shape<'_> {
             for x in &across {
                 let (a, b, z) = (x - width * 0.5, x + width * 0.5, RECESS - PROUD);
                 let c = [v(b, lo, z), v(a, lo, z), v(a, hi, z), v(b, hi, z)];
-                pane(rng, params.lit, c, front);
+                pane(rng, params.lit, UPPER, c, front);
                 if !curtain {
                     let sill_lo = v(a - 0.08, lo - 0.12, RECESS - 0.12);
                     let sill_hi = v(b + 0.08, lo, RECESS);
@@ -698,29 +911,210 @@ impl Shape<'_> {
                     h + PROUD,
                 );
                 let c = [v(x, lo, a), v(x, hi, a), v(x, hi, b), v(x, lo, b)];
-                pane(rng, params.lit, c, v(1.0, 0.0, 0.0));
+                pane(rng, params.lit, UPPER, c, v(1.0, 0.0, 0.0));
                 let c = [v(-x, lo, a), v(-x, lo, b), v(-x, hi, b), v(-x, hi, a)];
-                pane(rng, params.lit, c, v(-1.0, 0.0, 0.0));
+                pane(rng, params.lit, UPPER, c, v(-1.0, 0.0, 0.0));
             }
         }
     }
 
-    fn roof(&self, sink: &mut Sink, place: &Place, rng: &mut Rng) {
+    fn lowrise(
+        &self,
+        facades: &mut Sink,
+        glass: &mut Sink,
+        lit: &mut Sink,
+        place: &Place,
+        params: &Params,
+        rng: &mut Rng,
+    ) {
+        let (h, d, s, base, top) = (self.half, self.depth, params.storey, self.base, self.top);
+        let (wall, trim) = (self.palette.wall, self.palette.trim);
+        let (width, w, shop) = (params.window_width, WALL, WALL + 0.2);
+        let v = DVec3::new;
+        let front = v(0.0, 0.0, -1.0);
+        let mut pane = |rng: &mut Rng, chance: f64, choices: &Choices, c: [DVec3; 4]| {
+            if rng.chance(chance) {
+                lit.quad(rng.weighted(choices), place, c, front);
+            } else {
+                glass.quad(GLASS, place, c, front);
+            }
+        };
+        facades.cuboid(trim, place, v(-h, -FOOT, shop), v(h, base - 0.8, d), &[]);
+        facades.cuboid(trim, place, v(-h, base - 0.8, w - 0.15), v(h, base, d), &[]);
+        let awning = rng.chance(0.65).then(|| AWNINGS[rng.pick(AWNINGS.len())]);
+        for x in columns(2.0 * h - 0.6, SHOP + 0.9, SHOP) {
+            let (a, b) = (x - SHOP * 0.5, x + SHOP * 0.5);
+            let (lo, hi, z) = (0.3, base - 1.1, shop - PROUD);
+            let c = [v(b, lo, z), v(a, lo, z), v(a, hi, z), v(b, hi, z)];
+            pane(rng, (params.lit * 2.5).min(1.0), SHOPFRONT, c);
+            if let Some(cloth) = awning {
+                let (y, drop, out) = (base - 0.85, 0.7, 0.4);
+                let (l, r) = (a - 0.1, b + 0.1);
+                facades.prism(cloth, place, |i| {
+                    let back = i & 4 != 0;
+                    v(
+                        if i & 1 == 0 { l } else { r },
+                        (if back { y } else { y - drop }) + if i & 2 == 0 { 0.0 } else { 0.05 },
+                        if back { shop } else { out },
+                    )
+                });
+                facades.cuboid(
+                    cloth,
+                    place,
+                    v(l, y - drop - 0.3, out),
+                    v(r, y - drop + 0.05, out + 0.05),
+                    &[],
+                );
+            }
+        }
+        if top > base {
+            facades.cuboid(wall, place, v(-h, base, w), v(h, top, d), &[]);
+            for k in 1..self.storeys.saturating_sub(1) {
+                let y = base + (top - base) * k as f64 / (self.storeys - 1) as f64;
+                facades.cuboid(
+                    trim,
+                    place,
+                    v(-h, y - 0.1, w - 0.1),
+                    v(h, y + 0.1, w),
+                    &[BACK, 0, 1],
+                );
+            }
+        }
+        facades.cuboid(
+            trim,
+            place,
+            v(-h, top, w - 0.5),
+            v(h, top + CORNICE, d),
+            &[],
+        );
+        facades.cuboid(
+            trim,
+            place,
+            v(-h, top - 0.3, w - 0.25),
+            v(h, top, w),
+            &[BACK],
+        );
+        let across = columns(2.0 * h - 0.8, params.window_spacing, width);
+        let roll = rng.unit();
+        let feature = match roll {
+            r if r < 0.25 => Feature::Bay,
+            r if r < 0.5 => Feature::Balconies,
+            r if r < 0.8 => Feature::Escape,
+            _ => Feature::Plain,
+        };
+        let bay = (feature == Feature::Bay && across.len() >= 3).then_some(across.len() / 2);
+        let tall = s * 0.6;
+        let level = |k: usize| base + k as f64 * s + (s - tall) * 0.5;
+        let floors = self.storeys.saturating_sub(1);
+        for k in 0..floors {
+            let (lo, hi) = (level(k), level(k) + tall);
+            for (i, x) in across.iter().enumerate() {
+                let (a, b) = (x - width * 0.5, x + width * 0.5);
+                let z = if bay == Some(i) { w - BAY } else { w };
+                let p = z - PROUD;
+                pane(
+                    rng,
+                    params.lit,
+                    UPPER,
+                    [v(b, lo, p), v(a, lo, p), v(a, hi, p), v(b, hi, p)],
+                );
+                facades.cuboid(
+                    trim,
+                    place,
+                    v(a - 0.08, lo - 0.12, z - 0.12),
+                    v(b + 0.08, lo, z),
+                    &[BACK],
+                );
+                facades.cuboid(
+                    trim,
+                    place,
+                    v(a - 0.1, hi, z - 0.06),
+                    v(b + 0.1, hi + 0.22, z),
+                    &[BACK],
+                );
+                if feature == Feature::Balconies && k >= 1 && rng.chance(0.4) {
+                    let (l, r, out) = (a - 0.3, b + 0.3, w - 0.9);
+                    facades.cuboid(
+                        trim,
+                        place,
+                        v(l, lo - 0.2, out),
+                        v(r, lo - 0.05, w),
+                        &[BACK],
+                    );
+                    rails(facades, place, l, r, lo - 0.05, out, w);
+                }
+            }
+        }
+        if let Some(i) = bay {
+            let (x, half) = (across[i], width * 0.5 + 0.4);
+            facades.cuboid(
+                wall,
+                place,
+                v(x - half, base + 0.2, w - BAY),
+                v(x + half, top - 0.35, w),
+                &[BACK],
+            );
+        }
+        if feature == Feature::Escape && across.len() >= 2 && floors > 0 {
+            let i = rng.pick(across.len() - 1);
+            let (l, r) = (
+                across[i] - width * 0.5 - 0.3,
+                across[i + 1] + width * 0.5 + 0.3,
+            );
+            let out = w - 1.2;
+            let landing = |k: usize| level(k) - 0.15;
+            for k in 0..floors {
+                let y = landing(k);
+                facades.cuboid(IRON, place, v(l, y - 0.06, out), v(r, y, w), &[BACK]);
+                rails(facades, place, l, r, y, out, w);
+                if k + 1 < floors {
+                    let ends = [(l + 0.35, y), (r - 0.35, landing(k + 1))];
+                    let [(xa, ya), (xb, yb)] = if k % 2 == 0 {
+                        ends
+                    } else {
+                        [(l + 0.35, landing(k + 1)), (r - 0.35, y)]
+                    };
+                    let (z0, z1) = (out + 0.1, out + 0.75);
+                    facades.prism(IRON, place, |c| {
+                        let high = c & 1 != 0;
+                        v(
+                            if high { xb } else { xa },
+                            (if high { yb } else { ya }) - if c & 2 == 0 { 0.12 } else { 0.0 },
+                            if c & 4 == 0 { z0 } else { z1 },
+                        )
+                    });
+                }
+            }
+            let y = landing(0);
+            for x in [l + 0.3, l + 0.75] {
+                facades.cuboid(
+                    IRON,
+                    place,
+                    v(x, y - 1.6, out + 0.1),
+                    v(x + 0.04, y - 0.06, out + 0.14),
+                    &[],
+                );
+            }
+        }
+    }
+
+    fn roof(&self, sink: &mut Sink, place: &Place, front: f64, rng: &mut Rng) {
         let (h, d) = (self.half, self.depth);
         let top = self.top + CORNICE;
         let v = DVec3::new;
         sink.cuboid(
             ROOF,
             place,
-            v(-h + 0.4, top, 0.4),
+            v(-h + 0.4, top, front + 0.4),
             v(h - 0.4, top + 0.1, d - 0.4),
             &[],
         );
+        let (mid, half) = ((front + d) * 0.5, (d - front) * 0.5);
         for _ in 0..1 + rng.pick(3) {
             let hx = rng.within([0.75, 2.0]).min(h * 0.5);
-            let hz = rng.within([0.75, 2.0]).min(d * 0.25);
+            let hz = rng.within([0.75, 2.0]).min(half * 0.5);
             let cx = rng.within([-1.0, 1.0]) * (h - 0.5 - hx).max(0.0);
-            let cz = d * 0.5 + rng.within([-1.0, 1.0]) * (d * 0.5 - 0.5 - hz).max(0.0);
+            let cz = mid + rng.within([-1.0, 1.0]) * (half - 0.5 - hz).max(0.0);
             let tall = rng.within([1.2, 3.2]);
             let material = if rng.chance(0.5) { PLANT } else { ROOF };
             sink.cuboid(
@@ -771,8 +1165,22 @@ mod tests {
 
     #[test]
     fn no_building_enters_the_road_and_the_street_stays_light() {
+        for style in ["towers", "lowrise"] {
+            check(style);
+        }
+    }
+
+    #[test]
+    fn lowrise_is_deterministic_by_seed() {
+        let p = params(json!({ "style": "lowrise" }));
+        let a = street("street", &route(), &p, 7);
+        let b = street("street", &route(), &p, 7);
+        assert_eq!(format!("{:?}", a), format!("{:?}", b));
+    }
+
+    fn check(style: &str) {
         let route = route();
-        let config = params(json!({ "seed": 3 }));
+        let config = params(json!({ "seed": 3, "style": style }));
         let made = street("street", &route, &config, 0);
         let names: Vec<&str> = made.pieces.iter().map(|p| p.name.as_str()).collect();
         assert_eq!(
