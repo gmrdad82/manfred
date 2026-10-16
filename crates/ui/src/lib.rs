@@ -16,6 +16,7 @@ mod spans;
 mod start;
 mod tape;
 mod theme;
+mod timeline;
 mod undo;
 mod viewer;
 mod viewport;

@@ -72,6 +72,17 @@ The slider in B3 is a view control: dragging it, or ←→ with B3 focused, move
 - **After the edit** the slider and the recipe agree and the stage shows the recipe's hour. Undo and redo do the same: the slider follows the recipe whenever the recipe's hour changes, including when the file changes outside the window.
 - **A params-driven hour** (`hour = "${params.…}"`) is refused with the params message and the slider keeps the hour it shows.
 
+## Timeline
+
+A recipe with a `[timeline]` (`docs/recipe.md`) shows a transport bar along the bottom of C1, under the picture. Like the hour slider, it is a view control. The current time is window state: nothing is written to the recipe and there is nothing to save.
+
+- **The bar, left to right:** play or pause (`space`), one frame back (`,`), one frame forward (`.`), **loop**, **Chase cam** (`f`), the scrubber, and the readout: the time in seconds, the frame, the range `0–<frames>` and the timeline's fps. A lit button is on, and each button carries its key.
+- **The scrubber:** a click or a drag on it sets the time and pauses playback. The scene is posed at that time as you drag: every animated node's instance is moved to its track at that time, interpolated between the two frames around it as glTF LINEAR does (translation and scale linear, rotation slerped). No mesh is rebuilt and nothing is uploaded again apart from the moved instances.
+- **Playback** runs at the timeline's fps from the window's own frame clock. It shows whole frames and never runs ahead of real time, so a slow frame skips frames rather than slowing down. It stops on the last frame, or wraps to frame 0 with **loop** on. Space on the last frame starts again from 0. The steps `,` and `.` land on whole frames; from between two frames, `,` goes to the frame before.
+- **Chase cam:** with it on, the viewport looks through the timeline's camera node (`camera.<name>`) at the current time, with its lens's vertical field of view, framed at the timeline's `size` like a recipe camera's render frame. C1's header says `chase cam`. An orbit drag or the wheel leaves it for the free orbit, starting from where the chase camera was. With no camera track it shows the orbit as before.
+- **Edits keep the time.** A rebuild after an edit (a route drag, a field in C2, an outside save) keeps the time, the play state and the chase toggle, and poses the rebuilt scene at that time. A timeline made shorter clamps the time to its new end. Opening another recipe starts at 0, paused.
+- **Tapes and scripts** drive it like any control: `click` and `drag` on the scrubber and the buttons, `key Space`, `key Comma`, `key Period`, `key f`. In a tape the clock is the tape's own fixed step, so the same tape poses the same frames byte for byte.
+
 ## Opening a recipe
 
 Ctrl+O opens the recipe picker over the viewport. Esc closes it, and so does a click on the viewport beside it. In a window with no recipe (the picker's own folder, `manfred gui <folder>`), Esc clears the field while the picker stays. The hint bar lists `ctrl o`, and clicking it opens the picker; the picker's own `enter` and `esc` caps do what those keys do.

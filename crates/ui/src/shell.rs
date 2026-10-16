@@ -25,6 +25,7 @@ use crate::sample;
 use crate::shots::{Phase, Picture, Shots};
 use crate::spans;
 use crate::theme::*;
+use crate::timeline::{Clock, Span};
 use crate::viewport;
 use crate::widgets::{Dotted, Header, KeyCap, Number, Pill, Tabs, Tone};
 use pfx_editor_shell::Pgpu;
@@ -59,6 +60,8 @@ const SEARCH: &str = "\u{f002}";
 const PLAY: &str = "\u{f04b}";
 const PAUSE: &str = "\u{f04c}";
 const STOP: &str = "\u{f04d}";
+
+mod transport;
 
 pub fn status_version() -> String {
     format!("manfred v{VERSION}")
@@ -179,6 +182,9 @@ pub struct Shell {
     gizmo: Gizmo,
     pick: Option<[f32; 2]>,
     spans: crate::spans::Spans,
+    clock: Clock,
+    chase_eye: Option<Eye>,
+    scrubber: Option<Rect>,
 }
 
 impl fmt::Debug for Shell {
@@ -446,6 +452,9 @@ impl Shell {
             gizmo: Gizmo::default(),
             pick: None,
             spans: crate::spans::Spans::default(),
+            clock: Clock::default(),
+            chase_eye: None,
+            scrubber: None,
         }
     }
 
@@ -569,7 +578,46 @@ impl Shell {
         self.size[0].max(1.0) / self.size[1].max(1.0)
     }
 
+    pub fn span(&self) -> Option<Span> {
+        self.document
+            .timeline
+            .filter(|_| self.live() && !self.scene)
+    }
+
+    pub fn time(&self) -> Option<f64> {
+        self.span().map(|_| self.clock.time)
+    }
+
+    pub fn clock(&self) -> &Clock {
+        &self.clock
+    }
+
+    pub fn chasing(&self) -> bool {
+        self.clock.chase && self.span().is_some()
+    }
+
+    pub fn chase_eye(&self) -> Option<Eye> {
+        self.chase_eye
+    }
+
+    pub fn set_chase_eye(&mut self, eye: Option<Eye>) {
+        self.chase_eye = eye;
+    }
+
+    fn chase_view(&self) -> Option<(Eye, Rect)> {
+        let image = self.viewport?;
+        let span = self.span().filter(|_| self.clock.chase)?;
+        let eye = self.chase_eye?;
+        Some((
+            eye,
+            viewport::fit(image.shrink(viewport::MARGIN), span.aspect),
+        ))
+    }
+
     pub fn camera_frame(&self) -> Option<Rect> {
+        if let Some((_, frame)) = self.chase_view() {
+            return Some(frame);
+        }
         let image = self.viewport?;
         self.through()?;
         Some(viewport::fit(
@@ -584,6 +632,9 @@ impl Shell {
 
     pub fn view_eye(&self) -> Option<Eye> {
         let image = self.viewport?;
+        if let Some((eye, frame)) = self.chase_view() {
+            return Some(viewport::widen(&eye, frame, image));
+        }
         if let (Some(camera), Some(frame)) = (self.through(), self.camera_frame()) {
             let eye = Eye::from_camera(camera, f64::from(self.render_aspect()));
             return Some(viewport::widen(&eye, frame, image));
@@ -723,6 +774,7 @@ impl Shell {
             self.hour_set = false;
         }
         self.document = document;
+        self.clock.fit(self.span());
         self.open = self
             .document
             .nodes
@@ -846,6 +898,7 @@ impl Shell {
         self.take_shots(ctx);
         self.keyboard(ctx);
         self.pointer(ctx);
+        self.tick(ctx);
         self.panels.clear();
         let texture = self
             .texture
@@ -1227,6 +1280,9 @@ impl Shell {
                 ctx.memory_mut(|memory| memory.request_focus(search_id()));
             }
             (_, Key::Num0) if self.live() => self.jump(self.camera),
+            (_, Key::Space | Key::Comma | Key::Period | Key::F) if self.span().is_some() => {
+                self.transport_key(key);
+            }
             (Panel::B1, Key::ArrowUp | Key::ArrowDown) => {
                 let objects: Vec<usize> = self
                     .visible()
@@ -1792,7 +1848,14 @@ impl Shell {
                     } else {
                         Sense::hover()
                     };
-                    let (area, response) = ui.allocate_exact_size(ui.available_size(), sense);
+                    let bar = if shell.span().is_some() {
+                        transport::HEIGHT
+                    } else {
+                        0.0
+                    };
+                    let room = ui.available_size() - Vec2::new(0.0, bar);
+                    let (area, response) =
+                        ui.allocate_exact_size(room.max(Vec2::splat(1.0)), sense);
                     ui.painter().rect_filled(area, CornerRadius::ZERO, BG_DEEP);
                     let image = Rect::from_min_max(area.min.round(), area.max.round());
                     if !shell.live() {
@@ -1822,6 +1885,9 @@ impl Shell {
                     }
                     shell.picture(ui, image);
                     shell.shot_overlay(ui, image);
+                    if bar > 0.0 {
+                        shell.transport(ui);
+                    }
                 });
             });
     }
@@ -1898,6 +1964,8 @@ impl Shell {
         self.preparing = None;
         self.gizmo = Gizmo::default();
         self.spans = crate::spans::Spans::default();
+        self.clock = Clock::default();
+        self.chase_eye = None;
         self.picker.close();
         self.calm = false;
         self.first = None;
@@ -1920,6 +1988,7 @@ impl Shell {
             .get(self.camera)
             .map(|(name, _)| name.as_str());
         let mut info = match (camera, self.through().is_some()) {
+            _ if self.chase_view().is_some() => "chase cam".to_string(),
             (Some(name), true) => name.to_string(),
             (Some(name), false) => format!("orbit from {name}"),
             (None, _) => "orbit".to_string(),
@@ -1931,7 +2000,8 @@ impl Shell {
     }
 
     fn steer(&mut self, ui: &Ui, response: &Response, image: Rect) {
-        let (Some(eye), Some(lens)) = (self.eye, self.lens()) else {
+        let chased = self.chase_view().map(|(eye, _)| eye);
+        let (Some(eye), Some(lens)) = (chased.or(self.eye), self.lens()) else {
             return;
         };
         let tall = f64::from(self.free_frame(image).height());
@@ -1983,6 +2053,7 @@ impl Shell {
                 orbit::turn(&grab.eye, moved)
             });
             self.through = false;
+            self.clock.chase = false;
         }
         if response.drag_stopped() {
             if let Some((label, patches)) = self.gizmo.finish() {
@@ -2011,10 +2082,11 @@ impl Shell {
             let options = ui.ctx().options(|options| options.input_options);
             let scroll = ui.input(|input| scrolled(input, &options));
             if scroll != 0.0
-                && let Some(eye) = self.eye
+                && let Some(eye) = chased.or(self.eye)
             {
                 self.eye = Some(orbit::dolly(&eye, f64::from(scroll)));
                 self.through = false;
+                self.clock.chase = false;
             }
         }
     }
@@ -3445,6 +3517,72 @@ heading = 0.0
             "key c\nkey 1\nkey 0\nframe\nscroll 700 400 2\nframe",
         );
         assert!(shell.through().is_none());
+    }
+
+    #[test]
+    fn the_timeline_bar_plays_steps_and_scrubs_and_a_rebuild_keeps_the_time() {
+        let (mut shell, _, _) = live("shell-timeline", SCENE);
+        let span = Span {
+            fps: 10,
+            frames: 20,
+            aspect: 0.5625,
+        };
+        let mut document = shell.document().clone();
+        document.timeline = Some(span);
+        shell.place(document.clone(), &[]);
+        let size = [1586, 992];
+        run(
+            &mut shell,
+            size,
+            "key Period\nkey Period\nkey Period\nkey Comma\nframe",
+        );
+        assert!((shell.time().unwrap() - 0.2).abs() < 1e-9);
+        let bar = shell.scrubber.unwrap();
+        assert!(bar.top() >= shell.viewport().unwrap().bottom());
+        let at = bar.left() + bar.width() * 0.75;
+        run(
+            &mut shell,
+            size,
+            &format!("click {at} {}\nframe", bar.center().y),
+        );
+        assert!((shell.time().unwrap() - 1.5).abs() < 0.02);
+        run(&mut shell, size, "key Space\nframe");
+        assert!(shell.clock().playing);
+        run(&mut shell, size, "key Space\nframe");
+        assert!(!shell.clock().playing);
+        let kept = shell.time().unwrap();
+        shell.place(document.clone(), &[]);
+        assert_eq!(shell.time(), Some(kept));
+        document.timeline = Some(Span { frames: 10, ..span });
+        shell.place(document, &[]);
+        assert_eq!(shell.time(), Some(1.0));
+        let orbit = shell.view_eye().unwrap();
+        let chase = Eye {
+            position: [0.0, 1.0, 5.0],
+            target: [0.0, 1.0, 4.0],
+            ..orbit
+        };
+        shell.set_chase_eye(Some(chase));
+        run(&mut shell, size, "key f\nframe");
+        assert!(shell.chasing());
+        assert_eq!(shell.view_info(), "chase cam");
+        assert_eq!(shell.view_eye().unwrap().position, chase.position);
+        let frame = shell.camera_frame().unwrap();
+        assert!((frame.width() / frame.height() - 0.5625).abs() < 0.01);
+        let middle = shell.viewport().unwrap().left_top() + Vec2::new(80.0, 80.0);
+        run(
+            &mut shell,
+            size,
+            &format!(
+                "drag {} {} {} {}\nframe",
+                middle.x,
+                middle.y,
+                middle.x + 40.0,
+                middle.y
+            ),
+        );
+        assert!(!shell.clock().chase);
+        assert_ne!(shell.view_eye().unwrap().position, chase.position);
     }
 
     #[test]

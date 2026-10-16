@@ -42,6 +42,7 @@ pub struct Document {
     pub aspect: f32,
     pub patch: String,
     pub source: u64,
+    pub timeline: Option<crate::timeline::Span>,
 }
 
 fn transform(index: usize) -> ([f32; 3], [f32; 3], [f32; 3]) {
@@ -272,6 +273,7 @@ impl Document {
             aspect: crate::viewport::ASPECT,
             patch: sample::LAST_PATCH.to_string(),
             source: 0,
+            timeline: None,
         }
     }
 
@@ -291,6 +293,7 @@ impl Document {
             aspect: crate::viewport::ASPECT,
             patch: "none".to_string(),
             source: 0,
+            timeline: None,
         }
     }
 
@@ -349,6 +352,7 @@ impl Document {
             aspect,
             patch: "none".to_string(),
             source: crate::follow::hash(&recipe.source),
+            timeline: crate::timeline::Span::of(recipe),
         }
     }
 

@@ -13,6 +13,7 @@ use crate::document::Document;
 use crate::follow::{Follow, Mode};
 use crate::gizmo::{Matrix, Poses};
 use crate::pick::{self, Lens, Words};
+use crate::timeline;
 use crate::watched::{self, Event, Live, Watched};
 use pfx_editor_shell::paint::clear;
 use pfx_editor_shell::worker::{Poll, Wake, Worker};
@@ -712,6 +713,7 @@ impl Viewer {
             ((rect.height() * pixels_per_point).round() as u32).max(1),
         ];
         self.stage(Some(gpu), size);
+        let posed = self.pose(shell);
         let picking = self.point(shell);
         let live = self.live();
         let mut settle = false;
@@ -751,7 +753,7 @@ impl Viewer {
                     self.hour = hour;
                 }
                 if let Drawing::Stage(stage) = drawing {
-                    stage.look_through(shell.shown_camera());
+                    stage.look_through(shell.shown_camera().filter(|_| !shell.chasing()));
                 }
                 let view = &self.target.as_ref().ok_or("no viewport texture")?.draw;
                 drawing.render(gpu, &eye, view, live)
@@ -768,6 +770,7 @@ impl Viewer {
         self.sync(shell);
         settle
             || picking
+            || posed
             || before
                 != (
                     self.texture.filter(|_| self.drawn),
@@ -775,6 +778,27 @@ impl Viewer {
                     self.preparing(),
                     self.shown,
                 )
+    }
+
+    fn pose(&mut self, shell: &mut Shell) -> bool {
+        let at = shell.span().zip(shell.time());
+        let built = self.follow.built().filter(|_| self.scene.is_none());
+        let eye = built
+            .zip(at)
+            .and_then(|(built, (span, time))| timeline::chase(built, span.fps, time));
+        let mut moved = shell.chasing() && eye != shell.chase_eye();
+        shell.set_chase_eye(eye);
+        if let Some(Drawing::Stage(stage)) = self.drawing.as_mut() {
+            let posed = match (built, at) {
+                (Some(built), Some((span, time))) => timeline::poses(built, span.fps, time),
+                _ => Default::default(),
+            };
+            if stage.set_poses(posed) {
+                self.previewed = None;
+                moved = true;
+            }
+        }
+        moved
     }
 
     fn point(&mut self, shell: &mut Shell) -> bool {

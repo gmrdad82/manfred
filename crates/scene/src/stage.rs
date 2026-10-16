@@ -210,6 +210,7 @@ pub struct Stage {
     pacer: Pacer,
     faced: Vec<Instance>,
     through: Option<Shot>,
+    posed: BTreeMap<String, Matrix>,
 }
 
 impl Stage {
@@ -280,6 +281,7 @@ impl Stage {
             pacer: Pacer::default(),
             faced: Vec::new(),
             through: None,
+            posed: BTreeMap::new(),
         };
         stage.apply(prepared)?;
         Ok(stage)
@@ -328,6 +330,13 @@ impl Stage {
             std::mem::take(&mut self.glassed),
         )?;
         self.glass = glass_surfaces(&pieces, &slots, &materials, &glass, &clips, &glassed);
+        for (surface, glassed) in self.glass.iter_mut().zip(&glassed) {
+            surface.model = self
+                .posed
+                .get(&glassed.mark.key.name)
+                .copied()
+                .unwrap_or(IDENTITY);
+        }
         self.glassed = glassed;
         let mut uploaded = Vec::with_capacity(opaque.len());
         for ((&index, mark), action) in opaque.iter().zip(opaque_marks).zip(&plan.actions) {
@@ -360,6 +369,7 @@ impl Stage {
         }
         let dress: Vec<Dress> = opaque.iter().map(|&index| dress[index]).collect();
         self.instances = instances(&pieces, &slots, &dress, &uploaded, &opaque);
+        self.restore_models(&uploaded);
         self.atlas = show(&self.renderer, &mut self.pacer, self.atlas, atlas)?;
         surfaces(&self.renderer, &dress)?;
         self.dress = dress;
@@ -436,29 +446,62 @@ impl Stage {
             )));
         }
         let family = family(&self.parents, object);
-        let posed = |id: u32| {
+        let posed = |id: u32, base: Matrix| {
             let owner = (id as usize).saturating_sub(1);
             if family.get(owner).copied().unwrap_or(false) {
-                motion
+                multiply(motion, base)
             } else {
-                IDENTITY
+                base
             }
         };
-        for instance in &mut self.instances {
-            instance.model = posed(instance.id);
+        for (instance, uploaded) in self.instances.iter_mut().zip(&self.uploaded) {
+            let base = self
+                .posed
+                .get(&uploaded.mark.key.name)
+                .copied()
+                .unwrap_or(IDENTITY);
+            instance.model = posed(instance.id, base);
         }
-        for surface in &mut self.glass {
-            surface.model = posed(surface.id);
+        for (surface, glassed) in self.glass.iter_mut().zip(&self.glassed) {
+            let base = self
+                .posed
+                .get(&glassed.mark.key.name)
+                .copied()
+                .unwrap_or(IDENTITY);
+            surface.model = posed(surface.id, base);
         }
         Ok(())
     }
 
     pub fn restore(&mut self) {
-        for instance in &mut self.instances {
-            instance.model = IDENTITY;
+        let uploaded = std::mem::take(&mut self.uploaded);
+        self.restore_models(&uploaded);
+        self.uploaded = uploaded;
+        for (surface, glassed) in self.glass.iter_mut().zip(&self.glassed) {
+            surface.model = self
+                .posed
+                .get(&glassed.mark.key.name)
+                .copied()
+                .unwrap_or(IDENTITY);
         }
-        for surface in &mut self.glass {
-            surface.model = IDENTITY;
+    }
+
+    pub fn set_poses(&mut self, posed: BTreeMap<String, Matrix>) -> bool {
+        if posed == self.posed {
+            return false;
+        }
+        self.posed = posed;
+        self.restore();
+        true
+    }
+
+    fn restore_models(&mut self, uploaded: &[Uploaded]) {
+        for (instance, uploaded) in self.instances.iter_mut().zip(uploaded) {
+            instance.model = self
+                .posed
+                .get(&uploaded.mark.key.name)
+                .copied()
+                .unwrap_or(IDENTITY);
         }
     }
 

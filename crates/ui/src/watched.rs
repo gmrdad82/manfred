@@ -278,6 +278,7 @@ pub fn document(scene: &Scene, path: &str) -> Document {
         aspect: crate::viewport::ASPECT,
         patch: "none".to_string(),
         source: 0,
+        timeline: None,
     }
 }
 
