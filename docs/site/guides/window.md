@@ -23,9 +23,9 @@ Ctrl+O opens the picker over the viewport at any time; Esc closes it. The window
 
 Drag in the viewport to orbit, Shift+drag or middle-drag to pan, and the wheel to dolly. `0` looks through the chosen camera again.
 
-## Wireframe
+## Clay and wireframe
 
-`z` switches the viewport between shaded and wireframe, as do the `wire` and `x-ray` buttons at its bottom right: light edges over a dark ground, the selection in the accent colour and the recipe's routes on top. The flat diagonals of a face are left out and hidden edges are dimmed; Shift+Z shows them brighter, as an x-ray. It works on a recipe and on an opened `.scene.toml`, and the window remembers both switches the next time it opens. `manfred gui --wireframe` opens in wireframe.
+`z` cycles the viewport through shaded, clay and wireframe, and the `clay`, `wire` and `x-ray` buttons at its bottom right switch each one. Clay draws every surface a matte grey under a soft key light and sky, without textures, emission or effects, the selection outlined in the accent colour; `manfred gui --clay` opens in clay. Wireframe draws light edges over a dark ground, the selection in the accent colour and the recipe's routes on top. The flat diagonals of a face are left out and hidden edges are dimmed; Shift+Z shows them brighter, as an x-ray. It works on a recipe and on an opened `.scene.toml`, and the window remembers the mode and the x-ray the next time it opens. `manfred gui --wireframe` opens in wireframe.
 
 ## Pick and move a part
 

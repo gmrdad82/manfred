@@ -333,7 +333,7 @@ impl Shell {
     }
 
     pub(super) fn overlays_on(&self) -> bool {
-        self.wire.on()
+        self.wire.on() || self.wire.clay > 0.0
     }
 
     pub(super) fn overlays(&self, painter: &Painter, eye: &Eye, image: Rect) {

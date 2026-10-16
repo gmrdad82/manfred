@@ -103,6 +103,10 @@ impl<'a> Manfred<'a> {
         Ok(())
     }
 
+    pub fn set_clay(&mut self, amount: f32) {
+        self.shell.set_clay(amount);
+    }
+
     pub fn building(&self) -> bool {
         self.viewer
             .get()

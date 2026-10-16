@@ -3,7 +3,13 @@ use super::*;
 impl Shell {
     pub fn bare(mut self) -> Shell {
         self.bare = true;
+        self.strip = false;
         self.focus = Panel::C1;
+        self
+    }
+
+    pub fn strip(mut self, on: bool) -> Shell {
+        self.strip = on;
         self
     }
 
@@ -20,7 +26,12 @@ impl Shell {
                 } else {
                     Sense::hover()
                 };
-                let room = ui.available_size().max(Vec2::splat(1.0));
+                let bar = if self.strip && self.span().is_some() {
+                    transport::HEIGHT
+                } else {
+                    0.0
+                };
+                let room = (ui.available_size() - Vec2::new(0.0, bar)).max(Vec2::splat(1.0));
                 let (area, response) = ui.allocate_exact_size(room, sense);
                 let image = Rect::from_min_max(area.min.round(), area.max.round());
                 self.viewport = Some(image);
@@ -36,6 +47,17 @@ impl Shell {
                 }
                 self.steer(ui, &response, image);
                 self.picture(ui, image);
+                if bar > 0.0 {
+                    ui.painter().rect_filled(
+                        Rect::from_min_max(
+                            Pos2::new(image.left(), image.bottom()),
+                            ui.max_rect().max,
+                        ),
+                        CornerRadius::ZERO,
+                        BG_BASE,
+                    );
+                    self.transport(ui);
+                }
             });
     }
 }

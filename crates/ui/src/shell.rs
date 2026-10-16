@@ -509,9 +509,26 @@ impl Shell {
         self.wire.xray = on;
     }
 
+    pub fn set_clay(&mut self, amount: f32) {
+        self.wire.clay = amount.clamp(0.0, 1.0);
+    }
+
     fn toggle_wireframe(&mut self) {
         let amount = if self.wire.on() { 0.0 } else { 1.0 };
         self.set_wireframe(amount);
+        let _ = self.book.keep_view(self.wire);
+    }
+
+    fn toggle_clay(&mut self) {
+        let amount = if self.wire.clay > 0.0 { 0.0 } else { 1.0 };
+        self.set_clay(amount);
+        let _ = self.book.keep_view(self.wire);
+    }
+
+    fn cycle_shading(&mut self) {
+        let (clay, wire) = crate::clay::Shading::of(self.wire).next().amounts();
+        self.set_clay(clay);
+        self.set_wireframe(wire);
         let _ = self.book.keep_view(self.wire);
     }
 
@@ -1354,7 +1371,7 @@ impl Shell {
             (_, Key::Num9) if self.live() => self.snap(crate::tape::View::Back),
             (_, Key::Num5) if self.live() => self.snap(crate::tape::View::Orbit),
             (_, Key::Home) if self.live() => self.fit_selection(),
-            (_, Key::Z) if self.live() => self.toggle_wireframe(),
+            (_, Key::Z) if self.live() => self.cycle_shading(),
             (_, Key::K) if self.live() && self.has_curves() => self.toggle_curves(),
             (_, Key::Space | Key::Comma | Key::Period | Key::F) if self.span().is_some() => {
                 self.transport_key(key);
@@ -1700,7 +1717,7 @@ impl Shell {
                 ("drag", "orbit"),
                 ("⇧ drag", "pan"),
                 ("wheel", "dolly"),
-                ("z", "wire"),
+                ("z", "shade"),
                 ("0", "to camera"),
             ],
             _ => Shell::hints_for(panel, false),
@@ -1729,7 +1746,7 @@ impl Shell {
                     ("p", "routes"),
                     ("ctrl", "snap"),
                     ("esc", "cancel"),
-                    ("z", "wire"),
+                    ("z", "shade"),
                     ("7 1 3 9 5", "views"),
                     ("home", "frame"),
                     ("0", "to camera"),
@@ -2189,6 +2206,8 @@ impl Shell {
             } else {
                 " · wireframe"
             });
+        } else if self.wire.clay > 0.0 {
+            info.push_str(" · clay");
         }
         info
     }
@@ -3119,7 +3138,10 @@ impl Shell {
                     .stroke(Stroke::new(STROKE, if on { ACCENT } else { LINE_BORDER }))
                     .corner_radius(CornerRadius::same(RADIUS)),
             )
-            .on_hover_text(if text == "wire" { "z" } else { "shift+z" })
+            .on_hover_text(match text {
+                "x-ray" => "shift+z",
+                _ => "z cycles shaded, clay and wire",
+            })
             .clicked()
         };
         if toggle(ui, "wire", self.wire.on()) {
@@ -3127,6 +3149,9 @@ impl Shell {
         }
         if self.wire.on() && toggle(ui, "x-ray", self.wire.xray) {
             self.toggle_xray();
+        }
+        if toggle(ui, "clay", self.wire.clay > 0.0) {
+            self.toggle_clay();
         }
     }
 

@@ -359,6 +359,9 @@ impl Book {
                     look.amount = crate::wire::amount(value).unwrap_or(0.0);
                 }
                 Some(("xray", value)) => look.xray = value == "on",
+                Some(("clay", value)) => {
+                    look.clay = crate::wire::amount(value).unwrap_or(0.0);
+                }
                 _ => {}
             }
         }
@@ -371,9 +374,10 @@ impl Book {
         };
         let switch = |on: bool| if on { "on" } else { "off" };
         let text = format!(
-            "wireframe = {}\nxray = {}\n",
+            "wireframe = {}\nxray = {}\nclay = {}\n",
             switch(look.on()),
-            switch(look.xray)
+            switch(look.xray),
+            switch(look.clay > 0.0)
         );
         write_atomic(&path, text.as_bytes())
     }

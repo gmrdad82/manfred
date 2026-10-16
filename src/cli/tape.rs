@@ -412,7 +412,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
     std::env::set_current_dir(&work).map_err(|error| named(&work, &error))?;
     let mut shell = shell.without_recent().without_showcase();
     if args.bare {
-        shell = shell.bare();
+        shell = shell.bare().strip(args.strip);
     }
     shell.set_registry(registry.clone());
     super::gui::shade(args, &mut shell);
@@ -490,6 +490,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         "pixels_per_point": layout.pixels_per_point(),
         "drawn": layout.drawn(),
         "bare": args.bare,
+        "strip": args.strip,
     });
     let target = if args.start {
         Some("start".to_string())

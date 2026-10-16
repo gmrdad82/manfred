@@ -124,6 +124,10 @@ enum Beat {
         to: f64,
         seconds: f32,
     },
+    Shade {
+        to: crate::clay::Shading,
+        seconds: f32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -309,6 +313,40 @@ const DIRECTING: [&str; 10] = [
     "stage", "view", "camera", "select", "orbit", "dolly", "frame", "reveal", "region", "strip",
 ];
 
+fn clay(number: usize, command: &str, rest: &str) -> Result<Beat, Error> {
+    use crate::clay::Shading;
+    let words: Vec<&str> = rest.split_whitespace().collect();
+    let refused = |why: String| Error(format!("line {number}: {why}"));
+    let shade = |mode: &str, seconds: f32| {
+        Shading::parse(mode)
+            .map(|to| Beat::Shade { to, seconds })
+            .map_err(refused)
+    };
+    match (command, words.as_slice()) {
+        ("clay", ["on"]) => Ok(Beat::Shade {
+            to: Shading::Clay,
+            seconds: 0.0,
+        }),
+        ("clay", ["off"]) => Ok(Beat::Shade {
+            to: Shading::Shaded,
+            seconds: 0.0,
+        }),
+        ("clay", _) => Err(refused("clay wants on or off".into())),
+        (_, [mode]) => shade(mode, 0.0),
+        (_, [mode, time]) => shade(
+            mode,
+            seconds(number, time).map_err(|_| {
+                refused(format!(
+                    "a shade fade wants seconds, from 0 to {LONGEST_WAIT}"
+                ))
+            })?,
+        ),
+        _ => Err(refused(
+            "shade wants shaded, clay or wireframe, and seconds to fade over".into(),
+        )),
+    }
+}
+
 impl Tape {
     pub fn parse(text: &str) -> Result<Tape, Error> {
         let mut script = String::new();
@@ -345,9 +383,14 @@ impl Tape {
                 script.push('\n');
                 continue;
             }
+            if command == "clay" || command == "shade" {
+                order.push((number, Some(clay(number, command, rest)?)));
+                script.push('\n');
+                continue;
+            }
             if !VERBS.contains(&command) {
                 return Err(Error(format!(
-                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe, curve, stage, view, camera, select, orbit, dolly, reveal, region and strip"
+                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe, curve, stage, view, camera, select, orbit, dolly, reveal, region, strip, clay and shade"
                 )));
             }
             order.push((number, None));
@@ -442,6 +485,7 @@ struct Frame {
     xray: Option<bool>,
     curve: Option<Curve>,
     acts: Vec<Act>,
+    clay: Option<f32>,
 }
 
 fn modifiers_of(mods: Mods) -> Modifiers {
@@ -477,6 +521,7 @@ struct Plan {
     held: Modifiers,
     step: Option<usize>,
     wire: f32,
+    clay: f32,
 }
 
 impl Plan {
@@ -498,6 +543,7 @@ impl Plan {
             xray: None,
             curve: None,
             acts: Vec::new(),
+            clay: None,
         });
     }
 
@@ -537,6 +583,14 @@ impl Plan {
         self.frame(Vec::new());
         if let Some(last) = self.frames.last_mut() {
             last.curve = Some(curve.clone());
+        }
+    }
+
+    fn mould(&mut self, clay: f32, wire: f32) {
+        self.frame(Vec::new());
+        if let Some(last) = self.frames.last_mut() {
+            last.clay = Some(clay);
+            last.wire = Some(wire);
         }
     }
 
@@ -660,10 +714,15 @@ impl Plan {
 }
 
 fn plan(tape: &Tape, fps: u32, points: [f32; 2]) -> Result<Vec<Frame>, Error> {
-    plan_from(tape, fps, points, 0.0)
+    plan_from(tape, fps, points, crate::wire::Look::default())
 }
 
-fn plan_from(tape: &Tape, fps: u32, points: [f32; 2], wire: f32) -> Result<Vec<Frame>, Error> {
+fn plan_from(
+    tape: &Tape,
+    fps: u32,
+    points: [f32; 2],
+    start: crate::wire::Look,
+) -> Result<Vec<Frame>, Error> {
     if fps == 0 {
         return Err(Error("a clip has at least one frame a second".into()));
     }
@@ -675,7 +734,8 @@ fn plan_from(tape: &Tape, fps: u32, points: [f32; 2], wire: f32) -> Result<Vec<F
         down: None,
         held: Modifiers::NONE,
         step: None,
-        wire,
+        wire: start.amount,
+        clay: start.clay,
     };
     for (index, beat) in tape.beats.iter().enumerate() {
         plan.step = Some(index);
@@ -725,6 +785,13 @@ fn plan_from(tape: &Tape, fps: u32, points: [f32; 2], wire: f32) -> Result<Vec<F
                     now,
                 },
             ),
+            Beat::Shade { to, seconds } => {
+                let frames = plan.count(*seconds).min(MAX_FRAMES + 1);
+                for (clay, wire) in crate::clay::fade(plan.clay, plan.wire, *to, frames) {
+                    plan.mould(clay, wire);
+                }
+                (plan.clay, plan.wire) = to.amounts();
+            }
         }
         if plan.full() {
             return Err(Error(format!(
@@ -842,6 +909,9 @@ impl Player<'_, '_> {
                     None => why,
                 });
             }
+        }
+        if let Some(amount) = frame.clay {
+            app.set_clay(amount);
         }
         let mut output = self.ctx.run_ui(input, |ui| {
             app.ui(ui);
@@ -967,7 +1037,7 @@ pub fn play(
     turns.turn();
     check(layout.size)?;
     check(layout.drawn())?;
-    let frames = plan_from(tape, fps, layout.points(), app.wireframe().amount)?;
+    let frames = plan_from(tape, fps, layout.points(), app.wireframe())?;
     let theme = app.theme();
     let gpu = block_on(Gpu::headless()).map_err(Error)?;
     turns.turn();
@@ -1152,7 +1222,10 @@ mod tests {
             &Tape::parse("wireframe 1 1\n").unwrap(),
             60,
             [200.0, 100.0],
-            0.5,
+            crate::wire::Look {
+                amount: 0.5,
+                ..crate::wire::Look::default()
+            },
         )
         .unwrap();
         assert_eq!(faded.len(), 61);
@@ -1287,6 +1360,74 @@ mod tests {
         assert!(Tape::parse("curve chase lag one 1 2\n").is_err());
         assert!(Tape::parse("curve chase lag 0 -1 2\n").is_err());
         assert!(Tape::parse("curve chase lag 0 1\n").is_err());
+    }
+
+    #[test]
+    fn clay_and_shade_steps_fade_the_clay_and_the_wireframe_together() {
+        use crate::clay::Shading;
+        let tape = Tape::parse("clay on\nshade wireframe 0.1\nshade shaded\nclay off\n").unwrap();
+        assert_eq!(
+            tape.beats,
+            vec![
+                Beat::Shade {
+                    to: Shading::Clay,
+                    seconds: 0.0
+                },
+                Beat::Shade {
+                    to: Shading::Wireframe,
+                    seconds: 0.1
+                },
+                Beat::Shade {
+                    to: Shading::Shaded,
+                    seconds: 0.0
+                },
+                Beat::Shade {
+                    to: Shading::Shaded,
+                    seconds: 0.0
+                },
+            ]
+        );
+        let frames = plan(&tape, 30, [200.0, 100.0]).unwrap();
+        let shades: Vec<Option<(f32, f32)>> = frames
+            .iter()
+            .map(|frame| frame.clay.zip(frame.wire))
+            .collect();
+        assert_eq!(
+            shades,
+            [
+                None,
+                Some((1.0, 0.0)),
+                Some((1.0, 1.0 / 3.0)),
+                Some((1.0, 2.0 / 3.0)),
+                Some((0.0, 1.0)),
+                Some((0.0, 0.0)),
+                Some((0.0, 0.0)),
+            ]
+        );
+        let faded = plan_from(
+            &Tape::parse("shade clay 1\n").unwrap(),
+            60,
+            [200.0, 100.0],
+            crate::wire::Look::default(),
+        )
+        .unwrap();
+        assert_eq!(faded.len(), 61);
+        assert_eq!(faded[30].clay, Some(0.5));
+        assert_eq!(faded[60].clay, Some(1.0));
+        assert_eq!(
+            Tape::parse("shade solid\n").unwrap_err().0,
+            "line 1: solid is not a shading mode: shaded, clay or wireframe"
+        );
+        assert_eq!(
+            Tape::parse("frame\nclay maybe\n").unwrap_err().0,
+            "line 2: clay wants on or off"
+        );
+        assert!(
+            Tape::parse("shade clay forever\n")
+                .unwrap_err()
+                .0
+                .starts_with("line 1: a shade fade wants seconds")
+        );
     }
 
     #[test]

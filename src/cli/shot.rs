@@ -103,7 +103,7 @@ pub fn run(args: &Args, registry: &Registry) -> ExitCode {
                 }
                 .without_recent();
                 if options.bare {
-                    shell = shell.bare();
+                    shell = shell.bare().strip(args.strip);
                 }
                 shade(&mut shell);
                 let size = options.size.unwrap_or(SIZE);

@@ -75,6 +75,7 @@ type Quick<K, V> = HashMap<K, V, BuildHasherDefault<Fx>>;
 pub struct Look {
     pub amount: f32,
     pub xray: bool,
+    pub clay: f32,
 }
 
 impl Default for Look {
@@ -82,6 +83,7 @@ impl Default for Look {
         Look {
             amount: 0.0,
             xray: false,
+            clay: 0.0,
         }
     }
 }
@@ -906,7 +908,7 @@ mod tests {
                 &target,
                 Look {
                     amount: 1.0,
-                    xray: false,
+                    ..Look::default()
                 },
                 Some(wgpu::RenderPassTimestampWrites {
                     query_set: &set,

@@ -166,6 +166,7 @@ fn target(gpu: &Gpu, size: [u32; 2], format: wgpu::TextureFormat) -> Target {
 fn outline(
     gpu: &Gpu,
     wire: &mut crate::wire::Wire,
+    clay: &mut crate::clay::Clay,
     drawing: &Drawing,
     target: &Target,
     scene: Option<(&Watched, &(u64, pfx_load::scene::Draws))>,
@@ -174,7 +175,7 @@ fn outline(
     scale: f32,
 ) -> Result<(), String> {
     let look = shell.wireframe();
-    if !look.on() {
+    if !look.on() && look.clay <= 0.0 {
         return Ok(());
     }
     let selection = shell.selection();
@@ -225,6 +226,22 @@ fn outline(
         }
         Drawing::Fake(_) => return Ok(()),
     };
+    clay.draw(
+        gpu,
+        &crate::clay::Scene {
+            key,
+            outlines: &outlines,
+            selected: &selected,
+        },
+        &crate::clay::Target {
+            output: &target.draw,
+            format: target.format,
+            size: target.size,
+            camera,
+            scale,
+        },
+        look,
+    )?;
     wire.draw(
         gpu,
         &crate::wire::Scene {
@@ -292,6 +309,7 @@ pub struct Viewer {
     seen: u64,
     steady: bool,
     wire: crate::wire::Wire,
+    clay: crate::clay::Clay,
     drawn_scene: Option<(u64, pfx_load::scene::Draws)>,
 }
 
@@ -331,6 +349,7 @@ impl Viewer {
             seen: 0,
             steady: false,
             wire: crate::wire::Wire::default(),
+            clay: crate::clay::Clay::default(),
             drawn_scene: None,
         }
     }
@@ -905,10 +924,12 @@ impl Viewer {
             scene,
             follow,
             wire,
+            clay,
             drawn_scene,
             ..
         } = self;
-        if let Some(watched) = scene.as_ref().filter(|_| shell.wireframe().on())
+        let look = shell.wireframe();
+        if let Some(watched) = scene.as_ref().filter(|_| look.on() || look.clay > 0.0)
             && let Some(found) = watched.scene()
             && drawn_scene
                 .as_ref()
@@ -920,6 +941,7 @@ impl Viewer {
             (Some(drawing), Some(target)) => outline(
                 gpu,
                 wire,
+                clay,
                 drawing,
                 target,
                 scene.as_ref().zip(drawn_scene.as_ref()),

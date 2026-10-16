@@ -108,6 +108,12 @@ pub(super) struct Args {
     pub(super) bare: bool,
     #[arg(
         long,
+        requires = "bare",
+        help = "With --bare, keep the timeline bar under the viewport when the scene has a timeline; a tape's points stay the viewport's, the bar below them"
+    )]
+    pub(super) strip: bool,
+    #[arg(
+        long,
         value_name = "WxH",
         requires = "offscreen",
         value_parser = size,
@@ -145,9 +151,14 @@ pub(super) struct Args {
     pub(super) start: bool,
     #[arg(
         long,
-        help = "Draw the viewport as a wireframe: light edges over a dark ground, hidden edges dimmed (z in the window)"
+        help = "Draw the viewport as a wireframe: light edges over a dark ground, hidden edges dimmed (z cycles shaded, clay and wireframe in the window)"
     )]
     pub(super) wireframe: bool,
+    #[arg(
+        long,
+        help = "Draw the viewport in clay: every surface a matte grey, the selection outlined in the accent colour (z cycles shaded, clay and wireframe in the window)"
+    )]
+    pub(super) clay: bool,
     #[arg(
         long,
         value_name = "amount",
@@ -172,6 +183,9 @@ fn blend(text: &str) -> Result<f32, String> {
 }
 
 pub(super) fn shade(args: &Args, shell: &mut Shell) {
+    if args.clay {
+        shell.set_clay(1.0);
+    }
     if args.wireframe {
         shell.set_wireframe(args.blend.unwrap_or(1.0));
         shell.set_xray(args.xray);

@@ -228,10 +228,11 @@ manfred gui [<recipe>|<folder>]                              the window; without
 manfred gui <recipe> [--stage N|name] [--only <glob>[,<glob>]]
                                                           the window on stages 1 to N, or only those objects or pieces; with --shot or --clip too
 manfred gui [<recipe>|<folder>] --wireframe [--blend 0..1] [--xray]
-                                                          the viewport as a wireframe (z in the window), part way from shaded with --blend; with --shot or --clip too
-manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--fake] [--fixture <name>] [--start] [--bare]
-                                                          one frame of the window, offscreen; --bare, the viewport alone
-manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> [--size WxH] [--fps 30|60|120] [--poster first|last|<seconds>] [--start] [--bare]
+                                                          the viewport as a wireframe (z cycles shaded, clay and wireframe in the window), part way from shaded with --blend; with --shot or --clip too
+manfred gui [<recipe>|<folder>] --clay                       the viewport in clay: matte grey surfaces, the selection outlined in the accent colour; with --shot or --clip too
+manfred gui [<recipe>|<folder>] --shot <png> [--size WxH] [--input <script>] [--fake] [--fixture <name>] [--start] [--bare [--strip]]
+                                                          one frame of the window, offscreen; --bare, the viewport alone; --strip keeps the timeline bar under it
+manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> [--size WxH] [--fps 30|60|120] [--poster first|last|<seconds>] [--start] [--bare [--strip]]
                                                           the window playing a tape, offscreen: an H.264 master encoded by pcod, its poster and a manifest
 manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> --frames [--scale F] [--framed [--window WxH] | --bare] [--json]
                                                           the same tape as PNG frames, laid out at a UI scale, framed in a larger frame or the viewport alone
