@@ -1608,6 +1608,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "manf"
+version = "0.1.0"
+source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.5.0#76eabe11aa659056c36fc03d9573617d3e7488c4"
+dependencies = [
+ "miniz_oxide 0.9.1",
+]
+
+[[package]]
 name = "manfred"
 version = "1.3.0"
 dependencies = [
@@ -1651,7 +1659,7 @@ dependencies = [
  "pfx-load",
  "pfx-materials",
  "pfx-post",
- "pfx-scene",
+ "pfx-scene 1.5.0",
  "pfx-trace",
  "png",
  "serde_json",
@@ -1706,7 +1714,7 @@ dependencies = [
  "manfred-mesh",
  "manfred-motion",
  "pfx-materials",
- "pfx-scene",
+ "pfx-scene 1.5.0",
  "serde",
  "serde_json",
  "toml_edit",
@@ -1793,7 +1801,7 @@ dependencies = [
  "pfx-live",
  "pfx-load",
  "pfx-materials",
- "pfx-scene",
+ "pfx-scene 1.5.0",
  "png",
  "serde_json",
  "toml_edit",
@@ -2640,7 +2648,7 @@ dependencies = [
  "pfx-core",
  "pfx-materials",
  "pfx-post",
- "pfx-scene",
+ "pfx-scene 1.2.0",
  "pfx-text",
  "png",
  "serde",
@@ -2691,6 +2699,17 @@ name = "pfx-scene"
 version = "1.2.0"
 source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.2.0#f15524a7fbfe725aef13181526968aaa3310bfcb"
 dependencies = [
+ "serde",
+ "toml 1.1.6+spec-1.1.0",
+ "toml_edit",
+]
+
+[[package]]
+name = "pfx-scene"
+version = "1.5.0"
+source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.5.0#76eabe11aa659056c36fc03d9573617d3e7488c4"
+dependencies = [
+ "manf",
  "serde",
  "toml 1.1.6+spec-1.1.0",
  "toml_edit",
