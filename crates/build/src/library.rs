@@ -548,6 +548,19 @@ fn animate(glb: &[u8], tree: &Tree, offset: usize) -> Result<Vec<u8>, String> {
     while !bin.len().is_multiple_of(4) {
         bin.push(0);
     }
+    let targets: BTreeSet<usize> = tree
+        .clips
+        .iter()
+        .flat_map(|clip| &clip.channels)
+        .map(|channel| channel.node + offset)
+        .collect();
+    if let Some(nodes) = json.get_mut("nodes").and_then(Value::as_array_mut) {
+        for index in targets {
+            if let Some(node) = nodes.get_mut(index).and_then(Value::as_object_mut) {
+                trs(node);
+            }
+        }
+    }
     let root = json.as_object_mut().ok_or("the glTF is not an object")?;
     root.insert("animations".into(), Value::Array(animations));
     let buffers = root.entry("buffers").or_insert_with(|| json!([{}]));
@@ -555,6 +568,30 @@ fn animate(glb: &[u8], tree: &Tree, offset: usize) -> Result<Vec<u8>, String> {
         first["byteLength"] = json!(bin.len());
     }
     Ok(join_glb(&json, &bin))
+}
+
+fn trs(node: &mut Map<String, Value>) {
+    let Some(cols) = node
+        .get("matrix")
+        .and_then(Value::as_array)
+        .and_then(|a| a.iter().map(Value::as_f64).collect::<Option<Vec<f64>>>())
+        .and_then(|v| <[f64; 16]>::try_from(v).ok())
+    else {
+        return;
+    };
+    node.remove("matrix");
+    let (scale, rotation, translation) =
+        DMat4::from_cols_array(&cols).to_scale_rotation_translation();
+    let short = |v: &[f64]| json!(v.iter().map(|x| *x as f32).collect::<Vec<f32>>());
+    if translation != DVec3::ZERO {
+        node.insert("translation".into(), short(&translation.to_array()));
+    }
+    if rotation != DQuat::IDENTITY {
+        node.insert("rotation".into(), short(&rotation.normalize().to_array()));
+    }
+    if scale != DVec3::ONE {
+        node.insert("scale".into(), short(&scale.to_array()));
+    }
 }
 
 pub fn split_glb(bytes: &[u8]) -> Result<(Value, Vec<u8>), String> {
