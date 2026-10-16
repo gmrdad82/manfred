@@ -7,7 +7,7 @@ use crate::patch::{apply_all, save};
 use crate::read::load;
 use crate::stage::selects;
 use crate::validate::validate;
-use crate::{Error, Key, Kind, Loaded, Patch, Problem, Recipe};
+use crate::{ConstraintKind, Error, Key, Kind, Loaded, Patch, Problem, Recipe};
 
 pub const TABLES: [(&str, &str); 10] = [
     ("object", "name"),
@@ -338,6 +338,25 @@ pub fn referrers(r: &Recipe, table: &str, name: &str) -> Vec<String> {
             }
         }
         _ => {}
+    }
+    let target = match table {
+        "object" => Some(name.to_string()),
+        "camera" => Some(format!("camera.{name}")),
+        "light" => Some(format!("light.{name}")),
+        _ => None,
+    };
+    for c in r.constraints.iter().flat_map(|c| &c.list) {
+        if let (Some(target), Some((key, at))) = (&target, c.kind.target())
+            && (at == target || (table == "object" && names_node(at, name)))
+        {
+            by.push(format!("{}.{key}", c.path));
+        }
+        if table == "route"
+            && let ConstraintKind::FollowPath(f) = &c.kind
+            && f.route == name
+        {
+            by.push(format!("{}.route", c.path));
+        }
     }
     by
 }
