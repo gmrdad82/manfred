@@ -31,6 +31,15 @@ pub const MAX_FRAMES: usize = 36_000;
 const POLL: Duration = Duration::from_millis(20);
 const PATIENCE: Duration = Duration::from_secs(30 * 60);
 const SETTLE_PASSES: u32 = 240;
+const TRACKS: [&str; 7] = [
+    "distance",
+    "lateral",
+    "height",
+    "bank",
+    "lag",
+    "shake",
+    "look_ahead",
+];
 const AMBER: Color32 = Color32::from_rgb(0xF2, 0xBF, 0x58);
 const INK: Color32 = Color32::from_rgb(0x0E, 0x0E, 0x0E);
 
@@ -40,6 +49,15 @@ enum Beat {
     Wait(f32),
     Fade { to: f32, seconds: f32 },
     Xray(bool),
+    Curve(Curve),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Curve {
+    camera: String,
+    track: String,
+    key: usize,
+    at: [f64; 2],
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -82,6 +100,37 @@ fn shading(number: usize, rest: &str) -> Result<Beat, Error> {
     }
 }
 
+fn curve(number: usize, rest: &str) -> Result<Beat, Error> {
+    let refused = |why: &str| Error(format!("line {number}: {why}"));
+    let [camera, track, key, t, v] = rest.split_whitespace().collect::<Vec<_>>()[..] else {
+        return Err(refused(
+            "curve wants a camera, a track, a key index, a time and a value",
+        ));
+    };
+    if !TRACKS.contains(&track) {
+        return Err(refused(&format!(
+            "{track} is not a rig track; the tracks are {}",
+            TRACKS.join(", ")
+        )));
+    }
+    let key = key
+        .parse::<usize>()
+        .map_err(|_| refused(&format!("{key} is not a key index: 0, 1, 2 and on")))?;
+    let number_of = |text: &str| text.parse::<f64>().ok().filter(|value| value.is_finite());
+    let (Some(t), Some(v)) = (number_of(t), number_of(v)) else {
+        return Err(refused("curve wants a key's time and value as numbers"));
+    };
+    if t < 0.0 {
+        return Err(refused("a key's time is 0 or more seconds"));
+    }
+    Ok(Beat::Curve(Curve {
+        camera: camera.into(),
+        track: track.into(),
+        key,
+        at: [t, v],
+    }))
+}
+
 impl Tape {
     pub fn parse(text: &str) -> Result<Tape, Error> {
         let mut script = String::new();
@@ -106,9 +155,14 @@ impl Tape {
                 script.push('\n');
                 continue;
             }
+            if command == "curve" {
+                order.push((number, Some(curve(number, rest)?)));
+                script.push('\n');
+                continue;
+            }
             if !VERBS.contains(&command) {
                 return Err(Error(format!(
-                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait and wireframe"
+                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe and curve"
                 )));
             }
             order.push((number, None));
@@ -201,6 +255,7 @@ struct Frame {
     down: bool,
     wire: Option<f32>,
     xray: Option<bool>,
+    curve: Option<Curve>,
 }
 
 fn modifiers_of(mods: Mods) -> Modifiers {
@@ -255,6 +310,7 @@ impl Plan {
             down: self.down.is_some(),
             wire: None,
             xray: None,
+            curve: None,
         });
     }
 
@@ -263,6 +319,13 @@ impl Plan {
         if let Some(last) = self.frames.last_mut() {
             last.wire = wire;
             last.xray = xray;
+        }
+    }
+
+    fn curve(&mut self, curve: &Curve) {
+        self.frame(Vec::new());
+        if let Some(last) = self.frames.last_mut() {
+            last.curve = Some(curve.clone());
         }
     }
 
@@ -420,6 +483,7 @@ fn plan_from(tape: &Tape, fps: u32, points: [f32; 2], wire: f32) -> Result<Vec<F
                 plan.wire = *to;
             }
             Beat::Xray(on) => plan.shade(None, Some(*on)),
+            Beat::Curve(curve) => plan.curve(curve),
         }
         if plan.full() {
             return Err(Error(format!(
@@ -679,6 +743,13 @@ pub fn play(
     };
     for (index, frame) in frames.iter().enumerate() {
         let time = index as f64 / f64::from(fps);
+        if let Some(curve) = &frame.curve {
+            let line = frame.step.and_then(|step| tape.line(step)).unwrap_or(0);
+            player
+                .app
+                .curve_key(&curve.camera, &curve.track, curve.key, curve.at)
+                .map_err(|why| Error(format!("line {line}: {why}")))?;
+        }
         let first = player.pass(frame, time, true);
         let output = player.settle(frame, time, first)?;
         let rgba = player.paint(output)?;
@@ -839,6 +910,36 @@ mod tests {
                 .0
                 .starts_with("line 1: wireframe xray wants")
         );
+    }
+
+    #[test]
+    fn a_curve_step_moves_one_rig_key_on_one_frame_of_the_plan() {
+        let tape = Tape::parse("wait 0.1\ncurve chase distance 2 3.5 -6.25\nwait 0.1\n").unwrap();
+        let moved = Curve {
+            camera: "chase".into(),
+            track: "distance".into(),
+            key: 2,
+            at: [3.5, -6.25],
+        };
+        assert_eq!(tape.beats[1], Beat::Curve(moved.clone()));
+        assert_eq!(tape.line(1), Some(2));
+        let frames = plan(&tape, 60, [200.0, 100.0]).unwrap();
+        let curved: Vec<usize> = (0..frames.len())
+            .filter(|&index| frames[index].curve.is_some())
+            .collect();
+        assert_eq!(curved, [7]);
+        assert_eq!(frames[7].curve, Some(moved));
+        assert_eq!(frames[7].step, Some(1));
+        assert_eq!(frames.len(), 1 + 6 + 1 + 6);
+        assert!(
+            Tape::parse("frame\ncurve chase roll 0 1 2\n")
+                .unwrap_err()
+                .0
+                .starts_with("line 2: roll is not a rig track")
+        );
+        assert!(Tape::parse("curve chase lag one 1 2\n").is_err());
+        assert!(Tape::parse("curve chase lag 0 -1 2\n").is_err());
+        assert!(Tape::parse("curve chase lag 0 1\n").is_err());
     }
 
     #[test]
