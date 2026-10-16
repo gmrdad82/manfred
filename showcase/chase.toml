@@ -128,7 +128,7 @@ intensity = 1.5
 
 [look]
 view = "graded"
-exposure = 3.0
+exposure = 0.6
 grade = { vignette = 0.25, saturation = 1.0, warmth = 0.05, bloom = 0.15, haze = 0.0 }
 lut = "lilac.cube"
 lut_amount = 0.8
@@ -178,7 +178,7 @@ lit = true
 seed = 1
 
 [motion_blur]
-shutter = 0.95
+shutter = 1.0
 max_px = 48.0
 samples = 12
 
@@ -186,9 +186,11 @@ samples = 12
 amount = 0.03
 height = 0.0
 falloff = 0.08
-shafts = 0.6
+shafts = 0.75
 steps = 32
-color = "#e9d6ee"
+color = "#f0c8f0"
+phase = 0.8
+fog = 0.05
 
 [flare]
 amount = 0.4
@@ -198,3 +200,8 @@ halo = 0.1
 halo_radius = 0.3
 starburst = 0.3
 threshold = 8.0
+
+[materials.road_asphalt.wet]
+amount = 0.6
+puddles = 0.25
+puddle_scale = 3.0

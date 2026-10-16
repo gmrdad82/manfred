@@ -3144,14 +3144,17 @@ fn read_root(
                     }
                 }
                 let mut map: BTreeMap<String, serde_json::Value> = json_map(table);
-                for value in map.values_mut() {
-                    if let Some(keys) = value.as_object_mut() {
-                        keys.remove("wet");
-                        for key in TEXTURE_KEYS {
-                            keys.remove(key);
-                        }
+                map.retain(|_, value| {
+                    let Some(keys) = value.as_object_mut() else {
+                        return true;
+                    };
+                    let had = keys.len();
+                    keys.remove("wet");
+                    for key in TEXTURE_KEYS {
+                        keys.remove(key);
                     }
-                }
+                    !keys.is_empty() || had == 0
+                });
                 map
             }
             None => return Err(bad_item(cx, "materials", item, "a table of materials")),

@@ -136,6 +136,8 @@ const HAZE: &[(&str, Shape)] = &[
     ("shafts", Shape::Num(Rule::Within(0.0, 1.0))),
     ("steps", Shape::Whole(1, WHOLE)),
     ("color", Shape::Colour),
+    ("phase", Shape::Num(Rule::Within(-0.9, 0.9))),
+    ("fog", Shape::Num(Rule::AtLeast(0.0))),
 ];
 
 const WET: &[(&str, Shape)] = &[

@@ -398,7 +398,7 @@ pub(super) fn street(seed: u64) -> Made {
     let _ = writeln!(w);
     let _ = writeln!(w, "[look]");
     let _ = writeln!(w, "view = \"graded\"");
-    let _ = writeln!(w, "exposure = 3.0");
+    let _ = writeln!(w, "exposure = 0.6");
     let _ = writeln!(
         w,
         "grade = {{ vignette = 0.25, saturation = 1.0, warmth = 0.05, bloom = 0.15, haze = 0.0 }}"
@@ -439,7 +439,7 @@ pub(super) fn street(seed: u64) -> Made {
         let _ = writeln!(w);
     }
     let _ = writeln!(w, "[motion_blur]");
-    let _ = writeln!(w, "shutter = 0.95");
+    let _ = writeln!(w, "shutter = 1.0");
     let _ = writeln!(w, "max_px = 48.0");
     let _ = writeln!(w, "samples = 12");
     let _ = writeln!(w);
@@ -447,9 +447,11 @@ pub(super) fn street(seed: u64) -> Made {
     let _ = writeln!(w, "amount = 0.03");
     let _ = writeln!(w, "height = 0.0");
     let _ = writeln!(w, "falloff = 0.08");
-    let _ = writeln!(w, "shafts = 0.6");
+    let _ = writeln!(w, "shafts = 0.75");
     let _ = writeln!(w, "steps = 32");
-    let _ = writeln!(w, "color = \"#e9d6ee\"");
+    let _ = writeln!(w, "color = \"#f0c8f0\"");
+    let _ = writeln!(w, "phase = 0.8");
+    let _ = writeln!(w, "fog = 0.05");
     let _ = writeln!(w);
     let _ = writeln!(w, "[flare]");
     let _ = writeln!(w, "amount = 0.4");
@@ -459,6 +461,11 @@ pub(super) fn street(seed: u64) -> Made {
     let _ = writeln!(w, "halo_radius = 0.3");
     let _ = writeln!(w, "starburst = 0.3");
     let _ = writeln!(w, "threshold = 8.0");
+    let _ = writeln!(w);
+    let _ = writeln!(w, "[materials.road_asphalt.wet]");
+    let _ = writeln!(w, "amount = 0.6");
+    let _ = writeln!(w, "puddles = 0.25");
+    let _ = writeln!(w, "puddle_scale = 3.0");
     Made {
         text: t,
         route,
@@ -775,7 +782,7 @@ mod tests {
         ] {
             assert!(doc[table].is_table(), "{table}");
         }
-        assert_eq!(doc["motion_blur"]["shutter"].as_float(), Some(0.95));
+        assert_eq!(doc["motion_blur"]["shutter"].as_float(), Some(1.0));
     }
 
     #[test]
