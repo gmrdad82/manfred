@@ -1,20 +1,30 @@
 #![windows_subsystem = "windows"]
 
+#[cfg(target_os = "macos")]
+mod macos;
+
 use std::env;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::{Command, ExitCode};
 
 fn main() -> ExitCode {
-    let Some(manfred) = sibling() else {
-        return ExitCode::FAILURE;
-    };
-    let files: Vec<OsString> = env::args_os()
+    let args: Vec<OsString> = env::args_os()
         .skip(1)
         .filter(|arg| !arg.to_string_lossy().starts_with("-psn_"))
         .collect();
+    let Some(manfred) = sibling() else {
+        return ExitCode::FAILURE;
+    };
+    match args.first().and_then(|arg| arg.to_str()) {
+        Some("--install-cli") => return command_line(&manfred, true),
+        Some("--remove-cli") => return command_line(&manfred, false),
+        _ => {}
+    }
+    #[cfg(target_os = "macos")]
+    macos::offer(&manfred);
     let mut command = Command::new(manfred);
-    command.arg("gui").args(files);
+    command.arg("gui").args(args);
     launch(command)
 }
 
@@ -26,6 +36,31 @@ fn sibling() -> Option<PathBuf> {
         "manfred"
     };
     Some(exe.parent()?.join(name))
+}
+
+#[cfg(target_os = "macos")]
+fn command_line(manfred: &std::path::Path, install: bool) -> ExitCode {
+    let outcome = if install {
+        macos::install(manfred)
+    } else {
+        macos::remove()
+    };
+    match outcome {
+        Ok(done) => {
+            println!("{done}");
+            ExitCode::SUCCESS
+        }
+        Err(refusal) => {
+            eprintln!("manfred-desk: {refusal}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn command_line(_: &std::path::Path, _: bool) -> ExitCode {
+    eprintln!("manfred-desk: --install-cli and --remove-cli are for macOS");
+    ExitCode::FAILURE
 }
 
 #[cfg(windows)]

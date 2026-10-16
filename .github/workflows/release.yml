@@ -139,11 +139,14 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'manfred.exe --version failed' }
           if ((Get-ItemProperty 'HKLM:\Software\Classes\.manf').'(default)' -ne 'Manfred.Document') { throw '.manf is not Manfred.Document' }
           if ((Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Manfred').Publisher -ne 'PITO MD') { throw 'no Apps & features listing' }
+          $envKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'
+          if (-not ((Get-ItemProperty $envKey).Path -split ';' -contains $dir)) { throw "$dir is not on the machine Path" }
           $uninstall = Start-Process -FilePath (Join-Path $dir 'uninstall.exe') -ArgumentList '/S', "_?=$dir" -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "uninstall exited $($uninstall.ExitCode)" }
           if (Test-Path (Join-Path $dir 'manfred.exe')) { throw 'manfred.exe is still installed' }
           if (Test-Path 'HKLM:\Software\Classes\Manfred.Document') { throw 'the file type is still registered' }
           if (Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Manfred') { throw 'the listing is still there' }
+          if ((Get-ItemProperty $envKey).Path -split ';' -contains $dir) { throw "$dir is still on the machine Path" }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: windows-x86_64

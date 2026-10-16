@@ -2011,6 +2011,8 @@ impl Shell {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                 let hint = format!("{SEARCH}  search  /");
                 text_field(ui, &mut self.search, &hint, 240.0, Some(search_id()));
+                #[cfg(target_os = "macos")]
+                crate::cli_link::menu(ui);
             });
         });
         self.panels.push((Panel::A, rect));

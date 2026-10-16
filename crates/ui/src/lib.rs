@@ -3,6 +3,8 @@ mod app;
 mod backdrop;
 mod cameras;
 mod clay;
+#[cfg(target_os = "macos")]
+mod cli_link;
 mod curves;
 mod document;
 mod edit;

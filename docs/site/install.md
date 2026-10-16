@@ -1,11 +1,11 @@
 ---
 title: "Install"
-description: "Install Manfred on Linux from the release binary or from source, then open and render a scene in 30 seconds."
+description: "Install Manfred on Linux, Windows or macOS from a release or from source, put manfred on the PATH, then open and render a scene in 30 seconds."
 sidebar:
   order: 1
 ---
 
-Manfred runs on Linux (x86_64) with a Vulkan GPU, and its window needs Wayland. Windows and macOS are not supported today.
+Each release carries Linux (x86_64), Windows (x86_64) and macOS (Apple Silicon) builds with one `SHA256SUMS` file. On Linux, Manfred needs a Vulkan GPU and its window needs Wayland.
 
 ## Linux, from the release binary
 
@@ -20,6 +20,24 @@ manfred --version
 `~/.local/bin` needs to be on your `PATH`. The archive also holds `LICENSE`, `NOTICE`, `README.md` and the bundled licence texts; the line above takes the binary alone.
 
 To check the download, fetch `SHA256SUMS` from the same release and run `sha256sum -c --ignore-missing SHA256SUMS` beside the archive.
+
+## Windows, from the setup
+
+Run `Manfred-vX.Y.Z-Setup.exe` from the release. It is unsigned, so SmartScreen asks first (More info, then Run anyway). It installs per machine into `C:\Program Files\Manfred`, adds a Start-menu shortcut (and a desktop one, a checked option), registers `.manf`, and appends `C:\Program Files\Manfred` to the machine `Path`, so `manfred` runs in any terminal opened afterwards, Claude Code's included. `/S` installs silently; uninstalling takes the folder back off the `Path`. `manfred-vX.Y.Z-windows-x86_64.zip` holds `manfred.exe` alone, for a manual install.
+
+## macOS, from the app
+
+Unzip `manfred-vX.Y.Z-macos-arm64.app.zip` from the release and move `Manfred.app` to Applications. The release's app is unsigned, so the first open needs System Settings, Privacy & Security, Open Anyway. On its first launch it offers once to install the `manfred` command, the way an editor's "Install command in PATH" does: a `/usr/local/bin/manfred` link into the app, made through the administrator prompt. `/usr/local/bin` is on macOS's default `PATH`, so `manfred` then runs in any new terminal, Claude Code's included. Help, Install the manfred command, in the window does it later (or removes it), and so does `/Applications/Manfred.app/Contents/MacOS/manfred-desk --install-cli` (or `--remove-cli`). `manfred-vX.Y.Z-macos-arm64.tar.gz` holds `manfred` alone.
+
+## `manfred` in a terminal
+
+The Windows setup and the macOS app put `manfred` on the `PATH` themselves. By hand, when that step was skipped or declined:
+
+- Linux: pci's installer links `~/.local/bin/manfred`; otherwise put `manfred` in `~/.local/bin` and keep that folder on your `PATH` (`export PATH="$HOME/.local/bin:$PATH"` in `~/.bashrc` or `~/.zshrc`).
+- macOS: `sudo ln -sf /Applications/Manfred.app/Contents/MacOS/manfred /usr/local/bin/manfred`, or `export PATH="/Applications/Manfred.app/Contents/MacOS:$PATH"` in `~/.zshrc`.
+- Windows: add `C:\Program Files\Manfred` to `Path` in Environment Variables (Start, "Edit the system environment variables", Environment Variables, `Path`, New), the safe way. `setx PATH "%PATH%;C:\Program Files\Manfred"` works too, but `setx` cuts what it writes at 1,024 characters and writes the machine and user entries together into the user `Path`, so a long `PATH` loses its end; prefer the dialog.
+
+Check each with `manfred --version` in a new terminal.
 
 ## Register the .manf file type
 
