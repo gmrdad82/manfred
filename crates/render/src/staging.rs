@@ -164,6 +164,7 @@ impl Staging {
                     normals: &geometry.normals,
                     tangents: &geometry.tangents,
                     uvs: &geometry.uvs,
+                    uvs1: None,
                     alpha: None,
                     indices: &geometry.indices,
                 }
