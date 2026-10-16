@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export CARGO_NET_GIT_FETCH_WITH_CLI=true
+cargo run --release --locked --example icons -- "$@"

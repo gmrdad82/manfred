@@ -79,6 +79,10 @@ test = true
 name = "wordmark"
 test = true
 
+[[example]]
+name = "icons"
+test = true
+
 [dependencies]
 manfred-recipe.workspace = true
 manfred-mesh.workspace = true
