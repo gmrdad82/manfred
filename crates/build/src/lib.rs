@@ -481,6 +481,13 @@ fn nest(recipe: &Recipe, parts: &[Part]) -> Vec<Option<(usize, DMat4)>> {
     parts
         .iter()
         .map(|part| {
+            let root = first[part.object].filter(|&root| {
+                let name = &parts[root].node.name;
+                *name == recipe.objects[part.object].name && part.node.name != *name
+            });
+            if let Some(root) = root {
+                return Some((root, DMat4::IDENTITY));
+            }
             let mut chain = DMat4::IDENTITY;
             let mut at = part.object;
             for _ in 0..=recipe.objects.len() {

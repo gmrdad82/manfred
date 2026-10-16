@@ -142,7 +142,7 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
 - **`sweep`**: `path = [[x, y, z], …]`, `radius` or `radii = [r, …]`, `ring = 16`, `closed`, `caps`. Beads and tubes. Caps are n-gon fans, as Blender's.
   - `along = { outline = <outline>, offset, depth }` replaces `path`. The ring is swept along an outline in the plate frame, pushed out by `offset` along the outline's outward normal, at `depth`. It is closed and capless, with one `radius`. The ring starts on the outward normal and turns toward the camera: a lip round a pocket, a bezel round a slot. Its outline is one contour, with no hole.
 - **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets). It keeps the file's material texture maps, and the recipe's `[materials]` set or replace them; see [Texture maps](#texture-maps).
-- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings), [`manfred/furniture`](#manfredfurniture), [`manfred/car`](#manfredcar) and [`manfred/loft`](#manfredloft). The window builds it through the same registry and lets you place it.
+- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings), [`manfred/furniture`](#manfredfurniture), [`manfred/car`](#manfredcar), [`manfred/wheel`](#manfredwheel) and [`manfred/loft`](#manfredloft). The window builds it through the same registry and lets you place it.
   - The generator gets the object, its `params`, the recipe's folder and a seed: the recipe's `seed` mixed with the object's index in the file (`manfred::build::seed`), so two objects never share one.
   - It returns one or more pieces, each a named mesh; each becomes a node with the piece's name. A piece may share its own object's name, never another object's or another piece's.
   - The object's transform, `parent`, `keep_transform`, `shadow`, `two_sided` and `hidden` apply to every piece. The pieces keep their own material slots, normals and UVs unless the object sets `material` (or one name in `materials`), `smooth` or `smooth_angle`, or `uv`.
@@ -417,6 +417,44 @@ params.hinged = [{ name = "hatch", gap = "hatch_gap", hinge = [[1.2, 0.3, 0.2], 
 - **`hinged`:** any hinged panel, such as a door, a hatch or a lid: `name` (unique), `gap` (a groove whose curve encloses the panel) and `hinge`, two distinct points `[[x, y, z], [x, y, z]]` on the hinge line. The surface inside the gap, on the hinge's side for a `side` gap, splits off into the node `<object>.<name>`, pivoting at the hinge's midpoint, so opening it is a rotation of that node about the hinge line. List one panel per side; the same groove serves both.
 - **Refused:** an unknown field, a missing `name`, `view`, `curve`, `width`, `depth`, `gap` or `hinge`, a name used twice in one list, a curve with too few points or a non-number in it, a negative `lip` or `depth`, a `gap` that names no groove (the error lists the grooves) or encloses none of the mesh, and a hinge of one point; each error names its path, as in ``params.hinged.0.gap: no groove `gap`, expected one of: waterline, hatch_gap``.
 - **Deterministic:** the same mesh and params give the same bytes.
+
+### Vehicle parts kit
+
+An optional kit on top of the general modelling tools: generic parts that a recipe combines with its own objects into a vehicle (a body, and wheels parented at its axle centres), or uses alone, as a cart's or a machine's wheels. Each part is an ordinary generator object, built, placed, varied and followed like any other.
+
+#### manfred/wheel
+
+`generator = "manfred/wheel"` builds an original road wheel, a tyre on a spoked rim with its brake, in the object's own frame: the origin at the axle centre, the axle along +X, the rim's face toward +X (the car's left side; `side = "right"` turns it toward -X), +Y up, +Z forward, metres. The rim is a lathed barrel and lip with spokes swept from the hub to the lip and a blank centre cap; the tyre is a lathed section with a rounded sidewall bulge and a plain tread with circumferential grooves. Nothing carries letters, logos or a brand.
+
+```toml
+[[object]]
+name = "hero.wheel_fl"
+kind = "generator"
+generator = "manfred/wheel"
+parent = "hero"
+at = [0.82, 0.343, 1.32]
+params = { tyre = "255/40R19", rim = { spokes = 10, twin = true, concavity = 0.6 }, brake = { disc = "drilled", caliper = "#f2a900" } }
+```
+
+- **Params,** every one optional; an unknown param or key is an error naming the ones there are:
+  - `tyre`: the size code `"WWW/AARDD"`, as `"255/40R19"` (the default `"245/40R19"`): the section width in mm (105 to 405), the aspect ratio in % (20 to 95) and the rim diameter in inches (13 to 26). The outer diameter is the rim's plus 2 × width × aspect.
+  - `rim`, an inline table:
+    - `diameter_in`: the rim's diameter in inches, the tyre's by default; another number is an error, since the tyre must fit it.
+    - `width_in`: the rim's width in inches, from 4 to the tyre's width plus 20 mm (at most 14); by default 0.85 × the tyre's width, to the half inch.
+    - `spokes`: 3 to 24, default 5. `twin = true` splits each spoke into two that part toward the lip.
+    - `spoke_width`: metres at the hub, 0.008 to 0.12, default 0.035; `taper` (0 to 0.9, default 0.35) narrows it toward the lip by that share.
+    - `concavity`: the dish, 0 (flat, the hub at the face) to 1 (the hub 0.45 × the rim's width behind it), default 0.3.
+    - `lip`: the flat outer ring of the face in metres, 0 to 0.06, default 0.015.
+    - `cap`: `"blank"`, the only cap: a plain domed disc.
+    - `metal`: the rim's metal as `"#rrggbb"` (sRGB), default `"#c4c8cc"`.
+  - `brake`, an inline table: `disc = "vented"` (the default: two plates with radial vanes in the gap between them) or `"drilled"` (one plate with two staggered rings of holes), and `caliper = "#rrggbb"` (default `"#b3121b"`), the caliper's paint. The caliper sits at the top-rear of the disc, 40° behind the top.
+  - `side`: `"left"` (the default, the face toward +X) or `"right"` (toward -X).
+  - `segments`: 24 to 256, default 72, the steps round the tyre and the brake; the rim's are rounded up to a multiple of `spokes`, so the rim repeats exactly once a spoke.
+- **Pieces,** a hierarchy named after the object: `<object>` (an empty root node at the axle centre) with children `<object>.tyre`, `<object>.rim` (barrel, spokes, hub and cap) and `<object>.brake` (disc, hat and caliper). With `[output] hierarchy = true` the GLB nests the three under the root.
+- **Materials** it returns: `wheel_tyre` (rubber), `wheel_rim_<rrggbb>` (metal), `wheel_cap` (dark gloss), `wheel_disc` (iron) and `wheel_caliper_<rrggbb>` (lacquer). A recipe's own `[materials.<name>]` of the same name replaces one.
+- **Facts:** `wheel = { radius, width, axle = [1, 0, 0] }` (the tyre's outer radius and section width in metres), `tyre = { size, rim_radius }` and `brake = { spin = false, disc }`: the brake turns with the steering but never spins.
+- **Under a follow:** an object named `<car>.wheel_<corner>` (as `hero.wheel_fl`) rides the followed `<car>` (below, Follow): it is keyed with the car's pose, its tyre and rim spin by distance / radius about the axle, its brake does not (a piece whose facts say `spin = false`), and a front corner's three steer.
+- **Deterministic:** the same params give the same bytes; nothing is random.
 
 ### Levels of detail
 
@@ -854,6 +892,7 @@ ride = 0.0
 - **`ride`** is the height above the route in metres (0 by default).
 - **The object's frame:** its pieces are in the car's own frame, +Z forward, +Y up, the origin on the ground under its centre. The follow sets the whole pose: the object's `at` and `rotate` are not applied while it is followed, its `scale` is.
 - **Tracks:** every node of the object (`<object>` or `<object>.<piece>`) is keyed with the car's pose; a piece named `<object>.wheel_<corner>` (as `hero.wheel_fl`) is keyed with the pose times its centre, its steer, its spin and back. It spins about its axle by distance / radius, forward. The front wheels (a corner starting with `f`) steer about +Y by atan(wheelbase × the route's curvature at the car), clamped to ±35°. Centre, radius and axle come from the object's generator facts, `wheels = { fl = { centre, radius, axle }, … }` (`manfred/car` writes them); a wheel missing there takes its piece's bounds centre, half its height as radius, and the +X axle. The wheelbase is the distance between the mean front and mean rear wheel centres along Z, else the facts' `wheelbase`, else 2.7 m.
+- **Riding objects:** an object named `<object>.<name>` (as `hero.wheel_fl`, a `manfred/wheel`) rides the followed object: its nodes are keyed with the pose times its place in the object's frame (its `at`, `rotate` and `scale` under its `parent`, which is the followed object or one below it; without a parent its own placement is read in the object's frame). One named `<object>.wheel_<corner>` is a wheel: its centre is its origin, its radius and axle are its facts' `wheel = { radius, axle }` (else half its height and +X), its nodes spin and a front corner's steer about +Y through that centre, and a piece `<object>.wheel_<corner>.<piece>` whose facts say `<piece> = { spin = false }` (the wheel's `brake`) steers without spinning. These wheels count toward the wheelbase.
 - A `[[follow]]` needs a `[timeline]`, and its object and route must exist.
 
 ## Stages

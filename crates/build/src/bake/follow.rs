@@ -1,7 +1,7 @@
 use crate::{Bake, Track};
 use glam::{DMat4, DQuat, DVec3};
 use manfred_glb::Node;
-use manfred_motion::{Route, Timeline, noise1, trs_from_matrix};
+use manfred_motion::{Route, Timeline, Trs, noise1, trs_from_matrix};
 use manfred_recipe::{Follow, Recipe};
 
 const STEER_MAX_DEG: f64 = 35.0;
@@ -10,7 +10,18 @@ const CRAWL_M_S: f64 = 1.0;
 const WHEELBASE_M: f64 = 2.7;
 
 pub(crate) fn animates(recipe: &Recipe) -> Vec<String> {
-    recipe.follows.iter().map(|f| f.object.clone()).collect()
+    let mut out: Vec<String> = recipe.follows.iter().map(|f| f.object.clone()).collect();
+    for follow in &recipe.follows {
+        let prefix = format!("{}.", follow.object);
+        out.extend(
+            recipe
+                .objects
+                .iter()
+                .filter(|o| o.name.starts_with(&prefix))
+                .map(|o| o.name.clone()),
+        );
+    }
+    out
 }
 
 pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
@@ -30,7 +41,15 @@ pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
             .map_or(DVec3::ONE, |o| DVec3::from_array(o.scale));
         let path = drive(follow, route, b.timeline);
         let facts = b.facts.get(&follow.object);
-        tracks.extend(car(&follow.object, &path, route, b.nodes, facts, scale));
+        let subs = subs(b, &follow.object)?;
+        tracks.extend(car(
+            &follow.object,
+            &path,
+            route,
+            (b.nodes, &subs),
+            facts,
+            scale,
+        ));
     }
     Ok(tracks)
 }
@@ -193,6 +212,134 @@ fn wheel_of(node: &Node, corner: &str, facts: Option<&serde_json::Value>) -> Whe
     }
 }
 
+struct Sub<'a> {
+    name: String,
+    rel: DMat4,
+    wheel: Option<(bool, Wheel)>,
+    facts: Option<&'a serde_json::Value>,
+}
+
+impl Sub<'_> {
+    fn owns(&self, node: &str) -> bool {
+        node.strip_prefix(self.name.as_str())
+            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
+    }
+
+    fn spins(&self, node: &str) -> bool {
+        node.strip_prefix(self.name.as_str())
+            .and_then(|rest| rest.strip_prefix('.'))
+            .and_then(|piece| self.facts?.get(piece)?.get("spin")?.as_bool())
+            .unwrap_or(true)
+    }
+
+    fn keys(&self, node: &str, path: &Drive, route: &Route, base: f64, scaled: DMat4) -> Vec<Trs> {
+        let Some((front, wheel)) = self.wheel else {
+            return path
+                .pose
+                .iter()
+                .map(|pose| trs_from_matrix(*pose * scaled * self.rel))
+                .collect();
+        };
+        let spins = self.spins(node);
+        let pivot = self.rel.transform_point3(wheel.centre);
+        path.pose
+            .iter()
+            .zip(&path.distance)
+            .map(|(pose, &d)| {
+                let turn = if front { steer(route, d, base) } else { 0.0 };
+                let roll = if spins { spin(d, wheel.radius) } else { 0.0 };
+                let local = DMat4::from_translation(pivot)
+                    * DMat4::from_rotation_y(turn)
+                    * DMat4::from_translation(-pivot)
+                    * self.rel
+                    * DMat4::from_translation(wheel.centre)
+                    * DMat4::from_quat(DQuat::from_axis_angle(wheel.axle, roll))
+                    * DMat4::from_translation(-wheel.centre);
+                trs_from_matrix(*pose * scaled * local)
+            })
+            .collect()
+    }
+}
+
+fn descends(recipe: &Recipe, from: usize, to: usize) -> bool {
+    let mut at = from;
+    for _ in 0..recipe.objects.len() {
+        let Some(parent) = &recipe.objects[at].parent else {
+            return false;
+        };
+        let Some(up) = recipe.objects.iter().rposition(|o| o.name == *parent) else {
+            return false;
+        };
+        if up == to {
+            return true;
+        }
+        at = up;
+    }
+    false
+}
+
+fn subs<'a>(b: &Bake<'a>, object: &str) -> Result<Vec<Sub<'a>>, String> {
+    let prefix = format!("{object}.");
+    let wheel_prefix = format!("{object}.wheel_");
+    let Some(root) = b.recipe.objects.iter().position(|o| o.name == object) else {
+        return Ok(Vec::new());
+    };
+    let world = |at: usize| crate::world(b.recipe, at).map_err(|e| e.to_string());
+    let mut out = Vec::new();
+    for (at, sub) in b.recipe.objects.iter().enumerate() {
+        if !sub.name.starts_with(&prefix) {
+            continue;
+        }
+        let rel = if descends(b.recipe, at, root) {
+            world(root)?.inverse() * world(at)?
+        } else {
+            world(at)?
+        };
+        let facts = b.facts.get(&sub.name);
+        let wheel = sub
+            .name
+            .strip_prefix(&wheel_prefix)
+            .filter(|corner| !corner.contains('.'))
+            .map(|corner| {
+                let fact = facts.and_then(|f| f.get("wheel"));
+                let radius = fact
+                    .and_then(|f| f.get("radius"))
+                    .and_then(serde_json::Value::as_f64)
+                    .unwrap_or_else(|| sub_radius(b.nodes, &sub.name));
+                let axle = vec3(fact.and_then(|f| f.get("axle")))
+                    .and_then(|a| a.try_normalize())
+                    .unwrap_or(DVec3::X);
+                let axle = if axle.x < 0.0 { -axle } else { axle };
+                (
+                    corner.starts_with('f'),
+                    Wheel {
+                        centre: DVec3::ZERO,
+                        radius,
+                        axle,
+                    },
+                )
+            });
+        out.push(Sub {
+            name: sub.name.clone(),
+            rel,
+            wheel,
+            facts,
+        });
+    }
+    out.sort_by_key(|s| std::cmp::Reverse(s.name.len()));
+    Ok(out)
+}
+
+fn sub_radius(nodes: &[Node], name: &str) -> f64 {
+    let dotted = format!("{name}.");
+    nodes
+        .iter()
+        .filter(|n| n.name == name || n.name.starts_with(&dotted))
+        .filter_map(|n| manfred_mesh::bounds(&n.mesh))
+        .map(|[lo, hi]| (hi[1] - lo[1]) * 0.5)
+        .fold(0.0, f64::max)
+}
+
 fn wheelbase(wheels: &[(bool, Wheel)], facts: Option<&serde_json::Value>) -> f64 {
     let mean = |front: bool| {
         let z: Vec<f64> = wheels
@@ -215,7 +362,7 @@ fn car(
     object: &str,
     path: &Drive,
     route: &Route,
-    nodes: &[Node],
+    (nodes, subs): (&[Node], &[Sub]),
     facts: Option<&serde_json::Value>,
     scale: DVec3,
 ) -> Vec<Track> {
@@ -225,19 +372,34 @@ fn car(
         .iter()
         .filter(|n| n.name == object || n.name.starts_with(&prefix))
         .collect();
+    let sub_of = |node: &Node| subs.iter().find(|s| s.owns(&node.name));
     let wheels: Vec<(bool, Wheel)> = owned
         .iter()
+        .filter(|n| sub_of(n).is_none())
         .filter_map(|n| {
             let corner = n.name.strip_prefix(&wheel_prefix)?;
             Some((corner.starts_with('f'), wheel_of(n, corner, facts)))
         })
         .collect();
-    let base = wheelbase(&wheels, facts);
+    let mut axles = wheels.clone();
+    axles.extend(subs.iter().filter_map(|s| {
+        let (front, wheel) = s.wheel?;
+        Some((
+            front,
+            Wheel {
+                centre: s.rel.transform_point3(wheel.centre),
+                ..wheel
+            },
+        ))
+    }));
+    let base = wheelbase(&axles, facts);
     let scaled = DMat4::from_scale(scale);
     let mut tracks = Vec::with_capacity(owned.len());
     let mut wheel_at = 0;
     for node in owned {
-        let keys = if node.name.starts_with(&wheel_prefix) {
+        let keys = if let Some(sub) = sub_of(node) {
+            sub.keys(&node.name, path, route, base, scaled)
+        } else if node.name.starts_with(&wheel_prefix) {
             let (front, wheel) = wheels[wheel_at];
             wheel_at += 1;
             path.pose

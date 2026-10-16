@@ -5,6 +5,7 @@ pub mod car;
 pub mod furniture;
 pub mod loft;
 pub mod road;
+pub mod wheel;
 
 pub fn builtins(registry: &mut Registry) {
     registry.register_with_facts(road::NAME, road::generate);
@@ -12,4 +13,5 @@ pub fn builtins(registry: &mut Registry) {
     registry.register_with_facts(car::NAME, car::generate);
     registry.register_with_facts(furniture::NAME, furniture::generate);
     registry.register_with_facts(loft::NAME, loft::generate);
+    registry.register_with_facts(wheel::NAME, wheel::generate);
 }
