@@ -108,15 +108,27 @@ pub fn route_patch(l: &Loaded, name: &str, edit: PointEdit) -> Result<Patch, Err
             }
             points.remove(i);
             let removed = array.remove(i);
-            if i == 0
-                && let Some(first) = array.get_mut(0)
-            {
-                let text = removed
+            let gone = removed
+                .decor()
+                .prefix()
+                .and_then(|p| p.as_str())
+                .unwrap_or_default()
+                .to_string();
+            if let Some(next) = array.get_mut(i) {
+                let own = next
                     .decor()
                     .prefix()
                     .and_then(|p| p.as_str())
-                    .map(str::to_string);
-                first.decor_mut().set_prefix(plain(text.as_deref(), true));
+                    .unwrap_or_default()
+                    .to_string();
+                let joined = match (gone.rfind('\n'), own.rfind('\n')) {
+                    (Some(a), Some(b)) => format!("{}{}", &gone[..=a], &own[b + 1..]),
+                    (Some(a), None) => format!("{}{own}", &gone[..=a]),
+                    (None, _) if i == 0 => String::new(),
+                    (None, Some(b)) => own[b + 1..].to_string(),
+                    (None, None) => own,
+                };
+                next.decor_mut().set_prefix(joined);
             }
         }
     }
