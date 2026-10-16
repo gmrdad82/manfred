@@ -1,0 +1,87 @@
+[facts]
+height = 1.5
+length = 4.1
+size = [1.871529, 1.535, 4.134]
+style = "hatch"
+track = 1.515
+wheelbase = 2.542
+width = 1.78
+
+[[facts.lights]]
+color = [1.0, 0.93, 0.82]
+cone = [20.0, 40.0]
+direction = [0.0, -0.059892, 0.998205]
+intensity = 90.0
+name = "headlight_l"
+node = "body"
+position = [0.463819, 0.584997, 2.114]
+range = 40.0
+shadow = false
+
+[[facts.lights]]
+color = [1.0, 0.93, 0.82]
+cone = [20.0, 40.0]
+direction = [0.0, -0.059892, 0.998205]
+intensity = 90.0
+name = "headlight_r"
+node = "body"
+position = [-0.463819, 0.584997, 2.114]
+range = 40.0
+shadow = false
+
+[[facts.lights]]
+color = [1.0, 0.06, 0.03]
+cone = [15.0, 35.0]
+direction = [0.0, -0.14834, -0.988936]
+intensity = 6.0
+name = "taillight_l"
+node = "body"
+position = [0.55497, 0.701341, -2.114]
+range = 6.0
+shadow = false
+
+[[facts.lights]]
+color = [1.0, 0.06, 0.03]
+cone = [15.0, 35.0]
+direction = [0.0, -0.14834, -0.988936]
+intensity = 6.0
+name = "taillight_r"
+node = "body"
+position = [-0.55497, 0.701341, -2.114]
+range = 6.0
+shadow = false
+
+[facts.wheels.fl]
+axle = [1.0, 0.0, 0.0]
+centre = [0.7575, 0.31, 1.1930999999999998]
+radius = 0.31
+
+[facts.wheels.fr]
+axle = [1.0, 0.0, 0.0]
+centre = [-0.7575, 0.31, 1.1930999999999998]
+radius = 0.31
+
+[facts.wheels.rl]
+axle = [1.0, 0.0, 0.0]
+centre = [0.7575, 0.31, -1.3489]
+radius = 0.31
+
+[facts.wheels.rr]
+axle = [1.0, 0.0, 0.0]
+centre = [-0.7575, 0.31, -1.3489]
+radius = 0.31
+
+[object]
+kind = "cars"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "hatch"
+tags = ["car", "hatch", "dark"]
+
+[source]
+generator = "manfred/car"
+manfred = "1.3.0"
+
+[source.params]
+paint = "#26303c"
+seed = 3
+style = "hatch"

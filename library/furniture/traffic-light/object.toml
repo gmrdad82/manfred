@@ -1,0 +1,16 @@
+[facts]
+size = [0.57, 4.2, 0.385597]
+
+[object]
+kind = "furniture"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "traffic-light"
+tags = ["street", "signal"]
+
+[source]
+generator = "manfred/furniture"
+manfred = "1.3.0"
+
+[source.params]
+piece = "traffic_light"
+route = "pole"

@@ -1,0 +1,17 @@
+[facts]
+size = [0.62, 2.6, 0.105]
+
+[object]
+kind = "furniture"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "sign"
+tags = ["street", "sign"]
+
+[source]
+generator = "manfred/furniture"
+manfred = "1.3.0"
+
+[source.params]
+piece = "sign"
+route = "pole"
+seed = 2

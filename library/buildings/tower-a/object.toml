@@ -1,0 +1,23 @@
+[facts]
+size = [13.477318, 59.924324, 15.559586]
+
+[facts.buildings]
+count = 1
+setback = 0.0
+
+[object]
+kind = "buildings"
+licence = "MIT, Catalin Ilinca; original, no third-party models or brand marks"
+name = "tower-a"
+tags = ["building", "tower"]
+
+[source]
+generator = "manfred/buildings"
+manfred = "1.3.0"
+
+[source.params]
+route = "block"
+seed = 21
+setback = 0.0
+side = "right"
+style = "towers"
