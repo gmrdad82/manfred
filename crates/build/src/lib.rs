@@ -21,6 +21,7 @@ mod shape;
 mod timeline;
 mod uv;
 
+pub use bake::rig::hermite as track_value;
 pub use manfred_glb::{
     CameraFacts, DaylightFacts, FACTS, GradeFacts, LampFacts, LookFacts, MoverFacts, RoomFacts,
     SceneFacts, SidecarWriter, SkyFacts, SunFacts, facts as facts_sidecar, merge, mover_json,

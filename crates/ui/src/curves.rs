@@ -85,47 +85,8 @@ pub fn rest(rig: &Rig, track: &str) -> f64 {
     }
 }
 
-fn slope(keys: &[[f64; 2]], i: usize) -> f64 {
-    let last = keys.len() - 1;
-    let (a, b) = match i {
-        0 => (0, 1),
-        i if i == last => (last - 1, last),
-        i => (i - 1, i + 1),
-    };
-    let span = keys[b][0] - keys[a][0];
-    if span.abs() < 1e-12 {
-        0.0
-    } else {
-        (keys[b][1] - keys[a][1]) / span
-    }
-}
-
 pub fn value(keys: &[[f64; 2]], t: f64) -> f64 {
-    let (Some(first), Some(last)) = (keys.first(), keys.last()) else {
-        return 0.0;
-    };
-    if keys.len() == 1 || t <= first[0] {
-        return first[1];
-    }
-    if t >= last[0] {
-        return last[1];
-    }
-    let i = keys
-        .windows(2)
-        .position(|pair| t < pair[1][0])
-        .unwrap_or(keys.len() - 2);
-    let ([t0, v0], [t1, v1]) = (keys[i], keys[i + 1]);
-    let h = t1 - t0;
-    if h.abs() < 1e-12 {
-        return v1;
-    }
-    let s = (t - t0) / h;
-    let (s2, s3) = (s * s, s * s * s);
-    let h00 = 2.0 * s3 - 3.0 * s2 + 1.0;
-    let h10 = s3 - 2.0 * s2 + s;
-    let h01 = -2.0 * s3 + 3.0 * s2;
-    let h11 = s3 - s2;
-    h00 * v0 + h10 * h * slope(keys, i) + h01 * v1 + h11 * h * slope(keys, i + 1)
+    manfred_build::track_value(keys, t)
 }
 
 pub fn clamped(keys: &[[f64; 2]], key: usize, at: [f64; 2], seconds: f64) -> [f64; 2] {

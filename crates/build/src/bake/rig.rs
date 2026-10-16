@@ -115,9 +115,11 @@ fn track(b: &Bake, camera: &Camera, rig: &Rig) -> Result<Track, String> {
     Ok(track)
 }
 
-fn hermite(keys: &[[f64; 2]], t: f64) -> f64 {
-    let last = keys.len() - 1;
-    if t <= keys[0][0] {
+pub fn hermite(keys: &[[f64; 2]], t: f64) -> f64 {
+    let Some(last) = keys.len().checked_sub(1) else {
+        return 0.0;
+    };
+    if last == 0 || t <= keys[0][0] {
         return keys[0][1];
     }
     if t >= keys[last][0] {

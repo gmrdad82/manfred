@@ -26,6 +26,15 @@ fn plain(decor: Option<&str>, first: bool) -> String {
     }
 }
 
+fn joined(gone: &str, own: &str, first: bool) -> String {
+    let indent = own.rfind('\n').map_or(own, |b| &own[b + 1..]);
+    match gone.rfind('\n') {
+        Some(a) => format!("{}{indent}", &gone[..=a]),
+        None if first => String::new(),
+        None => indent.to_string(),
+    }
+}
+
 fn prefix(array: &Array, at: usize) -> Option<String> {
     array
         .get(at)
@@ -114,21 +123,23 @@ pub fn route_patch(l: &Loaded, name: &str, edit: PointEdit) -> Result<Patch, Err
                 .and_then(|p| p.as_str())
                 .unwrap_or_default()
                 .to_string();
-            if let Some(next) = array.get_mut(i) {
-                let own = next
-                    .decor()
-                    .prefix()
-                    .and_then(|p| p.as_str())
-                    .unwrap_or_default()
-                    .to_string();
-                let joined = match (gone.rfind('\n'), own.rfind('\n')) {
-                    (Some(a), Some(b)) => format!("{}{}", &gone[..=a], &own[b + 1..]),
-                    (Some(a), None) => format!("{}{own}", &gone[..=a]),
-                    (None, _) if i == 0 => String::new(),
-                    (None, Some(b)) => own[b + 1..].to_string(),
-                    (None, None) => own,
-                };
-                next.decor_mut().set_prefix(joined);
+            match array.get_mut(i) {
+                Some(next) => {
+                    let own = next
+                        .decor()
+                        .prefix()
+                        .and_then(|p| p.as_str())
+                        .unwrap_or_default()
+                        .to_string();
+                    next.decor_mut().set_prefix(joined(&gone, &own, i == 0));
+                }
+                None => {
+                    let trailing = array.trailing().as_str().unwrap_or_default().to_string();
+                    if let Some(a) = gone.rfind('\n') {
+                        let tail = trailing.rfind('\n').map_or("", |b| &trailing[b..]);
+                        array.set_trailing(format!("{}{tail}", &gone[..a]));
+                    }
+                }
             }
         }
     }
@@ -152,7 +163,7 @@ name = "street"
 name = "main"
 points = [
   [0.0, 0.0, 0.0], # start at the lights
-  [0.0, 0.0, 40.0],
+  [0.0, 0.0, 40.0], # the long straight
   [12.0, 0.0, 80.0],
 ] # round the corner
 closed = false
@@ -184,6 +195,7 @@ closed = false
         for comment in [
             "# the hero's way through town",
             "[0.0, 0.0, 0.0], # start at the lights",
+            "[1.0, 0.0, 41.0], # the long straight",
             "# round the corner",
         ] {
             assert!(text.contains(comment), "{text}");
