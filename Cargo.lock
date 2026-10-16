@@ -1624,6 +1624,7 @@ dependencies = [
  "manfred-scene",
  "manfred-ui",
  "pfx",
+ "pfx-core",
  "png",
  "serde_json",
  "sha2",

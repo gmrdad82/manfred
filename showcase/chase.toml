@@ -29,19 +29,19 @@ points = [
 name = "road"
 kind = "generator"
 generator = "manfred/road"
-params = { route = "main", lanes = 2, lane_width = 3.2, crosswalks = [91.9, 256.9, 414.9], seed = 1 }
+params = { route = "main", lanes = 2, lane_width = 3.5, sidewalk = 4.0, crosswalks = [91.9, 256.9, 414.9], seed = 1 }
 
 [[object]]
 name = "buildings"
 kind = "generator"
 generator = "manfred/buildings"
-params = { route = "main", seed = 2 }
+params = { route = "main", style = "lowrise", setback = 12.0, seed = 2 }
 
 [[object]]
 name = "furniture"
 kind = "generator"
 generator = "manfred/furniture"
-params = { route = "main", crosswalks = [91.9, 256.9, 414.9], seed = 3 }
+params = { route = "main", offset = 8.8, crosswalks = [91.9, 256.9, 414.9], seed = 3 }
 
 [[object]]
 name = "hero"
@@ -70,83 +70,87 @@ params = { style = "van", seed = 13 }
 [[follow]]
 object = "hero"
 route = "main"
-lane = 1.6
+lane = 1.75
 start = 0.0
 speed = [[0.0, 18.0], [10.0, 32.0]]
-drift = { amount = 0.35, period = 2.5, slip_deg = 4.0 }
+drift = { amount = 1.2, period = 2.5, slip_deg = 26.0 }
 
 [[follow]]
 object = "traffic1"
 route = "main"
-lane = 4.800000000000001
+lane = 5.25
 start = 37.5
 speed = [[0.0, 13.2]]
 
 [[follow]]
 object = "traffic2"
 route = "main"
-lane = 4.800000000000001
+lane = 5.25
 start = 99.9
 speed = [[0.0, 13.8]]
 
 [[follow]]
 object = "traffic3"
 route = "main"
-lane = 4.800000000000001
+lane = 5.25
 start = 163.3
 speed = [[0.0, 12.9]]
 
 [[camera]]
 name = "chase"
 kind = "perspective"
-position = [1.6, 1.1, -5.5]
-target = [1.6, 0.8, 6.0]
-fov_y_deg = 55.0
+position = [1.75, 0.75, -7.57]
+target = [1.75, 2.92, 8.0]
+fov_y_deg = 80.0
 fstop = 2.8
 
 [camera.rig]
 follow = "hero"
-offset = [0.0, 1.1, -5.5]
-look = [0.0, 0.8, 6.0]
+offset = [0.0, 0.75, -7.57]
+look = [0.0, 2.92, 8.0]
 lag = 0.25
 look_ahead = 0.2
+bank = 4.0
+yaw_lag = 0.4
 shake = { translation = 0.02, roll = 0.4, frequency = 7.0, seed = 1 }
 focus = "follow"
 
 [sun]
 model = "daylight"
-hour = 18.6
+hour = 19.13
 day = 172
 latitude = 44.4
-heading = 293.0
+heading = 298.2
 
 [sky]
 kind = "analytic"
-intensity = 1.0
+intensity = 1.5
 
-# A lilac LUT belongs here once the grade takes one (the scene's [finish] lut and lut_amount).
 [look]
 view = "graded"
-exposure = 1.0
-grade = { vignette = 0.25, saturation = 1.05, warmth = 0.15, bloom = 0.15, haze = 0.0 }
+exposure = 2.6
+grade = { vignette = 0.25, saturation = 1.0, warmth = 0.05, bloom = 0.15, haze = 0.0 }
+lut = "out/lilac.cube"
+lut_amount = 0.8
 
 [[particles]]
 name = "spray_rl"
 parent = "hero.body"
 at = [0.778, 0.05, -1.655]
-rate = 0.0
-rate_keys = [[0.0, 0.0], [4.0, 400.0]]
+rate = 300.0
+rate_keys = [[0.0, 300.0], [10.0, 1500.0]]
 max = 2000
-lifetime = [0.4, 0.9]
+lifetime = [0.25, 0.7]
 speed = [2.0, 5.0]
 direction = [0.0, 0.6, -1.0]
 cone = 25.0
-inherit = 0.6
+inherit = 0.7
 gravity = [0.0, -9.8, 0.0]
-drag = 1.5
-size = [0.05, 0.6]
-alpha = [[0.0, 0.5], [1.0, 0.0]]
-color = "#d9dde3"
+drag = 3.0
+size = [0.01, 0.06]
+alpha = [[0.0, 0.0], [0.1, 0.25], [1.0, 0.0]]
+color = "#c9d3dc"
+stretch = 3.0
 blend = "alpha"
 lit = true
 seed = 1
@@ -155,19 +159,20 @@ seed = 1
 name = "spray_rr"
 parent = "hero.body"
 at = [-0.778, 0.05, -1.655]
-rate = 0.0
-rate_keys = [[0.0, 0.0], [4.0, 400.0]]
+rate = 300.0
+rate_keys = [[0.0, 300.0], [10.0, 1500.0]]
 max = 2000
-lifetime = [0.4, 0.9]
+lifetime = [0.25, 0.7]
 speed = [2.0, 5.0]
 direction = [0.0, 0.6, -1.0]
 cone = 25.0
-inherit = 0.6
+inherit = 0.7
 gravity = [0.0, -9.8, 0.0]
-drag = 1.5
-size = [0.05, 0.6]
-alpha = [[0.0, 0.5], [1.0, 0.0]]
-color = "#d9dde3"
+drag = 3.0
+size = [0.01, 0.06]
+alpha = [[0.0, 0.0], [0.1, 0.25], [1.0, 0.0]]
+color = "#c9d3dc"
+stretch = 3.0
 blend = "alpha"
 lit = true
 seed = 1
@@ -178,18 +183,18 @@ max_px = 48.0
 samples = 12
 
 [haze]
-amount = 0.25
+amount = 0.3
 height = 0.0
 falloff = 0.08
 shafts = 0.6
 steps = 32
-color = "#ffc79a"
+color = "#e9d6ee"
 
 [flare]
 amount = 0.4
 ghosts = 4
 ghost_spacing = 0.3
-halo = 0.2
-halo_radius = 0.45
+halo = 0.1
+halo_radius = 0.3
 starburst = 0.3
-threshold = 1.5
+threshold = 8.0
