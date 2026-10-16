@@ -110,7 +110,7 @@ impl Registry {
     pub fn new() -> Registry {
         let mut sidecars = BTreeMap::new();
         sidecars.insert(FACTS.to_string(), manfred_glb::facts as SidecarWriter);
-        Registry {
+        let mut registry = Registry {
             generators: BTreeMap::new(),
             sidecars,
             materials: BTreeMap::new(),
@@ -119,7 +119,9 @@ impl Registry {
                 .map(|&(name, baker)| (name.to_string(), baker))
                 .collect(),
             animates: bake::ANIMATES.to_vec(),
-        }
+        };
+        builtin::builtins(&mut registry);
+        registry
     }
 
     pub fn register_baker(&mut self, name: &str, baker: Baker, animates: Animates) {
