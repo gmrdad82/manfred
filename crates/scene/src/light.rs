@@ -51,8 +51,15 @@ pub(crate) enum Hourly {
 
 #[derive(Clone, Debug)]
 pub(crate) enum Backdrop {
-    Analytic { intensity: f32 },
-    Texels { sky: Sky, hourly: Hourly },
+    Analytic {
+        intensity: f32,
+        turbidity: f32,
+        ground_albedo: [f32; 3],
+    },
+    Texels {
+        sky: Sky,
+        hourly: Hourly,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -101,7 +108,11 @@ impl Lighting {
             (None, None) => Source::Daylight(reference(REFERENCE_HOUR)),
         };
         let backdrop = match &recipe.sky {
-            None => Arc::new(Backdrop::Analytic { intensity: 1.0 }),
+            None => Arc::new(Backdrop::Analytic {
+                intensity: 1.0,
+                turbidity: TURBIDITY,
+                ground_albedo: GROUND,
+            }),
             Some(sky) => {
                 let file = hdr_file(recipe, sky);
                 memory.backdrop(&recipe.base, sky, file.as_deref(), || backdrop(recipe, sky))?
@@ -198,13 +209,17 @@ impl Lighting {
         } = self.shine(hour);
         let tint = shade_at(&self.shade, hour);
         let sky = match &*self.backdrop {
-            Backdrop::Analytic { intensity } => SkySource::Analytic(AnalyticSky {
+            Backdrop::Analytic {
+                intensity,
+                turbidity,
+                ground_albedo,
+            } => SkySource::Analytic(AnalyticSky {
                 sun: sun.direction,
                 sun_colour: sun.colour,
                 sun_intensity: sun.intensity,
                 ambient: ambient as f32 * intensity,
-                turbidity: TURBIDITY,
-                ground_albedo: GROUND,
+                turbidity: *turbidity,
+                ground_albedo: *ground_albedo,
             }),
             Backdrop::Texels { sky, hourly } => {
                 let scale = match hourly {
@@ -350,6 +365,8 @@ fn backdrop(recipe: &Recipe, sky: &manfred_recipe::Sky) -> Result<Backdrop, Erro
         SkyKind::Analytic => {
             return Ok(Backdrop::Analytic {
                 intensity: sky.intensity as f32,
+                turbidity: sky.turbidity.map_or(TURBIDITY, |t| t as f32),
+                ground_albedo: sky.ground_albedo.map_or(GROUND, |g| g.map(|v| v as f32)),
             });
         }
         SkyKind::Room => (
@@ -882,6 +899,21 @@ mod tests {
         assert_eq!(plain.haze, None);
         let hazy = Lighting::of(&recipe("[look]\ngrade = { haze = 0.3 }\n")).unwrap();
         assert_eq!(hazy.haze, Some(room_haze(0.3)));
+    }
+
+    #[test]
+    fn the_analytic_sky_draws_the_recipe_turbidity_and_ground_albedo() {
+        let analytic = |text: &str| match Lighting::of(&recipe(text)).unwrap().at(None).sky {
+            SkySource::Analytic(sky) => (sky.turbidity, sky.ground_albedo),
+            _ => panic!("expected an analytic sky"),
+        };
+        assert_eq!(analytic(""), (TURBIDITY, GROUND));
+        assert_eq!(
+            analytic(
+                "[sky]\nkind = \"analytic\"\nturbidity = 7.0\nground_albedo = [0.1, 0.3, 0.5]\n"
+            ),
+            (7.0, [0.1, 0.3, 0.5])
+        );
     }
 
     #[test]

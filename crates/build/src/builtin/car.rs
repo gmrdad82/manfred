@@ -1,3 +1,4 @@
+use super::{rgb, table, tagged};
 use crate::{Call, Generated, GeneratedLight, Piece};
 use glam::{DMat4, DQuat, DVec2, DVec3};
 use manfred_mesh::{self as mesh, Mesh, Slot};
@@ -7,7 +8,7 @@ use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 pub const NAME: &str = "manfred/car";
 
-const PARAMS: [&str; 10] = [
+const PARAMS: [&str; 14] = [
     "seed",
     "length",
     "width",
@@ -18,7 +19,33 @@ const PARAMS: [&str; 10] = [
     "paint",
     "style",
     "lights",
+    "head_emission",
+    "tail_emission",
+    "head_light",
+    "tail_light",
 ];
+const HEAD_EMISSION: [f64; 3] = [5.0, 4.6, 3.8];
+const TAIL_EMISSION: [f64; 3] = [3.2, 0.03, 0.01];
+const HEAD_LAMP: Lamp = Lamp {
+    intensity: 90.0,
+    cone: [20.0, 40.0],
+    range: 40.0,
+    color: [1.0, 0.93, 0.82],
+};
+const TAIL_LAMP: Lamp = Lamp {
+    intensity: 6.0,
+    cone: [15.0, 35.0],
+    range: 6.0,
+    color: [1.0, 0.06, 0.03],
+};
+
+#[derive(Clone, Copy)]
+struct Lamp {
+    intensity: f64,
+    cone: [f64; 2],
+    range: f64,
+    color: [f64; 3],
+}
 const STYLES: [&str; 4] = ["sports", "sedan", "hatch", "van"];
 
 const GLASS: &str = "car_glass";
@@ -351,6 +378,14 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
             .as_bool()
             .ok_or_else(|| "params.lights: expected true or false".to_string())?,
     };
+    let emission = |key: &str, default: [f64; 3]| match params.get(key) {
+        None => Ok(default),
+        Some(v) => rgb(v, key, None),
+    };
+    let head_emission = emission("head_emission", HEAD_EMISSION)?;
+    let tail_emission = emission("tail_emission", TAIL_EMISSION)?;
+    let head_lamp = lamp(params, "head_light", HEAD_LAMP)?;
+    let tail_lamp = lamp(params, "tail_light", TAIL_LAMP)?;
     let d = style.design();
     let length = ranged(params, "length", d.size[0], 2.0, 12.0)?;
     let width = ranged(params, "width", d.size[1], 1.0, 3.0)?;
@@ -419,11 +454,7 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
             DQuat::IDENTITY,
         ));
     }
-    let (head, tail) = if lights {
-        (HEAD, TAIL)
-    } else {
-        (HEAD_OFF, TAIL_OFF)
-    };
+    let (fixed, head, tail) = fixed(lights, head_emission, tail_emission);
     pieces.push(Piece {
         name: format!("{name}.body"),
         mesh: body,
@@ -451,15 +482,15 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
     }
     pieces.push(Piece {
         name: format!("{name}.headlights"),
-        mesh: car.headlights(head),
+        mesh: car.headlights(&head),
     });
     pieces.push(Piece {
         name: format!("{name}.taillights"),
-        mesh: car.taillights(tail),
+        mesh: car.taillights(&tail),
     });
     let mut materials = offered;
-    for (key, value) in fixed(lights) {
-        materials.insert(key.to_string(), value);
+    for (key, value) in fixed {
+        materials.insert(key, value);
     }
     let Value::Object(facts) = json!({
         "style": style.name(),
@@ -473,7 +504,11 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
         unreachable!()
     };
     Ok(Generated {
-        lights: if lights { car.lights(name) } else { Vec::new() },
+        lights: if lights {
+            car.lights(name, &head_lamp, &tail_lamp)
+        } else {
+            Vec::new()
+        },
         pieces,
         facts,
         materials,
@@ -559,8 +594,54 @@ fn paint(
     Ok((text, BTreeMap::new()))
 }
 
-fn fixed(lights: bool) -> Vec<(&'static str, Value)> {
-    let mut out = vec![
+fn lamp(params: &BTreeMap<String, Value>, key: &str, default: Lamp) -> Result<Lamp, String> {
+    let Some(given) = params.get(key) else {
+        return Ok(default);
+    };
+    let given = table(given, key, &["intensity", "cone", "range", "color"])?;
+    let mut out = default;
+    let at_least_zero = |name: &str| -> Result<Option<f64>, String> {
+        match given.get(name) {
+            None => Ok(None),
+            Some(v) => v
+                .as_f64()
+                .filter(|v| v.is_finite() && *v >= 0.0)
+                .map(Some)
+                .ok_or_else(|| format!("params.{key}.{name}: expected a number of 0 or more")),
+        }
+    };
+    if let Some(v) = at_least_zero("intensity")? {
+        out.intensity = v;
+    }
+    if let Some(v) = at_least_zero("range")? {
+        out.range = v;
+    }
+    if let Some(v) = given.get("color") {
+        out.color = rgb(v, &format!("{key}.color"), None)?;
+    }
+    if let Some(v) = given.get("cone") {
+        let want = || {
+            format!(
+                "params.{key}.cone: expected [inner, outer] degrees with 0 <= inner <= outer <= 180"
+            )
+        };
+        let list = v.as_array().filter(|l| l.len() == 2).ok_or_else(want)?;
+        let inner = list[0].as_f64().ok_or_else(want)?;
+        let outer = list[1].as_f64().ok_or_else(want)?;
+        if !(0.0 <= inner && inner <= outer && outer <= 180.0) {
+            return Err(want());
+        }
+        out.cone = [inner, outer];
+    }
+    Ok(out)
+}
+
+fn fixed(
+    lights: bool,
+    head_emission: [f64; 3],
+    tail_emission: [f64; 3],
+) -> (Vec<(String, Value)>, String, String) {
+    let out = vec![
         (
             GLASS,
             json!({ "family": "glass", "base": [0.32, 0.36, 0.38], "roughness": 0.02, "transmission": 0.85, "ior": 1.5, "thickness": 0.004 }),
@@ -578,26 +659,40 @@ fn fixed(lights: bool) -> Vec<(&'static str, Value)> {
             json!({ "base": [0.018, 0.018, 0.02], "roughness": 0.55 }),
         ),
     ];
-    if lights {
-        out.push((
-            HEAD,
-            json!({ "family": "emissive", "base": [1.0, 0.95, 0.85], "emission": [5.0, 4.6, 3.8] }),
-        ));
-        out.push((
-            TAIL,
-            json!({ "family": "emissive", "base": [0.6, 0.0, 0.0], "emission": [3.2, 0.03, 0.01] }),
-        ));
+    let mut out: Vec<(String, Value)> = out
+        .into_iter()
+        .map(|(name, value)| (name.to_string(), value))
+        .collect();
+    let (head, tail) = if lights {
+        let head =
+            json!({ "family": "emissive", "base": [1.0, 0.95, 0.85], "emission": head_emission });
+        let tail =
+            json!({ "family": "emissive", "base": [0.6, 0.0, 0.0], "emission": tail_emission });
+        let head_name = if head_emission == HEAD_EMISSION {
+            HEAD.to_string()
+        } else {
+            tagged(HEAD, &head)
+        };
+        let tail_name = if tail_emission == TAIL_EMISSION {
+            TAIL.to_string()
+        } else {
+            tagged(TAIL, &tail)
+        };
+        out.push((head_name.clone(), head));
+        out.push((tail_name.clone(), tail));
+        (head_name, tail_name)
     } else {
         out.push((
-            HEAD_OFF,
+            HEAD_OFF.to_string(),
             json!({ "base": [0.85, 0.86, 0.88], "roughness": 0.08 }),
         ));
         out.push((
-            TAIL_OFF,
+            TAIL_OFF.to_string(),
             json!({ "base": [0.45, 0.02, 0.02], "roughness": 0.1 }),
         ));
-    }
-    out
+        (HEAD_OFF.to_string(), TAIL_OFF.to_string())
+    };
+    (out, head, tail)
 }
 
 fn smoothstep(e0: f64, e1: f64, x: f64) -> f64 {
@@ -1014,7 +1109,7 @@ impl Car {
         m
     }
 
-    fn lights(&self, name: &str) -> Vec<GeneratedLight> {
+    fn lights(&self, name: &str, head: &Lamp, tail: &Lamp) -> Vec<GeneratedLight> {
         let body = format!("{name}.body");
         let (_, heads) = self.heads();
         let (_, tails) = self.tails();
@@ -1024,10 +1119,10 @@ impl Car {
                 name: format!("{name}.headlight_{side}"),
                 position: (at + DVec3::Z * 0.06).to_array(),
                 direction: DVec3::new(0.0, -0.06, 1.0).normalize().to_array(),
-                cone: [20.0, 40.0],
-                range: 40.0,
-                color: [1.0, 0.93, 0.82],
-                intensity: 90.0,
+                cone: head.cone,
+                range: head.range,
+                color: head.color,
+                intensity: head.intensity,
                 shadow: false,
                 parent: Some(body.clone()),
             });
@@ -1037,10 +1132,10 @@ impl Car {
                 name: format!("{name}.taillight_{side}"),
                 position: (at - DVec3::Z * 0.06).to_array(),
                 direction: DVec3::new(0.0, -0.15, -1.0).normalize().to_array(),
-                cone: [15.0, 35.0],
-                range: 6.0,
-                color: [1.0, 0.06, 0.03],
-                intensity: 6.0,
+                cone: tail.cone,
+                range: tail.range,
+                color: tail.color,
+                intensity: tail.intensity,
                 shadow: false,
                 parent: Some(body.clone()),
             });

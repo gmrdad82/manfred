@@ -582,6 +582,8 @@ pub struct Sky {
     pub ambient: Option<SkyAmbient>,
     pub shade: BTreeMap<u32, [f64; 3]>,
     pub room: Option<Room>,
+    pub turbidity: Option<f64>,
+    pub ground_albedo: Option<[f64; 3]>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

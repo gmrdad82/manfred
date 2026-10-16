@@ -1,5 +1,6 @@
 pub const NAME: &str = "manfred/road";
 
+use super::{rgb, table, tagged, within};
 use crate::{Call, Generated, Piece};
 use manfred_mesh::Mesh;
 use manfred_motion::{Frame, Route};
@@ -31,6 +32,9 @@ const KEYS: &[&str] = &[
     "step",
     "seed",
     "reveal",
+    "asphalt",
+    "paint",
+    "concrete",
 ];
 
 const LIFT: f64 = 0.002;
@@ -73,6 +77,8 @@ struct Spec {
     step: f64,
     seed: u64,
     reveal: f64,
+    materials: BTreeMap<String, Value>,
+    names: [String; 3],
 }
 
 pub fn generate(call: &Call) -> Result<Generated, String> {
@@ -187,6 +193,7 @@ fn spec(params: &BTreeMap<String, Value>, seed: u64) -> Result<Spec, String> {
     if params.contains_key("offset") && !params.contains_key("every") {
         return Err("params.offset: expected with `every`".to_string());
     }
+    let (materials, names) = surfaces(params)?;
     Ok(Spec {
         route,
         lanes,
@@ -206,6 +213,8 @@ fn spec(params: &BTreeMap<String, Value>, seed: u64) -> Result<Spec, String> {
         step: above(params, "step", 1.0)?.max(MIN_STEP),
         seed,
         reveal: reveal(params)?,
+        materials,
+        names,
     })
 }
 
@@ -228,6 +237,70 @@ fn shown(runs: Vec<(f64, f64)>, reach: Option<f64>) -> Vec<(f64, f64)> {
             .filter(|(a, b)| b > a)
             .collect(),
     }
+}
+
+fn surfaces(
+    params: &BTreeMap<String, Value>,
+) -> Result<(BTreeMap<String, Value>, [String; 3]), String> {
+    let defaults = materials();
+    let mut out = BTreeMap::new();
+    let mut names = [ASPHALT, PAINT, CONCRETE].map(str::to_string);
+    for (slot, (key, name)) in [
+        ("asphalt", ASPHALT),
+        ("paint", PAINT),
+        ("concrete", CONCRETE),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let default = defaults[name].clone();
+        let mut value = default.clone();
+        if let (Some(given), Some(keys)) = (params.get(key), value.as_object_mut()) {
+            let given = table(given, key, &["base", "roughness", "wet"])?;
+            if let Some(base) = given.get("base") {
+                keys.insert(
+                    "base".to_string(),
+                    json!(rgb(base, &format!("{key}.base"), Some(1.0))?),
+                );
+            }
+            if let Some(roughness) = given.get("roughness") {
+                keys.insert(
+                    "roughness".to_string(),
+                    json!(within(roughness, &format!("{key}.roughness"), 0.0, 1.0)?),
+                );
+            }
+            if let Some(found) = given.get("wet") {
+                keys.insert("wet".to_string(), wet(found, &format!("{key}.wet"))?);
+            }
+        }
+        if value != default {
+            names[slot] = tagged(name, &value);
+        }
+        out.insert(names[slot].clone(), value);
+    }
+    Ok((out, names))
+}
+
+fn wet(value: &Value, key: &str) -> Result<Value, String> {
+    let given = table(value, key, &["amount", "puddles", "puddle_scale", "seed"])?;
+    let mut out = serde_json::Map::new();
+    for (name, item) in given {
+        let at = format!("{key}.{name}");
+        let v = match name.as_str() {
+            "amount" | "puddles" => json!(within(item, &at, 0.0, 1.0)?),
+            "puddle_scale" => json!(
+                item.as_f64()
+                    .filter(|v| v.is_finite() && *v > 0.0)
+                    .ok_or_else(|| format!("params.{at}: expected a number above 0"))?
+            ),
+            _ => json!(
+                item.as_u64()
+                    .ok_or_else(|| format!("params.{at}: expected a whole number of 0 or more"))?
+            ),
+        };
+        out.insert(name.clone(), v);
+    }
+    Ok(Value::Object(out))
 }
 
 struct Rng(u64);
@@ -568,11 +641,11 @@ fn road(object: &str, route: &Route, spec: &Spec) -> Result<Generated, String> {
     }
 
     let pieces = [
-        named(asphalt, format!("{object}.asphalt"), ASPHALT),
-        named(curbs, format!("{object}.curbs"), CONCRETE),
-        named(sidewalks, format!("{object}.sidewalks"), CONCRETE),
-        named(markings, format!("{object}.markings"), PAINT),
-        named(zebra, format!("{object}.crosswalks"), PAINT),
+        named(asphalt, format!("{object}.asphalt"), &spec.names[0]),
+        named(curbs, format!("{object}.curbs"), &spec.names[2]),
+        named(sidewalks, format!("{object}.sidewalks"), &spec.names[2]),
+        named(markings, format!("{object}.markings"), &spec.names[1]),
+        named(zebra, format!("{object}.crosswalks"), &spec.names[1]),
     ]
     .into_iter()
     .flatten()
@@ -598,7 +671,7 @@ fn road(object: &str, route: &Route, spec: &Spec) -> Result<Generated, String> {
     Ok(Generated {
         pieces,
         facts,
-        materials: materials(),
+        materials: spec.materials.clone(),
         ..Generated::default()
     })
 }

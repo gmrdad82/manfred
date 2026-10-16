@@ -2340,6 +2340,44 @@ fn read_sky(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Option<Sky>, Error> {
         }
         None => None,
     };
+    let turbidity = tab.opt(cx, "turbidity", NUM)?;
+    let ground_albedo = tab.opt(cx, "ground_albedo", V3)?;
+    for (key, set) in [
+        ("turbidity", turbidity.is_some()),
+        ("ground_albedo", ground_albedo.is_some()),
+    ] {
+        let line = cx.lines.get(&tab.kipath(key)).copied();
+        if set && kind != SkyKind::Analytic {
+            return Err(Error::new(
+                tab.kpath(key),
+                line,
+                format!(
+                    "`{key}` belongs to an analytic sky, expected `kind = \"analytic\"` or the key removed"
+                ),
+            ));
+        }
+    }
+    if let Some(t) = turbidity
+        && !(1.0..=10.0).contains(&t)
+    {
+        return Err(Error::new(
+            tab.kpath("turbidity"),
+            cx.lines.get(&tab.kipath("turbidity")).copied(),
+            format!("expected a number from 1 to 10, found {t}"),
+        ));
+    }
+    if let Some(albedo) = ground_albedo
+        && albedo.iter().any(|v| *v < 0.0 || !v.is_finite())
+    {
+        return Err(Error::new(
+            tab.kpath("ground_albedo"),
+            cx.lines.get(&tab.kipath("ground_albedo")).copied(),
+            format!(
+                "expected [r, g, b] each 0 or more, found [{}, {}, {}]",
+                albedo[0], albedo[1], albedo[2]
+            ),
+        ));
+    }
     tab.finish(cx)?;
     Ok(Some(Sky {
         kind,
@@ -2353,6 +2391,8 @@ fn read_sky(cx: &mut Cx, root: &mut Tab<'_>) -> Result<Option<Sky>, Error> {
         ambient,
         shade,
         room,
+        turbidity,
+        ground_albedo,
     }))
 }
 

@@ -255,6 +255,7 @@ pub struct Built {
     pub looks: Arc<Looks>,
     pub lods: Vec<Lod>,
     nest: Vec<Option<(usize, DMat4)>>,
+    wet: BTreeMap<String, (String, pfx_scene::types::Wet)>,
 }
 
 impl Built {
@@ -1088,14 +1089,26 @@ fn assemble(
     let facts = facts::facts(recipe, &generated);
     let sidecar = sidecar(recipe, registry, &facts)?;
     let mut materials = BTreeMap::new();
+    let mut wet = BTreeMap::new();
     let mut notes = Vec::new();
-    for (name, (owner, value)) in offered {
+    for (name, (owner, mut value)) in offered {
         match recipe.materials.get(&name) {
             Some(own) if *own != value => notes.push(format!(
                 "materials.{name}: the recipe's entry replaces the one the object `{owner}` returned"
             )),
             Some(_) => {}
             None => {
+                if let Some(keys) = value.as_object_mut()
+                    && let Some(found) = keys.remove("wet")
+                {
+                    let found = serde_json::from_value(found).map_err(|e| {
+                        Error::new(
+                            format!("object[{owner}].params"),
+                            format!("the material `{name}` has a wet table pfx does not read: {e}"),
+                        )
+                    })?;
+                    wet.insert(name.clone(), (owner.to_string(), found));
+                }
                 materials.insert(name, value);
             }
         }
@@ -1121,6 +1134,7 @@ fn assemble(
         lods,
         extras: extras::of(recipe, &parts, &facts.movers),
         nest: nest(recipe, &parts),
+        wet,
         timeline: recipe.timeline,
         tracks: Vec::new(),
         facts_by_object: by_object,

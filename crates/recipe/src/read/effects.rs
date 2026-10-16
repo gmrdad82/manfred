@@ -84,6 +84,7 @@ enum Shape {
     Keys { unit: bool },
     Colour,
     Colours,
+    Rgb,
 }
 
 const WHOLE: u64 = u32::MAX as u64;
@@ -129,6 +130,8 @@ const MOTION_BLUR: &[(&str, Shape)] = &[
 ];
 
 const HAZE: &[(&str, Shape)] = &[
+    ("lo", Shape::Vec3 { nonzero: false }),
+    ("hi", Shape::Vec3 { nonzero: false }),
     ("amount", Shape::Num(Rule::Within(0.0, 1.0))),
     ("height", Shape::Num(Rule::Any)),
     ("falloff", Shape::Num(Rule::AtLeast(0.0))),
@@ -136,8 +139,16 @@ const HAZE: &[(&str, Shape)] = &[
     ("shafts", Shape::Num(Rule::Within(0.0, 1.0))),
     ("steps", Shape::Whole(1, WHOLE)),
     ("color", Shape::Colour),
-    ("phase", Shape::Num(Rule::Within(-0.9, 0.9))),
     ("fog", Shape::Num(Rule::AtLeast(0.0))),
+    ("smoke", Shape::Num(Rule::AtLeast(0.0))),
+    ("mist", Shape::Num(Rule::AtLeast(0.0))),
+    ("floor", Shape::Num(Rule::AtLeast(0.0))),
+    ("phase", Shape::Num(Rule::Within(-0.9, 0.9))),
+    ("back", Shape::Num(Rule::AtLeast(0.0))),
+    ("gold", Shape::Rgb),
+    ("ambient", Shape::Rgb),
+    ("unmapped", Shape::Num(Rule::AtLeast(0.0))),
+    ("seed", Shape::Whole(0, WHOLE)),
 ];
 
 const WET: &[(&str, Shape)] = &[
@@ -294,6 +305,7 @@ fn shaped(cx: &Cx, path: &str, item: &Item, shape: Shape) -> Result<Setting, Err
             Setting::Keys(keys)
         }
         Shape::Colour => Setting::Colour(colour(cx, path, value)?),
+        Shape::Rgb => Setting::Numbers(numbers(cx, path, value, 3, Rule::AtLeast(0.0))?),
         Shape::Colours => {
             let Some(list) = value.as_array() else {
                 return Err(bad_value(cx, path, value, "an array of [t, colour] pairs"));
@@ -380,6 +392,9 @@ pub(super) fn read_effects(
     let flare = table(cx, root, "flare", FLARE)?;
     let motion_blur = table(cx, root, "motion_blur", MOTION_BLUR)?;
     let haze = table(cx, root, "haze", HAZE)?;
+    if let Some(settings) = &haze {
+        room_box(cx, settings)?;
+    }
     let sound = match root.opt(cx, "sound", STR)? {
         Some(file) if !file.ends_with(".sound.toml") || file.len() == ".sound.toml".len() => {
             return Err(Error::new(
@@ -398,6 +413,44 @@ pub(super) fn read_effects(
         wet,
         sound,
     })
+}
+
+fn room_box(cx: &Cx, settings: &Settings) -> Result<(), Error> {
+    let get = |key: &str| {
+        settings.iter().find_map(|(k, v)| match v {
+            Setting::Numbers(v) if *k == key => Some(v.clone()),
+            _ => None,
+        })
+    };
+    let line = |key: &str| cx.lines.get(&format!("haze.{key}")).copied();
+    match (get("lo"), get("hi")) {
+        (Some(lo), Some(hi)) => {
+            if (0..3).any(|k| lo[k] >= hi[k]) {
+                return Err(Error::new(
+                    "haze.hi",
+                    line("hi"),
+                    format!(
+                        "expected `hi` above `lo` on every axis, found lo [{}, {}, {}] and hi [{}, {}, {}]",
+                        lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]
+                    ),
+                ));
+            }
+            Ok(())
+        }
+        (None, None) => Ok(()),
+        (lo, _) => {
+            let (key, other) = if lo.is_none() {
+                ("lo", "hi")
+            } else {
+                ("hi", "lo")
+            };
+            Err(Error::new(
+                format!("haze.{key}"),
+                line(other),
+                format!("a room haze needs `lo` and `hi`, expected `{key}` beside `{other}`"),
+            ))
+        }
+    }
 }
 
 pub(super) fn read_wet(cx: &mut Cx, name: &str, item: &Item) -> Result<Settings, Error> {

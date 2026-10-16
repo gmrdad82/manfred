@@ -146,7 +146,13 @@ pub(crate) fn text(
         ));
     }
     if format == 0
-        && let Some(key) = effects::format_1_key(recipe)
+        && let Some(key) = effects::format_1_key(recipe).or_else(|| {
+            built
+                .wet
+                .values()
+                .next()
+                .map(|(owner, _)| format!("object[{owner}].params"))
+        })
     {
         return Err(Error::new(
             key,
@@ -506,6 +512,12 @@ fn sky(
         }
         SkyKind::Analytic => {
             s.put("kind", &string("analytic"));
+            if let Some(turbidity) = sky.turbidity {
+                s.num("turbidity", turbidity)?;
+            }
+            if let Some(albedo) = &sky.ground_albedo {
+                s.list("ground_albedo", albedo)?;
+            }
             return analytic_ambient(&mut s, light, sky.intensity);
         }
         SkyKind::Hdr => {
@@ -853,10 +865,10 @@ fn haze(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
             "look.grade.haze already sets the haze's amount, expected one of the two",
         ));
     }
-    if room.is_none() && open.is_some() && !has("height") && !has("falloff") {
+    if room.is_none() && open.is_some() && !has("height") && !has("falloff") && !has("lo") {
         return Err(Error::new(
             "haze",
-            "an outdoor haze needs `height` or `falloff`; a room haze comes from look.grade.haze",
+            "an outdoor haze needs `height` or `falloff`; a room haze needs `lo` and `hi`, or comes from look.grade.haze",
         ));
     }
     if room.is_none() && open.is_none() {
@@ -865,11 +877,17 @@ fn haze(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
     let mut s = Section::new(out, "[haze]", "haze");
     if let Some(amount) = room {
         s.at = "look.grade.haze".to_string();
-        s.list("lo", &HAZE_LO)?;
-        s.list("hi", &HAZE_HI)?;
+        if !has("lo") {
+            s.list("lo", &HAZE_LO)?;
+            s.list("hi", &HAZE_HI)?;
+        }
         s.num("amount", amount.min(1.0))?;
-        s.num("phase", HAZE_PHASE)?;
-        s.num("back", HAZE_BACK)?;
+        if !has("phase") {
+            s.num("phase", HAZE_PHASE)?;
+        }
+        if !has("back") {
+            s.num("back", HAZE_BACK)?;
+        }
         s.at = "haze".to_string();
     }
     match open {
@@ -1749,6 +1767,8 @@ fn one(
                 material.id = next(&mut ids, None, "materials", name);
                 if let Some(wet) = recipe.effects.wet.get(name) {
                     material.wet = Some(effects::wet(wet));
+                } else if let Some((_, wet)) = built.wet.get(name) {
+                    material.wet = Some(*wet);
                 }
             }
             library.format = Some(FORMAT);
