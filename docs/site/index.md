@@ -40,6 +40,8 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 | `manfred timeline` | a recipe's timeline: frames, keyed nodes, the camera node, what travels how far and how fast |
 | `manfred library` | lists, indexes and checks the object library: standard glTF models with a sidecar, which a recipe places by name |
 | `manfred shoot` | a timeline's frames rendered by `pfx shot` on the live renderer, with its WAV and a manifest, resumable |
+| `manfred library bake` | a recipe's object written into the object library as model.glb, object.toml and a thumbnail |
+| `manfred library add` | a glTF 2.0 binary file brought into the object library, with its size, wheels and light anchors |
 
 ## Where to start
 

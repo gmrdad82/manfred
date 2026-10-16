@@ -90,6 +90,7 @@ manfred-render.workspace = true
 manfred-runtime.workspace = true
 manfred-motion.workspace = true
 pfx-core.workspace = true
+glam.workspace = true
 serde_json.workspace = true
 clap.workspace = true
 gltf.workspace = true

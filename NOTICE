@@ -29,6 +29,11 @@ the code:
 - docs/images/speed.png: pcmp (pito-compare) of docs/charts/speed.toml
 - docs/images/size.png: pcmp (pito-compare) of docs/charts/size.toml
 
+The object library, library/: its models, object.toml files and thumbnails are
+original, baked by Manfred's own generators from library/sources.toml with
+bin/library, no third-party models or brand marks, under the MIT licence like
+the code.
+
 Test data written by Manfred's own code for its tests, under the MIT licence:
 - crates/glb/tests/golden/two.glb
 - crates/scene/tests/fixtures/halves.jpg: a 16x8 image of two flat colours

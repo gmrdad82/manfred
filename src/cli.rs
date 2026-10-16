@@ -4,6 +4,8 @@ mod clip;
 mod diff;
 mod gui;
 mod library;
+mod library_add;
+mod library_bake;
 mod new;
 mod process;
 mod render;
@@ -100,7 +102,7 @@ enum Verb {
     #[command(about = "Build a recipe and render its timeline's frames with pfx shot, resumably")]
     Shoot(shoot::Args),
     #[command(
-        about = "The object library: list, index and check library/<kind>/<name> models and sidecars",
+        about = "The object library: list, index, check, bake and add library/<kind>/<name> models and sidecars",
         subcommand_required = true,
         arg_required_else_help = false
     )]

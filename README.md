@@ -224,6 +224,10 @@ manfred new street [--seed N] [--out <file.toml>] [--json]
 manfred timeline <recipe> [--json]                           builds the recipe and reports its frames, keyed nodes, camera node and each followed object's distance and top speed
 manfred shoot <recipe> --out <dir> [--draft|--final] [--range a..b] [--camera <name>] [--json]
                                                           builds the recipe and renders its timeline with `pfx shot` on the live renderer: frames, the scene's sound as a WAV and shoot.json; resumes where it stopped
+manfred library bake <recipe> <object> --as <kind>/<name> [--thumb] [--tags a,b] [--library <dir>] [--json]
+                                                          builds the recipe and writes the object to library/<kind>/<name>: model.glb, object.toml (its source, params and facts) and with --thumb a 512x512 still on a neutral ground; then the index
+manfred library add <file.glb> --as <kind>/<name> [--thumb] [--tags a,b] [--library <dir>] [--json]
+                                                          brings a glTF 2.0 binary file into the library: copies it, writes its object.toml (file name, sha256, size, wheels and light anchors found by node name), checked by gltf_validator when installed
 manfred gui [<recipe>|<folder>]                              the window; without a recipe, Manfred's own mark, selected on a floor grid; Ctrl+O, a picker of recipes
 manfred gui <recipe> [--stage N|name] [--only <glob>[,<glob>]]
                                                           the window on stages 1 to N, or only those objects or pieces; with --shot or --clip too

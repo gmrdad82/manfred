@@ -45,6 +45,10 @@ enum LibraryCommand {
         about = "Validate the sidecars, the index, the sha256s and the licence line, and each model with gltf_validator when it is on the PATH"
     )]
     Check(Common),
+    #[command(about = "Build a recipe's object into library/<kind>/<name>")]
+    Bake(super::library_bake::Args),
+    #[command(about = "Bring a glTF 2.0 binary file into library/<kind>/<name>")]
+    Add(super::library_add::Args),
 }
 
 const COMMAND: &str = "library";
@@ -230,10 +234,12 @@ fn check(args: &Common) -> ExitCode {
     }
 }
 
-pub fn run(args: &Args, _: &Registry) -> ExitCode {
+pub fn run(args: &Args, registry: &Registry) -> ExitCode {
     match &args.command {
         LibraryCommand::List(list_args) => list(list_args),
         LibraryCommand::Index(common) => index(common),
         LibraryCommand::Check(common) => check(common),
+        LibraryCommand::Bake(parsed) => super::library_bake::run(parsed, registry),
+        LibraryCommand::Add(parsed) => super::library_add::run(parsed, registry),
     }
 }
