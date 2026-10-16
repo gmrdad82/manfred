@@ -116,6 +116,17 @@ One JSON object on stdout. `list` prints `recipe` (the path as given) and `route
 - `clip.txt`: the line that made the frames (recipe, camera, frames, size, renderer and samples, variant, sets). A run with a different line into the folder is refused;
 - `frames.ffconcat`: an ffconcat list holding each frame for its share of a second, to the microsecond, for `--video` or any encoder.
 
+## A shoot's folder
+
+`manfred shoot <recipe> --out <dir>` builds the recipe into its `[output]` GLB and scene, then runs `pfx shot` on the scene through `pgpu run --class clip --as manfred` (directly, with a note, when pgpu is not on the `PATH`), with `--from`, `--frames`, `--fps` and `--size` from `[timeline]` and `--range`, `--camera camera.<name>` and `--draft` or `--final`. It writes:
+
+- `frame-00000.png`, `frame-00001.png`…: the timeline's frame numbers, so a `--range` writes only its own. A frame already there and whole is skipped: a shoot stopped part way is run again with the same line and renders only the missing runs of frames (with `--final`, pfx warms up to 8 frames before each run);
+- `sound.wav`: the scene's `sound` mixed by pfx, written by a run that covers the whole timeline from frame 0 when the scene names a sound;
+- `pfx-<from>.json`: pfx's own `manifest.json` of the run that started at frame `<from>`;
+- `shoot.json`: `shoot` (1), `recipe`, `scene`, `glb`, `camera` (the node), `renderer` (`live`), `quality`, `fps`, `size`, `range` (`[a, b]`, both included), `frames` (in the range), `skipped` (already there), `files` (the range's frames on disk), `wav` (`sound.wav` or null), `sound` (whether the scene names one), `pfx` (its version) and `runs[]`: `from`, `frames`, `manifest`, `written`, `quality`, `wall_ms`, `gpu_ms` and `warnings`, from pfx's manifest, for every run into the folder.
+
+With `--json` it prints one line a frame as pfx reads it back, `{"frame", "of", "time", "gpu_ms", "wall_ms"}`, then `shoot.json` as the last line. Manfred encodes nothing: pfx film and pcod make the video.
+
 ## A window clip
 
 `manfred gui --clip <dir> --tape <file>` writes three files named `<tape>-<W>x<H>-<fps>fps`:

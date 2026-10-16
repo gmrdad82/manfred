@@ -91,6 +91,7 @@ manfred-runtime.workspace = true
 manfred-motion.workspace = true
 serde_json.workspace = true
 clap.workspace = true
+gltf.workspace = true
 sha2.workspace = true
 
 [dev-dependencies]
