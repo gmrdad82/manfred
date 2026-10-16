@@ -640,6 +640,15 @@ impl Document {
             }
         }
         let (name, text) = recipe.ok_or("the document has no recipe (RCPE)")?;
+        let own = Path::new(&name)
+            .parent()
+            .map_or_else(|| PathBuf::from(GLTF_NAME), |dir| dir.join(GLTF_NAME));
+        if !doc.gltf.is_empty()
+            && text.contains(&format!("\"{GLTF_NAME}\""))
+            && !doc.files.contains_key(&own)
+        {
+            doc.files.insert(own, join_glb(&doc.gltf, &doc.gbin));
+        }
         doc.recipe_name = name;
         doc.recipe_text = text;
         if let Ok(facts) = toml::from_str::<toml::Table>(&doc.facts)
