@@ -128,14 +128,16 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
 
 fn keyframes(out: &mut Out<'_>) {
     let r = out.r;
+    let constrained = r.constrained();
+    let driven = |owner: Owner| constrained.iter().any(|c| c.owner == owner);
     for (index, object) in r.objects.iter().enumerate() {
         if r.keyed.contains_key(&format!("object.{}", object.name))
-            && r.follows.iter().any(|f| f.object == object.name)
+            && driven(Owner::Object(object.name.clone()))
         {
             out.add(
                 format!("object[{}].keys", object.name),
                 &format!("object#{index}.keys"),
-                "a [[follow]] drives this object's whole transform, expected its keys or its follow removed",
+                "a [[follow]] or a constraint drives this object's transform, expected its keys or its constraints removed",
             );
         }
     }
@@ -148,23 +150,26 @@ fn keyframes(out: &mut Out<'_>) {
             format!("camera[{}].keys", camera.name),
             format!("camera#{index}.keys"),
         );
-        if let Some(rig) = &camera.rig {
+        if driven(Owner::Camera(camera.name.clone())) {
             for key in ["position", "target"] {
                 if keyed.contains_key(key) {
                     out.at(
                         &at,
                         key,
-                        "the camera's [camera.rig] places and aims it, expected the keyed position and target removed or the rig",
+                        "the camera's [camera.rig] or constraints place and aim it, expected the keyed position and target removed or the constraints",
                     );
                 }
             }
-            if rig.focus == Some(RigFocus::Follow) && keyed.contains_key("focus_m") {
-                out.at(
-                    &at,
-                    "focus_m",
-                    "rig.focus = \"follow\" already sets the focus over time, expected one of the two",
-                );
-            }
+        }
+        if r.rig_of(camera)
+            .is_some_and(|rig| rig.focus == Some(RigFocus::Follow))
+            && keyed.contains_key("focus_m")
+        {
+            out.at(
+                &at,
+                "focus_m",
+                "rig.focus = \"follow\" already sets the focus over time, expected one of the two",
+            );
         }
         if keyed.contains_key("exposure") {
             if scene_camera != Some(camera.name.as_str()) {

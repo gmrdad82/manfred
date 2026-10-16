@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use glam::{DMat4, DVec3};
 use manfred_motion::trs_from_matrix;
-use manfred_recipe::Recipe;
+use manfred_recipe::{Owner, Recipe};
 
 use super::rig::view;
 use crate::{Bake, Track, camera_track, rotation};
@@ -17,7 +17,7 @@ fn keyed(recipe: &Recipe, name: &str) -> bool {
 }
 
 pub(crate) fn animates(recipe: &Recipe) -> Vec<String> {
-    let followed: BTreeSet<&str> = recipe.follows.iter().map(|f| f.object.as_str()).collect();
+    let followed: BTreeSet<String> = super::constraint::animates(recipe).into_iter().collect();
     (0..recipe.objects.len())
         .filter(|&index| {
             let mut at = index;
@@ -106,11 +106,14 @@ pub(crate) fn bake(b: &Bake) -> Result<Vec<Track>, String> {
             });
         }
     }
+    let constrained = recipe.constrained();
     for camera in &recipe.cameras {
         let entry = format!("camera.{}", camera.name);
         let position = recipe.channel(&format!("{entry}.position"));
         let target = recipe.channel(&format!("{entry}.target"));
-        if (position.is_none() && target.is_none()) || camera.rig.is_some() {
+        let owner = Owner::Camera(camera.name.clone());
+        if (position.is_none() && target.is_none()) || constrained.iter().any(|c| c.owner == owner)
+        {
             continue;
         }
         let up = DVec3::from(camera.up);
