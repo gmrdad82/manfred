@@ -11,6 +11,7 @@ description = "Manfred's geometry: outlines, 2D booleans, profiled extrusion, po
 
 [dependencies]
 glam.workspace = true
+libm.workspace = true
 i_overlay.workspace = true
 
 [dev-dependencies]

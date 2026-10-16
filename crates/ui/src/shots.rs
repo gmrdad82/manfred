@@ -581,6 +581,7 @@ impl Process for Running {
         (packed != 0).then_some(((packed >> 32) as u32, packed as u32))
     }
 
+    #[cfg(unix)]
     fn terminate(&mut self) {
         let _ = Command::new("kill")
             .args(["-TERM", &self.child.id().to_string()])
@@ -588,6 +589,11 @@ impl Process for Running {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
+    }
+
+    #[cfg(not(unix))]
+    fn terminate(&mut self) {
+        let _ = self.child.kill();
     }
 }
 
@@ -797,7 +803,7 @@ mod tests {
                 "--threshold",
                 "0",
                 "--out",
-                "tmp/manfred/renders/scene-front-1586x992.png",
+                &out.display().to_string(),
             ]
         );
         assert_eq!(argv("manfred", "a.toml", "c", [1, 1], 0, &out)[8], "1");
@@ -898,6 +904,7 @@ mod tests {
         assert_eq!(job.summary(), "front 1586×992 · running 64/256");
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_real_render_is_read_line_by_line_while_it_runs() {
         let argv: Vec<String> = [
@@ -944,10 +951,10 @@ mod tests {
         let out = scratch("shots-label").with_file_name("label.png");
         let mut job = job(&out);
         job.pid = Some(1);
-        let text = format!(
-            r#"{{"jobs":[{{"pid":9,"state":"running","as":"manfred","label":"manfred render --out {}"}}]}}"#,
-            out.display()
-        );
+        let label =
+            serde_json::to_string(&format!("manfred render --out {}", out.display())).unwrap();
+        let text =
+            format!(r#"{{"jobs":[{{"pid":9,"state":"running","as":"manfred","label":{label}}}]}}"#);
         job.tick(&mut fake(vec![]), Some(&seen(&text)));
         assert_eq!(job.phase, Phase::Running);
         let other =

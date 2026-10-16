@@ -1,6 +1,7 @@
 use crate::{Bake, Track};
 use glam::{DMat4, DQuat, DVec3};
 use manfred_glb::Node;
+use manfred_mesh::math::Real;
 use manfred_motion::{Route, Timeline, Trs, noise1, trs_from_matrix};
 use manfred_recipe::{Follow, Recipe};
 
@@ -80,7 +81,7 @@ pub(crate) fn drive(follow: &Follow, route: &Route, timeline: &Timeline) -> Driv
         .filter(|d| d.amount > 0.0 && d.period > 0.0)
         .map(|d| d.amount / d.period);
     let slip = follow.drift.map_or(0.0, |d| d.slip_deg.to_radians());
-    let ease = 1.0 - (-dt / SLIP_SMOOTH_S).exp();
+    let ease = 1.0 - (-dt / SLIP_SMOOTH_S).exp_of();
     let mut yaw = None::<f64>;
     let mut pose = Vec::with_capacity(distance.len());
     for (n, &d) in distance.iter().enumerate() {
@@ -90,7 +91,7 @@ pub(crate) fn drive(follow: &Follow, route: &Route, timeline: &Timeline) -> Driv
             Some(reference) => {
                 let side = (offset(t + dt) - offset(t - dt)) / (2.0 * dt);
                 let forward = speed_at(&follow.speed, t).max(CRAWL_M_S);
-                side.atan2(forward) + slip * (side / reference).tanh()
+                side.atan2_of(forward) + slip * (side / reference).tanh_of()
             }
             None => 0.0,
         };
@@ -117,7 +118,7 @@ pub(crate) fn drive(follow: &Follow, route: &Route, timeline: &Timeline) -> Driv
 
 pub(crate) fn steer(route: &Route, distance: f64, wheelbase: f64) -> f64 {
     let max = STEER_MAX_DEG.to_radians();
-    (-(wheelbase * route.curvature(distance)).atan()).clamp(-max, max)
+    (-(wheelbase * route.curvature(distance)).atan_of()).clamp(-max, max)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

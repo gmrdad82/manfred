@@ -1,3 +1,4 @@
+use manfred_mesh::math::Real;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -1859,7 +1860,7 @@ fn sin_cos(degrees: f64) -> (f64, f64) {
             _ => (-1.0, 0.0),
         }
     } else {
-        degrees.to_radians().sin_cos()
+        degrees.to_radians().sin_cos_of()
     }
 }
 
@@ -1880,15 +1881,19 @@ fn turn(degrees: [f64; 3]) -> Mat {
 }
 
 fn degrees_of(m: &Mat) -> [f64; 3] {
-    let y = (-m[2][0]).clamp(-1.0, 1.0).asin();
-    if y.cos() > 1e-9 {
+    let y = (-m[2][0]).clamp(-1.0, 1.0).asin_of();
+    if y.cos_of() > 1e-9 {
         [
-            m[2][1].atan2(m[2][2]).to_degrees(),
+            m[2][1].atan2_of(m[2][2]).to_degrees(),
             y.to_degrees(),
-            m[1][0].atan2(m[0][0]).to_degrees(),
+            m[1][0].atan2_of(m[0][0]).to_degrees(),
         ]
     } else {
-        [0.0, y.to_degrees(), (-m[0][1]).atan2(m[1][1]).to_degrees()]
+        [
+            0.0,
+            y.to_degrees(),
+            (-m[0][1]).atan2_of(m[1][1]).to_degrees(),
+        ]
     }
 }
 
@@ -1992,7 +1997,8 @@ fn relocated(cx: &Cx, key: &str, path: &mut String) {
         return;
     };
     let folder = cx.src.folder_at(line);
-    if folder.is_empty() || Path::new(path.as_str()).is_absolute() {
+    let rooted = Path::new(path.as_str());
+    if folder.is_empty() || rooted.has_root() || rooted.is_absolute() {
         return;
     }
     *path = include::joined(folder, path);

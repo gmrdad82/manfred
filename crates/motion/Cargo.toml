@@ -11,3 +11,4 @@ description = "Manfred's motion: routes as centripetal Catmull-Rom splines with 
 
 [dependencies]
 glam.workspace = true
+libm.workspace = true

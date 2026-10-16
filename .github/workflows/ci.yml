@@ -20,13 +20,17 @@ env:
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   gate:
     name: ${{ matrix.phase }} (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-24.04, windows-2025, macos-15]
         phase: [lint, test, release]
     runs-on: ${{ matrix.os }}
     steps:
@@ -39,9 +43,10 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6
         with:
-          key: ${{ matrix.phase }}
+          key: ${{ matrix.phase }}-${{ matrix.os }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libwayland-dev shellcheck
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libwayland-dev shellcheck
       - run: bin/gate --public ${{ matrix.phase }}
 
   gltf:

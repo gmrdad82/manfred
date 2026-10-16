@@ -1,4 +1,5 @@
 use crate::Mesh;
+use crate::math::Real;
 use std::collections::HashMap;
 
 const NONE: usize = usize::MAX;
@@ -345,7 +346,7 @@ fn evaluate(members: &[usize], good: &[Info], verts: &[[u32; 3]], mesh: &Mesh, r
         let p = [1, 0, 2].map(|j| mesh.positions[at((i + j) % 3)]);
         let v = [sub(p[0], p[1]), sub(p[2], p[1])].map(|v| project(v, n));
         let cos = dot(v[0], v[1]).clamp(-1.0, 1.0);
-        let angle = cos.acos();
+        let angle = cos.acos_of();
         let s = scale(project(info.raw.s, n), angle);
         let t = scale(project(info.raw.t, n), angle);
         res.s = add(res.s, s);

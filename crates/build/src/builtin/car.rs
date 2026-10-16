@@ -1,6 +1,7 @@
 use super::{rgb, table, tagged};
 use crate::{Call, Generated, GeneratedLight, Piece};
 use glam::{DMat4, DQuat, DVec2, DVec3};
+use manfred_mesh::math::Real;
 use manfred_mesh::{self as mesh, Mesh, Slot};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
@@ -520,7 +521,7 @@ pub(super) fn srgb(c: f64) -> f64 {
     if c <= 0.04045 {
         c / 12.92
     } else {
-        ((c + 0.055) / 1.055).powf(2.4)
+        ((c + 0.055) / 1.055).powf_of(2.4)
     }
 }
 
@@ -737,7 +738,7 @@ fn curve(keys: &[(f64, f64)], s: f64) -> f64 {
 fn arc(out: &mut Vec<DVec2>, centre: DVec2, radius: f64, from: f64, to: f64, steps: usize) {
     for k in 0..=steps {
         let a = from + (to - from) * k as f64 / steps as f64;
-        out.push(centre + DVec2::new(a.cos(), a.sin()) * radius);
+        out.push(centre + DVec2::new(a.cos_of(), a.sin_of()) * radius);
     }
 }
 
@@ -864,7 +865,7 @@ impl Car {
         let arch = if self.fine { 18 } else { 8 };
         for &a in &self.axles {
             for i in 0..=arch {
-                zs.push(a - self.arch * (PI * i as f64 / arch as f64).cos());
+                zs.push(a - self.arch * (PI * i as f64 / arch as f64).cos_of());
             }
             zs.push(a - edge);
             zs.push(a + edge);
@@ -906,8 +907,8 @@ impl Car {
         for k in (1..=steps).rev() {
             let a = FRAC_PI_2 * k as f64 / steps as f64;
             rings.push((
-                z0 - self.d.tail * a.sin(),
-                inset(&rear, self.d.tail * (1.0 - a.cos())),
+                z0 - self.d.tail * a.sin_of(),
+                inset(&rear, self.d.tail * (1.0 - a.cos_of())),
             ));
         }
         for &z in &zs {
@@ -917,8 +918,8 @@ impl Car {
         for k in 1..=steps {
             let a = FRAC_PI_2 * k as f64 / steps as f64;
             rings.push((
-                z1 + self.d.nose * a.sin(),
-                inset(&front, self.d.nose * (1.0 - a.cos())),
+                z1 + self.d.nose * a.sin_of(),
+                inset(&front, self.d.nose * (1.0 - a.cos_of())),
             ));
         }
         let mut shell = Shell {

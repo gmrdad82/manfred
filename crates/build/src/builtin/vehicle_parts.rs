@@ -5,6 +5,7 @@ use super::shared::{
 use super::sweep_profile;
 use crate::{Call, Generated, GeneratedLight};
 use glam::{DMat4, DQuat, DVec2, DVec3};
+use manfred_mesh::math::Real;
 use manfred_mesh::outline::{self, Outline, Shape};
 use manfred_mesh::{self as mesh, Mesh, Profile, UvMode};
 use serde_json::{Map, Value, json};
@@ -321,7 +322,7 @@ fn mirror(name: &str, p: &Params) -> Result<Generated, String> {
     let mut grid: Vec<Vec<u32>> = Vec::new();
     for r in 0..rows {
         let a = FRAC_PI_2 * r as f64 / rows as f64;
-        let (s, z) = (a.cos(), depth * a.sin());
+        let (s, z) = (a.cos_of(), depth * a.sin_of());
         let mut row: Vec<u32> = ring
             .iter()
             .map(|&q| {

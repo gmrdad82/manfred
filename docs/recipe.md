@@ -1412,7 +1412,7 @@ A material name is checked by `manfred check`, not by `validate`: an object with
 
 ## What is not in the recipe
 
-- The window's orbit camera, selection, panel layout and undo stack: tool state, never saved. Only the recent list is kept, under `$XDG_STATE_HOME/manfred`.
+- The window's orbit camera, selection, panel layout and undo stack: tool state, never saved. Only the recent list is kept, under `$XDG_STATE_HOME/manfred` (`%LOCALAPPDATA%\manfred` on Windows, `~/Library/Application Support/manfred` on macOS).
 - Live content: a page, a print, a simulation. Apps paint those at runtime, into the slots `card` objects name.
 - Behaviour: poses, motion, simulation. Movers describe where a part can go, never where it is now.
 - An app's material library: a name resolves through the app's registered catalogue, then the recipe's own `[materials.<name>]` in the engine's material TOML. The app decides whether a recipe's material joins its catalogue.

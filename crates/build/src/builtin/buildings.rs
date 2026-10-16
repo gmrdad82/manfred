@@ -1,6 +1,7 @@
 use crate::{Call, Generated, Piece};
 use glam::{DVec2, DVec3};
 use manfred_mesh::Mesh;
+use manfred_mesh::math::Real;
 use manfred_motion::Route;
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
@@ -621,7 +622,7 @@ fn polyline(route: &Route) -> Vec<DVec2> {
 }
 
 fn clearance(foot: &Footprint, line: &[DVec2], setback: f64) -> f64 {
-    let reach = foot.half.hypot(foot.depth) + setback + 1.0;
+    let reach = foot.half.hypot_of(foot.depth) + setback + 1.0;
     line.windows(2)
         .filter(|s| {
             let mid = (s[0] + s[1]) * 0.5;

@@ -7,19 +7,30 @@ sidebar:
 
 Each release carries Linux (x86_64), Windows (x86_64) and macOS (Apple Silicon) builds with one `SHA256SUMS` file. On Linux, Manfred needs a Vulkan GPU and its window needs Wayland.
 
-## Linux, from the release binary
+## From the release binary
 
-Each [release](https://github.com/gmrdad82/manfred/releases/latest) carries `manfred-vX.Y.Z-linux-x86_64.tar.gz` and a `SHA256SUMS` file. The binary needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and later).
+Each [release](https://github.com/gmrdad82/manfred/releases/latest) carries `manfred-vX.Y.Z-linux-x86_64.tar.gz`, `manfred-vX.Y.Z-windows-x86_64.zip`, `manfred-vX.Y.Z-macos-arm64.tar.gz` and a `SHA256SUMS` file. The Linux binary needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and later).
+
+Linux and macOS, into `~/.local/bin`:
 
 ```sh
 v=$(basename "$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/gmrdad82/manfred/releases/latest)")
-mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-linux-x86_64.tar.gz" | tar -xz -C ~/.local/bin manfred
+os=$([ "$(uname -s)" = Darwin ] && echo macos-arm64 || echo linux-x86_64)
+mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-$os.tar.gz" | tar -xz -C ~/.local/bin manfred
 manfred --version
 ```
 
-`~/.local/bin` needs to be on your `PATH`. The archive also holds `LICENSE`, `NOTICE`, `README.md` and the bundled licence texts; the line above takes the binary alone.
+`~/.local/bin` needs to be on your `PATH`.
 
-To check the download, fetch `SHA256SUMS` from the same release and run `sha256sum -c --ignore-missing SHA256SUMS` beside the archive.
+Windows, in PowerShell, into `%LOCALAPPDATA%\Programs\manfred`, added to your user `PATH` (open a new terminal afterwards):
+
+```powershell
+$v = (Invoke-RestMethod https://api.github.com/repos/gmrdad82/manfred/releases/latest).tag_name; $d = "$env:LOCALAPPDATA\Programs\manfred"; Invoke-WebRequest "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-windows-x86_64.zip" -OutFile "$env:TEMP\manfred.zip"; Expand-Archive "$env:TEMP\manfred.zip" $d -Force; [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$d", "User")
+```
+
+Each archive also holds `LICENSE`, `NOTICE`, `README.md` and the bundled licence texts; the Linux and macOS line takes the binary alone.
+
+To check the download, fetch `SHA256SUMS` from the same release and run `sha256sum -c --ignore-missing SHA256SUMS` beside the archive (`shasum -a 256 -c --ignore-missing SHA256SUMS` on macOS, `Get-FileHash` on Windows).
 
 ## Windows, from the setup
 
@@ -57,7 +68,7 @@ update-desktop-database "$d/applications"
 
 ## From source
 
-With Rust 1.97 or newer, `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu):
+With Rust 1.97 or newer; on Linux also `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu), on Windows the MSVC build tools, on macOS the Xcode command line tools:
 
 ```sh
 cargo install --locked --git https://github.com/gmrdad82/manfred --tag vX.Y.Z manfred

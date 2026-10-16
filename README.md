@@ -86,9 +86,9 @@ A recipe then asks for it with `kind = "generator"`, `generator = "app/cube"` an
 | 4K path-traced final | 7.9 s wall, 6.3 s on the GPU | the workshop's hero camera at 3840x2160, adaptive to 64 samples (59.9 a pixel on average), denoised; 1.1.0's release build, median of 5 runs alternated with 1.0.1's on a busy machine (load 6 to 22 on 32 threads) |
 | 4K path-traced draft | 3.8 s wall, 1.5 s on the GPU | the same with `--draft`, adaptive to 12 samples (11.5 on average) |
 | Code | 68,842 lines of Rust in 158 files, tests included | non-blank lines in the repository |
-| Dependencies | pfx, its engine, and 16 maintained crates | direct dependencies of the workspace (clap, serde, serde_json, toml, toml_edit, egui, egui-wgpu, glam, gltf, gltf-json, png, exr, half, zune-jpeg, ttf-parser, i_overlay); 308 crates in the whole build |
+| Dependencies | pfx, its engine, and 17 maintained crates | direct dependencies of the workspace (clap, serde, serde_json, toml, toml_edit, egui, egui-wgpu, glam, gltf, gltf-json, png, exr, half, zune-jpeg, ttf-parser, i_overlay, libm); 308 crates in the whole build |
 
-The machine is a Ryzen 9 9950X with a Radeon RX 9060 XT (RADV) on Linux. GPU commands ran as their own job in the `pgpu` queue, so no other job shared the card; the 4K renders are the 0.19.8 release's speed budgets of 2026-10-12, and the rest was measured on 2026-10-14. The charts are drawn by [pito-compare](https://github.com/gmrdad82/pito-compare) from [docs/charts/](docs/charts/). Manfred runs only on Linux today, so no other GPU or OS is measured.
+The machine is a Ryzen 9 9950X with a Radeon RX 9060 XT (RADV) on Linux. GPU commands ran as their own job in the `pgpu` queue, so no other job shared the card; the 4K renders are the 0.19.8 release's speed budgets of 2026-10-12, and the rest was measured on 2026-10-14. The charts are drawn by [pito-compare](https://github.com/gmrdad82/pito-compare) from [docs/charts/](docs/charts/). No other GPU or OS is measured.
 
 ## Install
 
@@ -96,9 +96,12 @@ Manfred is built on [pfx](https://github.com/gmrdad82/pfx). Each [release](https
 
 **Linux.** The binary needs a Vulkan GPU, Wayland for the window, and glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and later).
 
-```
+Linux and macOS, into `~/.local/bin`:
+
+```sh
 v=$(basename "$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/gmrdad82/manfred/releases/latest)")
-mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-linux-x86_64.tar.gz" | tar -xz -C ~/.local/bin manfred
+os=$([ "$(uname -s)" = Darwin ] && echo macos-arm64 || echo linux-x86_64)
+mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-$os.tar.gz" | tar -xz -C ~/.local/bin manfred
 ```
 
 `~/.local/bin` needs to be on your `PATH`.
@@ -124,7 +127,7 @@ manfred gui showcase/workshop.toml                        the workshop, live
 manfred render showcase/hero.toml --camera hero --draft --out hero.png
 ```
 
-**From source,** with Rust 1.97 or newer, `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu):
+**From source,** with Rust 1.97 or newer; on Linux also `pkg-config` and the Wayland client library (`libwayland-dev` on Debian and Ubuntu), on Windows the MSVC build tools, on macOS the Xcode command line tools:
 
 ```
 cargo install --locked --git https://github.com/gmrdad82/manfred --tag vX.Y.Z manfred
@@ -327,7 +330,7 @@ cd manfred
 bin/gate --public
 ```
 
-`bin/gate --public` is what CI runs, as three jobs in parallel (`bin/gate --public lint`, `test` and `release`): `shellcheck`, `cargo fmt --check`, `cargo clippy -D warnings`, every test and doc test that needs no GPU, with the default features, and the release build. CI runs on every push and pull request and nightly. Tests that need a GPU are `#[ignore]`d; run them on a machine with a Vulkan GPU with `cargo test -- --ignored`. The checks include a licence check: every dependency must be under an MIT-compatible licence.
+`bin/gate --public` is what CI runs, as three jobs in parallel (`bin/gate --public lint`, `test` and `release`) on each of Linux, Windows and macOS: `shellcheck` (on Linux), `cargo fmt --check`, `cargo clippy -D warnings`, every test and doc test that needs no GPU, with the default features, and the release build. CI runs on every push and pull request and nightly. Tests that need a GPU are `#[ignore]`d; run them on a machine with a GPU with `cargo test -- --ignored`. The scripts in `bin/` are bash for Linux and macOS; on Windows, use the `manfred` and `cargo` commands they run. The checks include a licence check: every dependency must be under an MIT-compatible licence.
 
 Manfred reports to no one: it sends no crash reports, job progress or usage anywhere.
 

@@ -62,9 +62,9 @@ fn check(points: &[[f64; 3]], closed: bool) -> Result<(), String> {
 }
 
 fn hermite(p0: DVec3, p1: DVec3, p2: DVec3, p3: DVec3) -> [DVec3; 4] {
-    let d0 = p0.distance(p1).powf(ALPHA);
-    let d1 = p1.distance(p2).powf(ALPHA);
-    let d2 = p2.distance(p3).powf(ALPHA);
+    let d0 = libm::pow(p0.distance(p1), ALPHA);
+    let d1 = libm::pow(p1.distance(p2), ALPHA);
+    let d2 = libm::pow(p2.distance(p3), ALPHA);
     let m1 = ((p1 - p0) / d0 - (p2 - p0) / (d0 + d1) + (p2 - p1) / d1) * d1;
     let m2 = ((p2 - p1) / d1 - (p3 - p1) / (d1 + d2) + (p3 - p2) / d2) * d1;
     let a = 2.0 * (p1 - p2) + m1 + m2;

@@ -173,7 +173,7 @@ fn copy_tree(from: &Path, to: &Path, skip: &Path, left: &mut u64) -> Result<(), 
             continue;
         };
         if meta.is_dir() {
-            let real = path.canonicalize().map_err(|error| named(&path, error))?;
+            let real = super::process::real(&path).map_err(|error| named(&path, error))?;
             if real != skip
                 && !real.starts_with(skip)
                 && !entry.file_type().is_ok_and(|kind| kind.is_symlink())
@@ -196,9 +196,8 @@ fn copy_tree(from: &Path, to: &Path, skip: &Path, left: &mut u64) -> Result<(), 
 }
 
 fn copied(path: &Path, work: &Path, skip: &Path) -> Result<PathBuf, String> {
-    let real = path
-        .canonicalize()
-        .map_err(|error| format!("{}: {error}", path.display()))?;
+    let real =
+        super::process::real(path).map_err(|error| format!("{}: {error}", path.display()))?;
     let folder = if real.is_dir() {
         real.clone()
     } else {
@@ -389,7 +388,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         return Ok(code);
     }
     std::fs::create_dir_all(&out).map_err(|error| named(&out, &error))?;
-    let out = out.canonicalize().map_err(|error| named(&out, &error))?;
+    let out = super::process::real(&out).map_err(|error| named(&out, &error))?;
     let shot = tape_path.file_stem().map_or_else(
         || "tape".to_string(),
         |stem| stem.to_string_lossy().into_owned(),

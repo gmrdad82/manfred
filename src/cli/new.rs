@@ -1,3 +1,4 @@
+use manfred_mesh::math::Real;
 use std::fmt::Write as _;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -113,7 +114,8 @@ pub(super) fn route(seed: u64) -> Vec<[f64; 3]> {
             } else {
                 random.uniform(-2.0, 2.0)
             };
-            let x = amplitude * ((std::f64::consts::TAU * t + phase).sin() - phase.sin()) + wobble;
+            let x = amplitude * ((std::f64::consts::TAU * t + phase).sin_of() - phase.sin_of())
+                + wobble;
             [round(x, 1), 0.0, round(length * t, 1)]
         })
         .collect()
@@ -150,7 +152,7 @@ pub(super) fn stretch(route: &[[f64; 3]]) -> [f64; 2] {
         None => ([route[0][0], route[0][2]], [route[1][0], route[1][2]]),
     };
     let (dx, dz) = (to[0] - from[0], to[1] - from[1]);
-    let length = dx.hypot(dz).max(1e-9);
+    let length = dx.hypot_of(dz).max(1e-9);
     [dx / length, dz / length]
 }
 
@@ -166,7 +168,7 @@ pub(super) fn sun(route: &[[f64; 3]]) -> Sun {
     }
     let hour = round(0.5 * (low + high), 2);
     let ahead = stretch(route);
-    let across = (-ahead[0]).atan2(ahead[1]).to_degrees();
+    let across = (-ahead[0]).atan2_of(ahead[1]).to_degrees();
     let heading = round(
         (daylight(hour, 180.0).azimuth - across).rem_euclid(360.0),
         1,
@@ -189,12 +191,12 @@ pub(super) struct Hero {
 }
 
 fn chase(hero: &Hero) -> ([f64; 3], [f64; 3]) {
-    let half = (FOV_Y_DEG.to_radians() * 0.5).tan();
+    let half = (FOV_Y_DEG.to_radians() * 0.5).tan_of();
     let distance = hero.width / (CAR_SHARE * 2.0 * half * ASPECT);
     let back = -(hero.length * 0.5 + distance);
-    let below = ((EYE - hero.height * 0.5) / distance).atan();
-    let wanted = ((2.0 * CAR_DOWN - 1.0) * half).atan();
-    let look = EYE + (LOOK_AT_M - back) * (wanted - below).tan();
+    let below = ((EYE - hero.height * 0.5) / distance).atan_of();
+    let wanted = ((2.0 * CAR_DOWN - 1.0) * half).atan_of();
+    let look = EYE + (LOOK_AT_M - back) * (wanted - below).tan_of();
     ([0.0, EYE, round(back, 2)], [0.0, round(look, 2), LOOK_AT_M])
 }
 
@@ -869,9 +871,9 @@ mod tests {
             .sun();
             assert!((4.0..=6.0).contains(&at.elevation), "{}", at.elevation);
             let ahead = stretch(&made.route);
-            let flat = at.y_up[0].hypot(at.y_up[2]);
+            let flat = at.y_up[0].hypot_of(at.y_up[2]);
             let cos = (at.y_up[0] * ahead[0] + at.y_up[2] * ahead[1]) / flat;
-            let off = cos.clamp(-1.0, 1.0).acos().to_degrees();
+            let off = cos.clamp(-1.0, 1.0).acos_of().to_degrees();
             assert!(off < 10.0, "seed {seed}: {off} degrees off the stretch");
         }
     }
@@ -912,14 +914,14 @@ mod tests {
             let near = samples
                 .iter()
                 .min_by(|a, b| {
-                    let da = (a.1.position.x - px).hypot(a.1.position.z - pz);
-                    let db = (b.1.position.x - px).hypot(b.1.position.z - pz);
+                    let da = (a.1.position.x - px).hypot_of(a.1.position.z - pz);
+                    let db = (b.1.position.x - px).hypot_of(b.1.position.z - pz);
                     da.total_cmp(&db)
                 })
                 .unwrap();
             let tangent = near.1.tangent;
             let yaw = (forward[0] * tangent.z - forward[2] * tangent.x)
-                .atan2(forward[0] * tangent.x + forward[2] * tangent.z)
+                .atan2_of(forward[0] * tangent.x + forward[2] * tangent.z)
                 .to_degrees();
             most = most.max(yaw.abs());
         }

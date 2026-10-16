@@ -1,6 +1,7 @@
 use crate::carve::{Frame, grooves, hinged, regions};
 use crate::{Call, Generated, Piece};
 use glam::{DVec2, DVec3};
+use manfred_mesh::math::Real;
 use manfred_mesh::{Mesh, Slot};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
@@ -1243,7 +1244,7 @@ fn finish(cage: &Cage, z0: f64, z1: f64, rings: usize) -> Result<Mesh, String> {
             if dx.abs() + dy.abs() < 1e-12 {
                 return 0.0;
             }
-            let a = dx.atan2(-dy);
+            let a = dx.atan2_of(-dy);
             if a < 0.0 { a + TAU } else { a }
         })
         .collect();

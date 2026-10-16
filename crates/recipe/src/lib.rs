@@ -1,3 +1,4 @@
+use manfred_mesh::math::Real;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
@@ -767,7 +768,7 @@ pub struct Reference {
 impl Reference {
     pub fn metres_per_pixel(&self) -> f64 {
         let [a, b] = self.from;
-        let pixels = (b[0] - a[0]).hypot(b[1] - a[1]);
+        let pixels = (b[0] - a[0]).hypot_of(b[1] - a[1]);
         if pixels > 0.0 {
             self.metres / pixels
         } else {
@@ -1175,7 +1176,7 @@ impl Camera {
             (Some(fov), _) => fov,
             (None, Some(focal)) if focal > 0.0 => {
                 let longest = self.sensor_mm.unwrap_or(SENSOR_MM) / (2.0 * focal);
-                2.0 * (longest / aspect.max(1.0)).atan().to_degrees()
+                2.0 * (longest / aspect.max(1.0)).atan_of().to_degrees()
             }
             _ => FOV_Y_DEG,
         }

@@ -1,6 +1,7 @@
 use glam::{DMat4, DVec3};
 use manfred_glb::{Lod, Node, Order, Targets, sidecar_text};
 use manfred_mesh::Morph;
+use manfred_mesh::math::Real;
 use manfred_recipe::{self as recipe, Kind, Object, Recipe, Shadow};
 use std::collections::BTreeMap;
 use std::fmt;
@@ -430,7 +431,7 @@ fn sin_cos(degrees: f64) -> (f64, f64) {
             _ => (-1.0, 0.0),
         }
     } else {
-        degrees.to_radians().sin_cos()
+        degrees.to_radians().sin_cos_of()
     }
 }
 

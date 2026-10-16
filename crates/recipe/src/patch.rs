@@ -20,7 +20,7 @@ pub fn save(l: &Loaded) -> Result<(), Error> {
 }
 
 fn replace(path: &Path, text: &str) -> Result<(), Error> {
-    crate::files::replace(path, text.as_bytes()).map_err(|e| {
+    crate::files::replace(path, text.replace("\r\n", "\n").as_bytes()).map_err(|e| {
         Error::new(
             path.display().to_string(),
             None,

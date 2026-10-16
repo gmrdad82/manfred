@@ -1,4 +1,5 @@
 use crate::build::{cluster, degenerate};
+use crate::math::Real;
 use crate::{Mesh, Morph, Slot};
 use glam::{DMat4, DVec3, Vec3};
 use std::collections::BTreeMap;
@@ -21,7 +22,7 @@ fn regions(pos: &[DVec3], tris: &[[u32; 3]], face: &[DVec3], edges: &Edges, limi
             (b - a).cross(c - a).length() * 0.5
         })
         .collect();
-    let planar = PLANAR_DEGREES.to_radians().cos();
+    let planar = PLANAR_DEGREES.to_radians().cos_of();
     let mut adjacent = vec![Vec::new(); face.len()];
     for list in edges.values() {
         if list.len() == 2 {
@@ -167,7 +168,7 @@ fn morph_normals(
             let p = moved[t[c] as usize];
             let u = (moved[t[(c + 1) % 3] as usize] - p).normalize_or_zero();
             let v = (moved[t[(c + 2) % 3] as usize] - p).normalize_or_zero();
-            sums[root] += face[ti] * u.dot(v).clamp(-1.0, 1.0).acos();
+            sums[root] += face[ti] * u.dot(v).clamp(-1.0, 1.0).acos_of();
         }
     }
     corners
@@ -207,7 +208,7 @@ fn split_core(m: &mut Mesh, degrees: f64, flat_faces: bool, morph: Option<&mut M
             (b - a).cross(c - a).normalize_or_zero()
         })
         .collect();
-    let limit = degrees.clamp(0.0, 180.0).to_radians().cos() - 1e-12;
+    let limit = degrees.clamp(0.0, 180.0).to_radians().cos_of() - 1e-12;
     let mut parent: Vec<usize> = (0..tris.len() * 3).collect();
     let mut edges = Edges::new();
     for (ti, t) in tris.iter().enumerate() {
@@ -260,7 +261,7 @@ fn split_core(m: &mut Mesh, degrees: f64, flat_faces: bool, morph: Option<&mut M
             let p = pos[t[c] as usize];
             let u = (pos[t[(c + 1) % 3] as usize] - p).normalize_or_zero();
             let v = (pos[t[(c + 2) % 3] as usize] - p).normalize_or_zero();
-            sums[root] += face[ti] * u.dot(v).clamp(-1.0, 1.0).acos();
+            sums[root] += face[ti] * u.dot(v).clamp(-1.0, 1.0).acos_of();
         }
     }
     let mut keys = BTreeMap::<(usize, [u32; 2], [u32; 2]), u32>::new();

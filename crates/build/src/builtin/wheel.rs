@@ -1,5 +1,6 @@
 use crate::{Call, Generated, Piece};
 use glam::{DMat4, DQuat, DVec3};
+use manfred_mesh::math::Real;
 use manfred_mesh::{self as mesh, Mesh, Slot};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
@@ -184,7 +185,7 @@ fn srgb(c: u8) -> f64 {
     if c <= 0.04045 {
         c / 12.92
     } else {
-        ((c + 0.055) / 1.055).powf(2.4)
+        ((c + 0.055) / 1.055).powf_of(2.4)
     }
 }
 
@@ -496,7 +497,7 @@ fn lathed(profile: &[[f64; 2]], segments: u32, material: &str) -> Mesh {
 }
 
 fn radial(a: f64) -> DVec3 {
-    DVec3::new(a.sin(), 0.0, a.cos())
+    DVec3::new(a.sin_of(), 0.0, a.cos_of())
 }
 
 impl Wheel {
@@ -542,17 +543,17 @@ impl Wheel {
         for k in 0..=steps {
             let u = f64::from(k) / f64::from(steps);
             let y = if u <= peak {
-                bead + (widest - bead) * (FRAC_PI_2 * u / peak).sin()
+                bead + (widest - bead) * (FRAC_PI_2 * u / peak).sin_of()
             } else {
-                widest - (widest - top) * (1.0 - (FRAC_PI_2 * (u - peak) / (1.0 - peak)).cos())
+                widest - (widest - top) * (1.0 - (FRAC_PI_2 * (u - peak) / (1.0 - peak)).cos_of())
             };
             side.push([rr + 0.01 + u * (h - shoulder - 0.01), y]);
         }
         for k in 1..=5 {
             let a = FRAC_PI_2 * f64::from(k) / 5.0;
             side.push([
-                r - shoulder + shoulder * a.sin(),
-                tread + shoulder * a.cos(),
+                r - shoulder + shoulder * a.sin_of(),
+                tread + shoulder * a.cos_of(),
             ]);
         }
         let mut crown: Vec<[f64; 2]> = Vec::new();
@@ -652,7 +653,7 @@ impl Wheel {
         for k in 0..rim.spokes {
             let a = TAU * f64::from(k) / f64::from(rim.spokes);
             let out = radial(a);
-            let side = DVec3::new(a.cos(), 0.0, -a.sin());
+            let side = DVec3::new(a.cos_of(), 0.0, -a.sin_of());
             for &(lane, share) in &lanes {
                 let stations: Vec<(DVec3, DVec3, DVec3, [f64; 2])> = (0..=steps)
                     .map(|i| {

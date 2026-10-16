@@ -1,5 +1,6 @@
 use crate::Bake;
 use glam::{DMat4, DQuat, DVec3};
+use manfred_mesh::math::Real;
 use manfred_motion::Route;
 use manfred_recipe::{Camera, Rig, RigFrame, RigTracks, Spring};
 use pfx_core::fx::{Comfort, Shake, ShakeTuning};
@@ -43,11 +44,14 @@ pub(crate) fn rigged(
     };
     let offsets: Vec<DVec3> = if spherical {
         let elevation = if reach > 0.0 {
-            (rig.offset[1] / reach).clamp(-1.0, 1.0).asin().to_degrees()
+            (rig.offset[1] / reach)
+                .clamp(-1.0, 1.0)
+                .asin_of()
+                .to_degrees()
         } else {
             0.0
         };
-        let azimuth = (-rig.offset[0]).atan2(-rig.offset[2]).to_degrees();
+        let azimuth = (-rig.offset[0]).atan2_of(-rig.offset[2]).to_degrees();
         let orbit = curve("orbit", azimuth);
         let pitch = curve("pitch", elevation);
         (0..frames.len())
@@ -171,7 +175,7 @@ fn sampled(rig: &Rig, times: &[f64], dt: f64, name: &str, fallback: f64) -> Vec<
 
 fn damp(values: &[f64], seconds: f64, dt: f64) -> Vec<f64> {
     let omega = 2.0 / seconds;
-    let fade = (-omega * dt).exp();
+    let fade = (-omega * dt).exp_of();
     let mut at = values.first().copied().unwrap_or(0.0);
     let mut rate = 0.0;
     values
@@ -190,8 +194,8 @@ fn damp(values: &[f64], seconds: f64, dt: f64) -> Vec<f64> {
 }
 
 fn around(distance: f64, orbit_deg: f64, pitch_deg: f64) -> DVec3 {
-    let (sa, ca) = orbit_deg.to_radians().sin_cos();
-    let (se, ce) = pitch_deg.to_radians().sin_cos();
+    let (sa, ca) = orbit_deg.to_radians().sin_cos_of();
+    let (se, ce) = pitch_deg.to_radians().sin_cos_of();
     DVec3::new(-distance * ce * sa, distance * se, -distance * ce * ca)
 }
 
@@ -284,7 +288,7 @@ fn headings(frames: &[(DQuat, DVec3)], lag: f64, dt: f64) -> Vec<DQuat> {
     let mut yaws: Vec<f64> = Vec::with_capacity(frames.len());
     for (turn, _) in frames {
         let forward = *turn * DVec3::Z;
-        let yaw = forward.x.atan2(forward.z);
+        let yaw = forward.x.atan2_of(forward.z);
         let unwrapped = match yaws.last() {
             Some(last) => last + (yaw - last + PI).rem_euclid(TAU) - PI,
             None => yaw,
@@ -522,7 +526,7 @@ mod tests {
     fn drifting(t: f64) -> Trs {
         Trs {
             translation: [0.0, 0.0, 20.0 * t],
-            rotation: DQuat::from_rotation_y(0.2 * (std::f64::consts::TAU * t).sin()).to_array(),
+            rotation: DQuat::from_rotation_y(0.2 * (std::f64::consts::TAU * t).sin_of()).to_array(),
             scale: [1.0; 3],
         }
     }

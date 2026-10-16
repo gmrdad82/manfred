@@ -1,5 +1,6 @@
 use crate::{Error, fail};
 use glam::{DMat4, DVec2, DVec3};
+use manfred_mesh::math::Real;
 use manfred_mesh::{Mesh, triangle_normal};
 use manfred_recipe::{DetailUv, Object};
 use std::collections::{BTreeMap, VecDeque};
@@ -213,7 +214,7 @@ fn charts(world: &[[DVec3; 3]], keys: &[[u32; 3]]) -> Vec<Chart> {
         .flatten()
         .fold(0.0f64, |m, p| m.max(p.abs().max_element()));
     let tolerance = TOUCH * spread.max(longest).max(1e-12);
-    let limit = CHART_DEGREES.to_radians().cos();
+    let limit = CHART_DEGREES.to_radians().cos_of();
     let mut owner = vec![usize::MAX; world.len()];
     let mut out = Vec::new();
     let seeds: Vec<usize> = (0..world.len())

@@ -24,13 +24,13 @@ case "${1:-}" in
 esac
 if [ "$public" = 1 ]; then
   if [ "$phase" = all ] || [ "$phase" = lint ]; then
-    shellcheck bin/*
+    [ "$(uname -s)" != Linux ] || shellcheck bin/*
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings
   fi
   if [ "$phase" = all ] || [ "$phase" = test ]; then
-    cargo test --workspace --all-targets
-    cargo test --workspace --doc
+    cargo test --workspace --all-targets --no-fail-fast
+    cargo test --workspace --doc --no-fail-fast
   fi
   if [ "$phase" = all ] || [ "$phase" = release ]; then
     cargo build --release

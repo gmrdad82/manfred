@@ -1,4 +1,5 @@
 use crate::Camera;
+use manfred_mesh::math::Real;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CameraPath {
@@ -57,19 +58,19 @@ impl CameraPath {
 impl Orbit {
     pub fn elevation_deg(&self, position: [f64; 3]) -> Option<f64> {
         let v = sub(position, self.target);
-        let flat = v[0].hypot(v[2]);
-        (flat > 1e-9).then(|| v[1].atan2(flat).to_degrees())
+        let flat = v[0].hypot_of(v[2]);
+        (flat > 1e-9).then(|| v[1].atan2_of(flat).to_degrees())
     }
 
     fn place(&self, position: [f64; 3], s: f64) -> [f64; 3] {
         let v = sub(position, self.target).map(|x| x * self.radius_scale);
-        let flat = v[0].hypot(v[2]);
-        let (rise_sin, rise_cos) = (self.rise_deg * s).to_radians().sin_cos();
+        let flat = v[0].hypot_of(v[2]);
+        let (rise_sin, rise_cos) = (self.rise_deg * s).to_radians().sin_cos_of();
         let lifted_flat = flat * rise_cos - v[1] * rise_sin;
         let height = flat * rise_sin + v[1] * rise_cos;
         let k = if flat > 0.0 { lifted_flat / flat } else { 0.0 };
         let (x, z) = (v[0] * k, v[2] * k);
-        let (sin, cos) = (std::f64::consts::TAU * self.turns * s).sin_cos();
+        let (sin, cos) = (std::f64::consts::TAU * self.turns * s).sin_cos_of();
         [
             self.target[0] + (x * cos + z * sin),
             self.target[1] + height,
@@ -219,7 +220,7 @@ mod tests {
         close(c.at(path.time(6, 24)).position, [2.0, 1.0, 0.0]);
         let last = c.at(path.time(23, 24)).position;
         let angle = std::f64::consts::TAU * 23.0 / 24.0;
-        close(last, [2.0 * angle.sin(), 1.0, 2.0 * angle.cos()]);
+        close(last, [2.0 * angle.sin_of(), 1.0, 2.0 * angle.cos_of()]);
         let keys = CameraPath {
             kind: PathKind::Keys(Vec::new()),
             ease: Ease::Linear,
@@ -240,7 +241,7 @@ mod tests {
         let angle = std::f64::consts::TAU * 0.15625;
         close(
             c.at(0.25).position,
-            [2.0 * angle.sin(), 1.0, 2.0 * angle.cos()],
+            [2.0 * angle.sin_of(), 1.0, 2.0 * angle.cos_of()],
         );
     }
 
