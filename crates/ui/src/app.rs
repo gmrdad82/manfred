@@ -84,6 +84,20 @@ impl<'a> Manfred<'a> {
             .is_some_and(|viewer| viewer.follow().busy() || viewer.staging())
     }
 
+    pub fn curve_key(
+        &mut self,
+        camera: &str,
+        track: &str,
+        key: usize,
+        at: [f64; 2],
+    ) -> Result<(), String> {
+        self.shell.curve_step(camera, track, key, at)
+    }
+
+    pub fn curve(&mut self, edit: crate::CurveEdit) -> Result<(), String> {
+        self.shell.curve(edit, None)
+    }
+
     pub fn rendering(&self) -> bool {
         self.shell.rendering()
     }

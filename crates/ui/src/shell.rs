@@ -63,6 +63,7 @@ const PAUSE: &str = "\u{f04c}";
 const STOP: &str = "\u{f04d}";
 
 mod bare;
+mod curves;
 mod transport;
 
 pub fn status_version() -> String {
@@ -183,6 +184,7 @@ pub struct Shell {
     edits: crate::edit::Edits,
     gizmo: Gizmo,
     routes: crate::routes::Routes,
+    curves: crate::curves::Strip,
     pick: Option<[f32; 2]>,
     spans: crate::spans::Spans,
     clock: Clock,
@@ -458,6 +460,7 @@ impl Shell {
             edits: crate::edit::Edits::default(),
             gizmo: Gizmo::default(),
             routes: crate::routes::Routes::default(),
+            curves: crate::curves::Strip::default(),
             pick: None,
             spans: crate::spans::Spans::default(),
             clock: Clock::default(),
@@ -767,6 +770,7 @@ impl Shell {
     fn place(&mut self, document: Document, renamed: &[(String, String)]) {
         let recipe = self.editor.as_ref().and_then(Editor::loaded);
         self.routes.set(recipe.map(|loaded| &loaded.recipe));
+        self.curves.fit(recipe.map(|loaded| &loaded.recipe));
         let follow_rename = |name: String| {
             renamed.iter().fold(
                 name,
@@ -1335,6 +1339,7 @@ impl Shell {
             }
             (_, Key::Num0) if self.live() => self.jump(self.camera),
             (_, Key::Z) if self.live() => self.toggle_wireframe(),
+            (_, Key::K) if self.live() && self.has_curves() => self.toggle_curves(),
             (_, Key::Space | Key::Comma | Key::Period | Key::F) if self.span().is_some() => {
                 self.transport_key(key);
             }
@@ -1411,6 +1416,14 @@ impl Shell {
             (Panel::C3, Key::Enter) => self.render(),
             (Panel::C3, Key::Escape) => self.shots.cancel(),
             (Panel::C3, Key::V) => self.full = self.shot_views.is_some(),
+            (Panel::C1, Key::Escape) if self.live() && self.curves.drag.is_some() => {
+                self.cancel_curve();
+            }
+            (Panel::C1, Key::Delete | Key::Backspace)
+                if self.live() && self.curves_open() && self.curves.selected.is_some() =>
+            {
+                self.remove_curve_key();
+            }
             (Panel::C1, Key::Escape) if self.live() && self.routes.dragging().is_some() => {
                 self.cancel_route();
             }
@@ -2001,7 +2014,7 @@ impl Shell {
                         Sense::hover()
                     };
                     let bar = if shell.span().is_some() {
-                        transport::HEIGHT
+                        transport::HEIGHT + shell.curves_height()
                     } else {
                         0.0
                     };
@@ -2039,6 +2052,7 @@ impl Shell {
                     shell.shading(ui, image);
                     shell.shot_overlay(ui, image);
                     if bar > 0.0 {
+                        shell.curves_strip(ui);
                         shell.transport(ui);
                     }
                 });
@@ -2117,6 +2131,7 @@ impl Shell {
         self.preparing = None;
         self.gizmo = Gizmo::default();
         self.routes = crate::routes::Routes::default();
+        self.curves = crate::curves::Strip::default();
         self.spans = crate::spans::Spans::default();
         self.clock = Clock::default();
         self.chase_eye = None;

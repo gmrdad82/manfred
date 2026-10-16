@@ -85,6 +85,16 @@ impl Shell {
         {
             self.clock.chase = !self.clock.chase;
         }
+        if self.has_curves()
+            && toggle(
+                &mut bar,
+                &format!("{}  curves  k", curves::CURVES),
+                self.curves.open,
+            )
+            .clicked()
+        {
+            self.toggle_curves();
+        }
         bar.add_space(8.0);
         let width = (bar.available_width() - READOUT).max(40.0);
         let (track, response) =

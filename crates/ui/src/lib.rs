@@ -1,6 +1,7 @@
 mod animated;
 mod app;
 mod cameras;
+mod curves;
 mod document;
 mod edit;
 mod fixture;
@@ -28,6 +29,7 @@ mod wire;
 use pfx_editor_style::widgets;
 
 pub use app::Manfred;
+pub use curves::{Change, CurveEdit, TRACKS as CURVE_TRACKS};
 pub use fixture::Fixture;
 pub use follow::{Follow, Mode};
 pub use pfx_editor_shell::{Error, Pulse, Script, shot, window};
