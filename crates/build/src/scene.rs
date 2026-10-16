@@ -34,7 +34,7 @@ const HAZE_HI: [f64; 3] = [1.0, 0.95, 0.95];
 const HAZE_PHASE: f64 = 0.35;
 const HAZE_BACK: f64 = 0.7;
 const LIGHT_FLOOR: f64 = 0.01;
-const MAX_LIGHTS: usize = 4;
+const MAX_LIGHTS: usize = 4 + 1024;
 const CONTENT_SLOTS: usize = 4;
 const STILL: [f64; 2] = [1586.0, 992.0];
 const LIFT: f64 = 0.0005;
@@ -1794,4 +1794,15 @@ fn png_header(bytes: &[u8]) -> Result<(), String> {
         .output_buffer_size()
         .map(|_| ())
         .ok_or_else(|| "png: the image is too large".into())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn the_scene_holds_as_many_local_lights_as_pfx_live_draws() {
+        assert_eq!(
+            super::MAX_LIGHTS,
+            pfx_live::lights::MAX_LIGHTS + pfx_live::lights::MAX_CLUSTERED
+        );
+    }
 }

@@ -5,7 +5,7 @@ use pfx_core::daylight::{Authored, Daylight};
 use pfx_core::sky::AnalyticSky;
 use pfx_live::effects::RoomHaze;
 use pfx_live::frame::Sun;
-use pfx_live::lights::{LocalLight, MAX_LIGHTS};
+use pfx_live::lights::{LocalLight, MAX_CLUSTERED, MAX_LIGHTS};
 use pfx_live::sky::SkySource;
 use pfx_load::{RoomLamp, RoomSky, Sky};
 use pfx_post::{Bloom, Chain, Pass, Saturation, Tone, Vignette, Warmth};
@@ -480,9 +480,10 @@ fn mixed(mut daylight: Sky, room: &RoomSky, fill: f32) -> Sky {
 }
 
 fn lights(recipe: &Recipe) -> Result<Vec<LocalLight>, Error> {
-    if recipe.lights.len() > MAX_LIGHTS {
+    if recipe.lights.len() > MAX_LIGHTS + MAX_CLUSTERED {
         return Err(Error(format!(
-            "light: the engine draws {MAX_LIGHTS} local lights at most, the recipe has {}",
+            "light: the engine draws {} local lights at most, the recipe has {}",
+            MAX_LIGHTS + MAX_CLUSTERED,
             recipe.lights.len()
         )));
     }
@@ -497,6 +498,7 @@ fn lights(recipe: &Recipe) -> Result<Vec<LocalLight>, Error> {
             radius: light.radius as f32,
             range: reach(light.range, light.intensity) as f32,
             shadow: light.shadow,
+            spot: None,
         })
         .collect())
 }
@@ -634,11 +636,17 @@ mod tests {
     }
 
     #[test]
-    fn more_than_four_lights_are_refused_and_range_zero_reaches() {
+    fn more_lights_than_the_engine_draws_are_refused_and_range_zero_reaches() {
         let one = "[[light]]\nname = \"l{}\"\nposition = [0.0, 1.0, 0.0]\nintensity = 4.0\n";
-        let five: String = (0..5).map(|i| one.replace("{}", &i.to_string())).collect();
-        let error = Lighting::of(&recipe(&five)).unwrap_err();
-        assert!(error.0.contains("4 local lights at most"), "{error}");
+        let most = MAX_LIGHTS + MAX_CLUSTERED;
+        let over: String = (0..=most)
+            .map(|i| one.replace("{}", &i.to_string()))
+            .collect();
+        let error = Lighting::of(&recipe(&over)).unwrap_err();
+        assert!(
+            error.0.contains(&format!("{most} local lights at most")),
+            "{error}"
+        );
         let four: String = (0..4).map(|i| one.replace("{}", &i.to_string())).collect();
         let lighting = Lighting::of(&recipe(&four)).unwrap();
         assert_eq!(lighting.lights.len(), 4);

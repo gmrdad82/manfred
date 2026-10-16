@@ -278,7 +278,7 @@ params = { route = "main", spacing = [22, 30], crosswalks = [120.0, 310.0] }
 
 - **Pieces:** `<object>.poles` (posts, plinths, arms and head shells), `<object>.wires`, `<object>.lamps` (the lenses, emissive warm when lit) and `<object>.extras` (signals, bollards and signs); a piece with nothing in it is left out.
 - **Materials** it returns: `furniture_metal`, `furniture_wire`, `furniture_lamp` (emissive) or `furniture_lamp_off`, `furniture_sign` and `furniture_signal` (the lit red lamp); a recipe entry of the same name wins.
-- **Lights:** each lit lamp is a spot light under its head, `<object>.lamp<n>` counted from the route's start, pointing down and a little over the road, with no shadow. The scene writes them as `[[light]]` tables with `kind = "spot"`, `position`, `direction`, `cone`, `color`, `intensity`, `range` and `shadow`, after the recipe's own lights, while the engine has room (4 local lights with pfx today); `manfred build` prints a line naming the ones left out.
+- **Lights:** each lit lamp is a spot light under its head, `<object>.lamp<n>` counted from the route's start, pointing down and a little over the road, with no shadow. The scene writes them as `[[light]]` tables with `kind = "spot"`, `position`, `direction`, `cone`, `color`, `intensity`, `range` and `shadow`, after the recipe's own lights, while the engine has room (1028 local lights with pfx 2.2: 4 shadowed and 1024 clustered); `manfred build` prints a line naming the ones left out.
 - **Deterministic:** the same route, params and seed build the same bytes.
 
 ### manfred/car
@@ -572,7 +572,7 @@ travel = 0.003
 clip = [0.0, 0.0, 1.0, 0.0]
 ```
 
-- Lights are the engine's point lights, or spot lights with `kind = "spot"`, four at most today; "Shot effects" below has the spot and parent keys.
+- Lights are the engine's point lights, or spot lights with `kind = "spot"`, 1028 at most (pfx 2.2 draws 4 with shadows and 1024 more clustered); "Shot effects" below has the spot and parent keys.
 - A mover's parts are the objects named `mv_<group>` and `mv_<group>__<part>`, or listed in `parts`. The facts carry pivot, axis, travel and clip planes as written. Two movers may not share a `group`.
 - **A mover's keys:** `group`, `pivot`, `axis` and `travel` are required; `clip` and `clip2` are optional; `parts` is optional. `axis` is not [0, 0, 0].
   - **`pivot`** is in metres, in the recipe's own axes. `pivot_px = [x, y, z]` reads x and y as plate pixels, as `at_px` does, and z in metres, the depth along the recipe's z (0 when left out).
