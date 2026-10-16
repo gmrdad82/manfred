@@ -119,7 +119,7 @@ Replace `vX.Y.Z` with a [release](https://github.com/gmrdad82/manfred/releases) 
 Manfred can use three optional command-line tools when they are on the `PATH`, and works without them:
 
 - `pgpu`, a GPU queue: when it is there, renders and clips wait their turn on it; without it they run at once, paced the same way.
-- [`pcod`](https://github.com/gmrdad82/pito-codecs) (pito-codecs), a video encoder for `manfred clip --video`: without it the frames are written, and any encoder, such as `ffmpeg -framerate 30 -i frame-%04d.png clip.mp4`, makes the video.
+- [`pcod`](https://github.com/gmrdad82/pito-codecs) (pito-codecs), a video encoder for `manfred clip --video`: without it `--video` says pcod is needed and keeps the frames.
 - `pfx`, the engine's tool, bakes the light probes from the bake recipe `manfred build` writes.
 
 ## A first scene

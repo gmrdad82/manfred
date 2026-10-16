@@ -1665,14 +1665,14 @@ impl Shell {
 
     fn viewing_hints(panel: Panel) -> &'static [(&'static str, &'static str)] {
         match panel {
-            Panel::B2 => &[("↑↓", "camera"), ("0", "back to camera")],
+            Panel::B2 => &[("↑↓", "camera"), ("0", "to camera")],
             Panel::C1 => &[
                 ("click", "select"),
                 ("drag", "orbit"),
                 ("⇧ drag", "pan"),
                 ("wheel", "dolly"),
-                ("z ⇧z", "wire x-ray"),
-                ("0", "back to camera"),
+                ("z", "wire"),
+                ("0", "to camera"),
             ],
             _ => Shell::hints_for(panel, false),
         }
@@ -1686,7 +1686,7 @@ impl Shell {
                     ("s", "set from view"),
                     ("n", "new"),
                     ("del", "delete"),
-                    ("0", "back to camera"),
+                    ("0", "to camera"),
                 ];
             }
             (Panel::C1, true) => {
@@ -1700,8 +1700,8 @@ impl Shell {
                     ("p", "routes"),
                     ("ctrl", "snap"),
                     ("esc", "cancel"),
-                    ("z ⇧z", "wire x-ray"),
-                    ("0", "back to camera"),
+                    ("z", "wire"),
+                    ("0", "to camera"),
                 ];
             }
             _ => {}

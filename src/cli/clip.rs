@@ -481,14 +481,10 @@ fn frames(args: &Args, registry: &Registry, progress: &mut dyn FnMut(u32)) -> Re
 }
 
 fn unencoded(args: &Args, video: &Path) -> String {
-    let digits = args.count().saturating_sub(1).to_string().len().max(4);
     format!(
-        "no video encoder (pcod) on the PATH, so {} was not made; the frames are in {}, so any encoder can make it, for example `ffmpeg -framerate {} -i {}/frame-%0{digits}d.png {}`",
+        "{} needs pcod (pito-codecs) on the PATH for --video; the frames are kept in {}",
         video.display(),
-        args.out.display(),
-        args.rate(),
-        args.out.display(),
-        video.display()
+        args.out.display()
     )
 }
 
@@ -576,11 +572,8 @@ mod tests {
         let video = dir.join("c.mp4");
         let error = encode(&args, &video, false).unwrap_err();
         assert_eq!(error, unencoded(&args, &video));
-        assert!(error.starts_with("no video encoder (pcod) on the PATH"));
-        assert!(error.contains(&format!(
-            "-framerate 24 -i {}/frame-%04d.png",
-            dir.display()
-        )));
+        assert!(error.contains("needs pcod (pito-codecs)"));
+        assert!(!error.contains("ffmpeg"));
         assert!(!video.exists());
     }
 

@@ -200,7 +200,7 @@ Frame `i` of `N` shows the camera at the path's time for it: `i / N` on an orbit
   pcod <dir> <video> --fps F --profile best --force
   ```
 
-  so the video has exactly N frames over N/F seconds. Without pcod on the PATH it says so, keeps the frames, and exits 1; the video then needs an encoder of your own, such as `ffmpeg -framerate F -i <dir>/frame-%04d.png <video>` (the digits as the frames' names have them). Under `--trace` the encode runs inside the same pgpu job; `--profile best` encodes on the CPU.
+  so the video has exactly N frames over N/F seconds. Without pcod on the PATH it says in one line that `--video` needs pcod (pito-codecs), keeps the frames, and exits 1. Under `--trace` the encode runs inside the same pgpu job; `--profile best` encodes on the CPU.
 
 **Measured** (RX 9060 XT, RADV, release, under pgpu), a 24-frame orbit at 1920×1080 of the twelve-object table scene Manfred then tested on, the one `tests/golden/table/table.toml` replaces (`[camera.path] kind = "orbit"` about the camera's target, one turn):
 
