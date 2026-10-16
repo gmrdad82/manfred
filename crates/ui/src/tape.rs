@@ -43,13 +43,87 @@ const TRACKS: [&str; 7] = [
 const AMBER: Color32 = Color32::from_rgb(0xF2, 0xBF, 0x58);
 const INK: Color32 = Color32::from_rgb(0x0E, 0x0E, 0x0E);
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum View {
+    Top,
+    Front,
+    Side,
+    Back,
+    Orbit,
+}
+
+impl View {
+    pub fn named(name: &str) -> Option<View> {
+        match name {
+            "top" => Some(View::Top),
+            "front" => Some(View::Front),
+            "side" => Some(View::Side),
+            "back" => Some(View::Back),
+            "orbit" => Some(View::Orbit),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Act {
+    Stage(String),
+    View(View),
+    Camera(String),
+    Select(Vec<String>),
+    Orbit(f64),
+    Dolly(f64),
+    Fit {
+        objects: Vec<String>,
+        before: f64,
+        now: f64,
+    },
+    Reveal {
+        object: String,
+        goal: f64,
+        before: f64,
+        now: f64,
+    },
+    Region(Option<[f32; 4]>),
+    Strip(bool),
+}
+
+pub fn toward(value: f64, goal: f64, before: f64, now: f64) -> f64 {
+    let left = 1.0 - before;
+    if left <= 1e-12 || now >= 1.0 {
+        return goal;
+    }
+    value + (goal - value) * ((now - before) / left).clamp(0.0, 1.0)
+}
+
 #[derive(Clone, Debug, PartialEq)]
 enum Beat {
     Step(Step),
     Wait(f32),
-    Fade { to: f32, seconds: f32 },
+    Fade {
+        to: f32,
+        seconds: f32,
+    },
     Xray(bool),
     Curve(Curve),
+    Act(Act),
+    Orbit {
+        degrees: f64,
+        seconds: f32,
+    },
+    Dolly {
+        metres: f64,
+        seconds: f32,
+    },
+    Fit {
+        objects: Vec<String>,
+        seconds: f32,
+    },
+    Reveal {
+        object: String,
+        to: f64,
+        seconds: f32,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -131,6 +205,110 @@ fn curve(number: usize, rest: &str) -> Result<Beat, Error> {
     }))
 }
 
+fn names(text: &str) -> Vec<String> {
+    text.split(',')
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .collect()
+}
+
+fn number(text: &str) -> Option<f64> {
+    text.parse::<f64>().ok().filter(|value| value.is_finite())
+}
+
+fn directing(number_at: usize, command: &str, rest: &str) -> Result<Option<Beat>, Error> {
+    let words: Vec<&str> = rest.split_whitespace().collect();
+    let refused = |why: &str| Error(format!("line {number_at}: {command} wants {why}"));
+    let time = |text: &str| {
+        seconds(number_at, text).map_err(|_| {
+            Error(format!(
+                "line {number_at}: {command} wants seconds, from 0 to {LONGEST_WAIT}"
+            ))
+        })
+    };
+    let beat = match (command, words.as_slice()) {
+        ("stage", [stage]) => Beat::Act(Act::Stage((*stage).to_string())),
+        ("stage", _) => return Err(refused("a stage's number or name")),
+        ("view", [name]) => match View::named(name) {
+            Some(view) => Beat::Act(Act::View(view)),
+            None => return Err(refused("top, front, side, back or orbit")),
+        },
+        ("view", _) => return Err(refused("top, front, side, back or orbit")),
+        ("camera", [name]) => Beat::Act(Act::Camera((*name).to_string())),
+        ("camera", _) => return Err(refused("a camera's name")),
+        ("select", [_, ..]) if !names(rest).is_empty() => Beat::Act(Act::Select(names(rest))),
+        ("select", _) => return Err(refused("objects, separated by commas")),
+        ("orbit", [degrees, span]) => match number(degrees) {
+            Some(degrees) => Beat::Orbit {
+                degrees,
+                seconds: time(span)?,
+            },
+            None => return Err(refused("degrees and seconds")),
+        },
+        ("orbit", _) => return Err(refused("degrees and seconds")),
+        ("dolly", [metres, span]) => match number(metres) {
+            Some(metres) => Beat::Dolly {
+                metres,
+                seconds: time(span)?,
+            },
+            None => return Err(refused("metres and seconds")),
+        },
+        ("dolly", _) => return Err(refused("metres and seconds")),
+        ("frame", []) => return Ok(None),
+        ("frame", [objects]) => Beat::Fit {
+            objects: names(objects),
+            seconds: 0.0,
+        },
+        ("frame", [objects, span]) => Beat::Fit {
+            objects: names(objects),
+            seconds: time(span)?,
+        },
+        ("frame", _) => return Err(refused("nothing, or an object and seconds")),
+        ("reveal", [object, fraction, span]) => match number(fraction) {
+            Some(to) if (0.0..=1.0).contains(&to) => Beat::Reveal {
+                object: (*object).to_string(),
+                to,
+                seconds: time(span)?,
+            },
+            _ => return Err(refused("an object, a fraction from 0 to 1 and seconds")),
+        },
+        ("reveal", _) => return Err(refused("an object, a fraction from 0 to 1 and seconds")),
+        ("region", ["off"]) => Beat::Act(Act::Region(None)),
+        ("strip", ["on"]) => Beat::Act(Act::Strip(true)),
+        ("strip", ["off"]) => Beat::Act(Act::Strip(false)),
+        ("strip", _) => return Err(refused("on or off")),
+        ("region", [x0, y0, x1, y1]) => {
+            let corners: Vec<f32> = [x0, y0, x1, y1]
+                .iter()
+                .filter_map(|text| text.parse::<f32>().ok())
+                .filter(|value| (0.0..=1.0).contains(value))
+                .collect();
+            match corners.as_slice() {
+                [x0, y0, x1, y1] if x0 < x1 && y0 < y1 => {
+                    Beat::Act(Act::Region(Some([*x0, *y0, *x1, *y1])))
+                }
+                _ => {
+                    return Err(refused(
+                        "off, or x0 y0 x1 y1 as fractions of the viewport from 0 to 1, x0 < x1 and y0 < y1",
+                    ));
+                }
+            }
+        }
+        ("region", _) => {
+            return Err(refused(
+                "off, or x0 y0 x1 y1 as fractions of the viewport from 0 to 1, x0 < x1 and y0 < y1",
+            ));
+        }
+        _ => return Ok(None),
+    };
+    Ok(Some(beat))
+}
+
+const DIRECTING: [&str; 10] = [
+    "stage", "view", "camera", "select", "orbit", "dolly", "frame", "reveal", "region", "strip",
+];
+
 impl Tape {
     pub fn parse(text: &str) -> Result<Tape, Error> {
         let mut script = String::new();
@@ -160,9 +338,16 @@ impl Tape {
                 script.push('\n');
                 continue;
             }
+            if DIRECTING.contains(&command)
+                && let Some(beat) = directing(number, command, rest)?
+            {
+                order.push((number, Some(beat)));
+                script.push('\n');
+                continue;
+            }
             if !VERBS.contains(&command) {
                 return Err(Error(format!(
-                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe and curve"
+                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe, curve, stage, view, camera, select, orbit, dolly, reveal, region and strip"
                 )));
             }
             order.push((number, None));
@@ -256,6 +441,7 @@ struct Frame {
     wire: Option<f32>,
     xray: Option<bool>,
     curve: Option<Curve>,
+    acts: Vec<Act>,
 }
 
 fn modifiers_of(mods: Mods) -> Modifiers {
@@ -311,7 +497,32 @@ impl Plan {
             wire: None,
             xray: None,
             curve: None,
+            acts: Vec::new(),
         });
+    }
+
+    fn act(&mut self, act: Act) {
+        self.frame(Vec::new());
+        if let Some(last) = self.frames.last_mut() {
+            last.acts.push(act);
+        }
+    }
+
+    fn timed(
+        &mut self,
+        seconds: f32,
+        curve: fn(f32) -> f32,
+        mut make: impl FnMut(f64, f64) -> Act,
+    ) {
+        let frames = self.count(seconds).clamp(1, MAX_FRAMES + 1);
+        for step in 1..=frames {
+            if self.full() {
+                return;
+            }
+            let before = f64::from(curve((step - 1) as f32 / frames as f32));
+            let now = f64::from(curve(step as f32 / frames as f32));
+            self.act(make(before, now));
+        }
     }
 
     fn shade(&mut self, wire: Option<f32>, xray: Option<bool>) {
@@ -484,6 +695,36 @@ fn plan_from(tape: &Tape, fps: u32, points: [f32; 2], wire: f32) -> Result<Vec<F
             }
             Beat::Xray(on) => plan.shade(None, Some(*on)),
             Beat::Curve(curve) => plan.curve(curve),
+            Beat::Act(act) => plan.act(act.clone()),
+            Beat::Orbit { degrees, seconds } => {
+                plan.timed(*seconds, ease, |before, now| {
+                    Act::Orbit(degrees * (now - before))
+                });
+            }
+            Beat::Dolly { metres, seconds } => {
+                plan.timed(*seconds, ease, |before, now| {
+                    Act::Dolly(metres * (now - before))
+                });
+            }
+            Beat::Fit { objects, seconds } => plan.timed(*seconds, ease, |before, now| Act::Fit {
+                objects: objects.clone(),
+                before,
+                now,
+            }),
+            Beat::Reveal {
+                object,
+                to,
+                seconds,
+            } => plan.timed(
+                *seconds,
+                |t| t,
+                |before, now| Act::Reveal {
+                    object: object.clone(),
+                    goal: *to,
+                    before,
+                    now,
+                },
+            ),
         }
         if plan.full() {
             return Err(Error(format!(
@@ -558,6 +799,8 @@ struct Player<'p, 'a> {
     textures: TexturesDelta,
     watching: Watching,
     turns: Turns,
+    lines: Vec<usize>,
+    refused: Option<String>,
 }
 
 impl Player<'_, '_> {
@@ -590,6 +833,15 @@ impl Player<'_, '_> {
         }
         if let Some(on) = frame.xray {
             app.set_xray(on);
+        }
+        for act in &frame.acts {
+            if let Err(why) = app.act(act) {
+                let line = frame.step.and_then(|step| self.lines.get(step).copied());
+                self.refused.get_or_insert(match line {
+                    Some(line) => format!("line {line}: {why}"),
+                    None => why,
+                });
+            }
         }
         let mut output = self.ctx.run_ui(input, |ui| {
             app.ui(ui);
@@ -644,6 +896,7 @@ impl Player<'_, '_> {
     ) -> Result<FullOutput, Error> {
         let quiet = Frame {
             events: Vec::new(),
+            acts: Vec::new(),
             ..frame.clone()
         };
         let (mut last, mut more) = first;
@@ -740,6 +993,8 @@ pub fn play(
         textures: TexturesDelta::default(),
         watching,
         turns,
+        lines: tape.lines.clone(),
+        refused: None,
     };
     for (index, frame) in frames.iter().enumerate() {
         let time = index as f64 / f64::from(fps);
@@ -751,6 +1006,9 @@ pub fn play(
                 .map_err(|why| Error(format!("line {line}: {why}")))?;
         }
         let first = player.pass(frame, time, true);
+        if let Some(why) = player.refused.take() {
+            return Err(Error(why));
+        }
         let output = player.settle(frame, time, first)?;
         let rgba = player.paint(output)?;
         sink(index, &rgba).map_err(Error)?;
@@ -910,6 +1168,95 @@ mod tests {
                 .0
                 .starts_with("line 1: wireframe xray wants")
         );
+    }
+
+    fn acts(frames: &[Frame]) -> Vec<Act> {
+        frames.iter().flat_map(|frame| frame.acts.clone()).collect()
+    }
+
+    #[test]
+    fn the_directing_steps_parse_and_timed_ones_spread_over_their_frames() {
+        let tape = Tape::parse(
+            "stage 2\nview top\ncamera chase\nselect hero, road.crosswalks\nregion 0.1 0.2 0.9 0.8\nregion off\nstrip off\nframe\nframe hero\n",
+        )
+        .unwrap();
+        assert_eq!(
+            tape.beats,
+            vec![
+                Beat::Act(Act::Stage("2".into())),
+                Beat::Act(Act::View(View::Top)),
+                Beat::Act(Act::Camera("chase".into())),
+                Beat::Act(Act::Select(vec!["hero".into(), "road.crosswalks".into()])),
+                Beat::Act(Act::Region(Some([0.1, 0.2, 0.9, 0.8]))),
+                Beat::Act(Act::Region(None)),
+                Beat::Act(Act::Strip(false)),
+                Beat::Step(Step::Frame),
+                Beat::Fit {
+                    objects: vec!["hero".into()],
+                    seconds: 0.0
+                },
+            ]
+        );
+        for (line, why) in [
+            (
+                "view up",
+                "line 1: view wants top, front, side, back or orbit",
+            ),
+            ("orbit 90", "line 1: orbit wants degrees and seconds"),
+            ("dolly x 1", "line 1: dolly wants metres and seconds"),
+            (
+                "reveal road 2 1",
+                "line 1: reveal wants an object, a fraction from 0 to 1 and seconds",
+            ),
+            ("camera", "line 1: camera wants a camera's name"),
+            ("strip maybe", "line 1: strip wants on or off"),
+        ] {
+            assert_eq!(Tape::parse(line).unwrap_err().0, why);
+        }
+        assert!(Tape::parse("region 0.5 0 0.2 1").is_err());
+        let orbit = plan(&Tape::parse("orbit 90 0.1\n").unwrap(), 30, [200.0, 100.0]).unwrap();
+        let turns: Vec<f64> = acts(&orbit)
+            .into_iter()
+            .map(|act| match act {
+                Act::Orbit(degrees) => degrees,
+                other => panic!("{other:?}"),
+            })
+            .collect();
+        let eased = [ease(1.0 / 3.0), ease(2.0 / 3.0), 1.0].map(f64::from);
+        let expected = [eased[0], eased[1] - eased[0], eased[2] - eased[1]].map(|step| 90.0 * step);
+        assert_eq!(turns.len(), 3);
+        for (turn, want) in turns.iter().zip(expected) {
+            assert!((turn - want).abs() < 1e-9, "{turns:?}");
+        }
+        assert!((turns.iter().sum::<f64>() - 90.0).abs() < 1e-9);
+        let dolly = plan(&Tape::parse("dolly -2 0\n").unwrap(), 30, [200.0, 100.0]).unwrap();
+        assert_eq!(acts(&dolly), vec![Act::Dolly(-2.0)]);
+        let reveal = plan(
+            &Tape::parse("reveal road 1 0.1\n").unwrap(),
+            40,
+            [200.0, 100.0],
+        )
+        .unwrap();
+        let mut value = 0.0;
+        let mut values = Vec::new();
+        for act in acts(&reveal) {
+            let Act::Reveal {
+                object,
+                goal,
+                before,
+                now,
+            } = act
+            else {
+                panic!("{act:?}");
+            };
+            assert_eq!(object, "road");
+            value = toward(value, goal, before, now);
+            values.push(value);
+        }
+        assert_eq!(values.len(), 4);
+        for (got, want) in values.iter().zip([0.25, 0.5, 0.75, 1.0]) {
+            assert!((got - want).abs() < 1e-9, "{values:?}");
+        }
     }
 
     #[test]

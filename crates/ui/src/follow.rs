@@ -1,9 +1,10 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
 use manfred_build::{Built, Cache, Registry};
-use manfred_recipe::Recipe;
+use manfred_recipe::{Kind, Recipe};
 use toml_edit::DocumentMut;
 
 use pfx_editor_shell::worker::{Poll, Worker};
@@ -76,6 +77,49 @@ pub fn stamp(path: &Path) -> Option<Stamp> {
     })
 }
 
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Shape {
+    pub stage: Option<String>,
+    pub reveal: BTreeMap<String, f64>,
+}
+
+impl Shape {
+    pub fn apply(&self, recipe: Recipe) -> Result<Recipe, String> {
+        let mut recipe = match &self.stage {
+            Some(stage) => {
+                manfred_recipe::apply_stage(&recipe, stage).map_err(|error| error.to_string())?
+            }
+            None => recipe,
+        };
+        for (name, fraction) in &self.reveal {
+            if let Some(object) = recipe
+                .objects
+                .iter_mut()
+                .find(|object| object.name == *name)
+                && let Kind::Generator { params, .. } = &mut object.kind
+            {
+                params.insert("reveal".into(), serde_json::json!(fraction));
+            }
+        }
+        Ok(recipe)
+    }
+}
+
+pub fn revealed(recipe: &Recipe, name: &str) -> Result<f64, String> {
+    let object = recipe
+        .objects
+        .iter()
+        .find(|object| object.name == name)
+        .ok_or_else(|| format!("reveal: no object {name}"))?;
+    match &object.kind {
+        Kind::Generator { params, .. } => Ok(params
+            .get("reveal")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(1.0)),
+        _ => Err(format!("reveal: {name} is not a generator's object")),
+    }
+}
+
 #[derive(Debug)]
 pub struct Follow {
     path: PathBuf,
@@ -89,6 +133,7 @@ pub struct Follow {
     pending: Option<Worker<(Option<Stamp>, Outcome)>>,
     registry: Arc<Registry>,
     cache: Arc<Mutex<Cache>>,
+    shape: Shape,
 }
 
 #[derive(Debug)]
@@ -130,7 +175,16 @@ impl Follow {
             pending: None,
             registry: Arc::new(registry),
             cache: Arc::default(),
+            shape: Shape::default(),
         }
+    }
+
+    pub fn shape(&self) -> &Shape {
+        &self.shape
+    }
+
+    pub fn set_shape(&mut self, shape: Shape) {
+        self.shape = shape;
     }
 
     pub fn busy(&self) -> bool {
@@ -142,8 +196,9 @@ impl Follow {
         let mode = self.mode;
         let registry = Arc::clone(&self.registry);
         let cache = Arc::clone(&self.cache);
+        let shape = self.shape.clone();
         let mut worker = Worker::new(Arc::new(done));
-        worker.start(move || (stamp(&path), read(&path, mode, &registry, &cache)));
+        worker.start(move || (stamp(&path), read(&path, mode, &registry, &cache, &shape)));
         self.pending = Some(worker);
     }
 
@@ -220,7 +275,13 @@ impl Follow {
     pub fn reload(&mut self) -> bool {
         self.pending = None;
         let first = stamp(&self.path);
-        let outcome = read(&self.path, self.mode, &self.registry, &self.cache);
+        let outcome = read(
+            &self.path,
+            self.mode,
+            &self.registry,
+            &self.cache,
+            &self.shape,
+        );
         self.apply(first, outcome)
     }
 
@@ -278,7 +339,13 @@ impl Follow {
     }
 }
 
-fn read(path: &Path, mode: Mode, registry: &Registry, cache: &Mutex<Cache>) -> Outcome {
+fn read(
+    path: &Path,
+    mode: Mode,
+    registry: &Registry,
+    cache: &Mutex<Cache>,
+    shape: &Shape,
+) -> Outcome {
     let loaded = match manfred_recipe::load(path) {
         Ok(loaded) => loaded,
         Err(error) if error.path == path.display().to_string() => {
@@ -286,8 +353,11 @@ fn read(path: &Path, mode: Mode, registry: &Registry, cache: &Mutex<Cache>) -> O
         }
         Err(error) => return Outcome::Unread(error.to_string()),
     };
-    let recipe = Box::new(loaded.recipe);
     let doc = Box::new(loaded.doc);
+    let recipe = match shape.apply(loaded.recipe.clone()) {
+        Ok(recipe) => Box::new(recipe),
+        Err(error) => return Outcome::Unbuilt(Box::new(loaded.recipe), doc, error),
+    };
     if mode == Mode::Fake {
         return Outcome::Ready(recipe, doc, None);
     }

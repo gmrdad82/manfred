@@ -233,6 +233,7 @@ pub struct Outline<'a> {
     pub indices: &'a [u32],
     pub model: Matrix,
     pub id: u32,
+    pub name: &'a str,
 }
 
 impl Stage {
@@ -491,13 +492,14 @@ impl Stage {
             &self.instances
         };
         let outline = |at: usize, key: u64, model: Matrix, id: u32| {
-            let geometry = &self.pieces.get(at)?.geometry;
+            let piece = self.pieces.get(at)?;
             Some(Outline {
                 key,
-                positions: &geometry.positions,
-                indices: &geometry.indices,
+                positions: &piece.geometry.positions,
+                indices: &piece.geometry.indices,
                 model,
                 id,
+                name: &piece.name,
             })
         };
         let opaque = self

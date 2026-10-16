@@ -177,7 +177,7 @@ fn outline(
     if !look.on() {
         return Ok(());
     }
-    let selected = shell.selected();
+    let selection = shell.selection();
     let (outlines, key, depth, camera, routes, selected) = match drawing {
         Drawing::Stage(stage) => {
             let Some(camera) = stage.looked() else {
@@ -190,7 +190,10 @@ fn outline(
                 stage.depth(),
                 camera,
                 routes,
-                selected.map(|object| object as u32 + 1),
+                selection
+                    .iter()
+                    .map(|object| *object as u32 + 1)
+                    .collect::<Vec<u32>>(),
             )
         }
         Drawing::Scene(live) => {
@@ -210,11 +213,14 @@ fn outline(
                     indices: &draw.geometry.indices,
                     model: draw.model,
                     id: draw.id,
+                    name: "",
                 })
                 .collect();
-            let selected = selected
-                .and_then(|object| found.objects.get(object))
-                .map(|object| object.id);
+            let selected = selection
+                .iter()
+                .filter_map(|object| found.objects.get(*object))
+                .map(|object| object.id)
+                .collect::<Vec<u32>>();
             (outlines, *key, live.depth(), camera, &[][..], selected)
         }
         Drawing::Fake(_) => return Ok(()),
@@ -225,7 +231,8 @@ fn outline(
             key,
             outlines: &outlines,
             routes,
-            selected,
+            selected: &selected,
+            pieces: shell.pieces(),
         },
         &crate::wire::Target {
             output: &target.draw,
@@ -234,6 +241,7 @@ fn outline(
             size: target.size,
             camera,
             scale,
+            region: shell.region_shown(),
         },
         look,
     )
@@ -424,6 +432,34 @@ impl Viewer {
 
     pub fn steady(&mut self) {
         self.steady = true;
+    }
+
+    pub fn set_stage(&mut self, stage: &str) -> Result<(), String> {
+        if self.scene.is_some() {
+            return Err("stage wants a recipe; a scene file has no stages".into());
+        }
+        let loaded = manfred_recipe::load(self.follow.path()).map_err(|error| error.to_string())?;
+        manfred_recipe::apply_stage(&loaded.recipe, stage).map_err(|error| error.to_string())?;
+        let mut shape = self.follow.shape().clone();
+        shape.stage = Some(stage.to_string());
+        self.follow.set_shape(shape);
+        Ok(())
+    }
+
+    pub fn reveal(&mut self, object: &str, goal: f64, before: f64, now: f64) -> Result<(), String> {
+        if self.scene.is_some() {
+            return Err("reveal wants a recipe; a scene file is built already".into());
+        }
+        let recipe = self
+            .follow
+            .recipe()
+            .ok_or_else(|| "reveal: the recipe is not read yet".to_string())?;
+        let from = crate::follow::revealed(recipe, object)?;
+        let mut shape = self.follow.shape().clone();
+        let value = crate::tape::toward(from, goal, before, now);
+        shape.reveal.insert(object.to_string(), value);
+        self.follow.set_shape(shape);
+        Ok(())
     }
 
     pub fn request(&mut self, shell: &mut Shell, done: impl Fn() + Send + Sync + 'static) {
@@ -906,6 +942,24 @@ impl Viewer {
         };
         let mut moved = shell.chasing() && eye != shell.chase_eye();
         shell.set_chase_eye(eye);
+        let guides = match (self.drawing.as_ref(), self.follow.recipe(), built) {
+            (Some(Drawing::Scene(live)), _, _) => crate::overlay::Guides {
+                path: at
+                    .map(|(span, _)| {
+                        (0..=span.frames)
+                            .filter_map(|frame| live.chase(span.time(frame)))
+                            .map(|eye| glam::DVec3::from_array(eye.position))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                ..Default::default()
+            },
+            (_, Some(recipe), Some(built)) if shell.wireframe().on() => {
+                crate::overlay::guides(recipe, built, at.map(|(span, time)| (span.fps, time)))
+            }
+            _ => crate::overlay::Guides::default(),
+        };
+        moved |= shell.set_guides(guides);
         if let Some(Drawing::Scene(live)) = self.drawing.as_mut() {
             moved |= live.set_time(at.map(|(_, time)| time));
         }

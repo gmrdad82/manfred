@@ -50,6 +50,25 @@ key g
 | `wireframe <amount> [<seconds>]` | fades the viewport to an amount between shaded (0) and wireframe (1) over the seconds, one even step a frame at the clip's rate; without seconds it jumps; in a tape the fade takes its time like a `wait` |
 | `wireframe xray on` / `wireframe xray off` | shows the hidden edges brighter, or dimmed again |
 
+A tape also directs the view. These steps work in `--tape` (not in `--input`). Each timed one takes its frames like a `wait`, one even step a frame at the clip's rate, eased in and out (`reveal` is linear):
+
+| Step | Does |
+| --- | --- |
+| `stage <N\|name>` | rebuilds the recipe as its `[[stage]]` N (stages 1 to N) or the stage of that name, and waits for the build |
+| `view top\|front\|side\|back\|orbit` | snaps the orbit view to a standard view (`top` looks down, `front` from +Z, `side` from +X, `back` from -Z, `orbit` three-quarter) that fits the selection, or the whole scene when nothing is selected; keys `7`, `1`, `3`, `9` and `5` |
+| `camera <name>` | looks through a recipe camera; a camera with a `[camera.rig]` looks through its baked track at the clock's time (the chase cam) |
+| `select <name>[,<name>]` | selects objects, pieces (`road.crosswalks`, `hero.wheel_rl`) or a light by name, `*` and `?` globs allowed; the wireframe draws them in the accent colour, and a piece alone outlines only that piece |
+| `orbit <degrees> <seconds>` | turns the view about its target, positive as a drag to the right turns it |
+| `dolly <metres> <seconds>` | moves the view toward its target, negative away |
+| `frame <name>[,<name>] [<seconds>]` | fits the view to objects or pieces, keeping its direction; without seconds it jumps; `Home` frames the selection |
+| `reveal <object> <fraction> <seconds>` | animates a generator's `reveal` param (`manfred/road`, `manfred/buildings`, `manfred/furniture`) from its value to the fraction, rebuilding every frame |
+| `region <x0> <y0> <x1> <y1>` / `region off` | while the view looks through a camera, shows the shaded render inside that box and the wireframe outside it; the corners are fractions of the viewport from its top left |
+| `strip off` / `strip on` | hides or shows the timeline strip under the viewport |
+
+`orbit`, `dolly`, `view` and `frame` leave a camera you are looking through and start from where it looked. A name the window can't find stops the clip with the tape's line: `manfred gui --clip: line 4: no camera chase`.
+
+In wireframe the viewport also draws, in the accent colour: every camera's frustum (its lens at the timeline's aspect, 2.5 m deep) except the one you look through, the chase camera's baked path as a line, each spot light's cone (its apex and its inner and outer rings at its range) and each point light as a small cross (accent when picked in B3), each particle emitter as 36 seeded dots along its direction and cone at its parent's pose at the clock's time, and the camera's frame as a rectangle when the view looks through a camera. With `--bare`, a camera's frame fills the whole viewport at the camera's aspect, with no margin.
+
 ```sh
 manfred gui showcase/workshop.toml --input pick.txt --shot picked.png
 ```

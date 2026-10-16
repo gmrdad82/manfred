@@ -78,6 +78,31 @@ impl<'a> Manfred<'a> {
         self.shell.set_xray(on);
     }
 
+    pub fn act(&mut self, act: &crate::tape::Act) -> Result<(), String> {
+        use crate::tape::Act;
+        match act {
+            Act::Stage(stage) => {
+                let viewer = self.viewer.get_mut().ok_or("stage wants a recipe open")?;
+                viewer.set_stage(stage)?;
+            }
+            Act::Reveal {
+                object,
+                goal,
+                before,
+                now,
+            } => {
+                let viewer = self.viewer.get_mut().ok_or("reveal wants a recipe open")?;
+                viewer.reveal(object, *goal, *before, *now)?;
+            }
+            _ => return self.shell.direct(act),
+        }
+        if let (Some(viewer), Some(wake)) = (self.viewer.get_mut(), self.wake.as_ref()) {
+            let built = wake.clone();
+            viewer.request(self.shell, move || built());
+        }
+        Ok(())
+    }
+
     pub fn building(&self) -> bool {
         self.viewer
             .get()

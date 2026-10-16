@@ -64,6 +64,7 @@ const STOP: &str = "\u{f04d}";
 
 mod bare;
 mod curves;
+mod direct;
 mod transport;
 
 pub fn status_version() -> String {
@@ -192,6 +193,11 @@ pub struct Shell {
     scrubber: Option<Rect>,
     bare: bool,
     wire: crate::wire::Look,
+    also: Vec<String>,
+    pieces: Vec<String>,
+    strip: bool,
+    region: Option<[f32; 4]>,
+    guides: crate::overlay::Guides,
 }
 
 impl fmt::Debug for Shell {
@@ -467,6 +473,11 @@ impl Shell {
             chase_eye: None,
             scrubber: None,
             bare: false,
+            also: Vec::new(),
+            pieces: Vec::new(),
+            strip: true,
+            region: None,
+            guides: crate::overlay::Guides::default(),
         }
     }
 
@@ -585,6 +596,8 @@ impl Shell {
             }
             None => self.object = None,
         }
+        self.also.clear();
+        self.pieces.clear();
     }
 
     pub fn selected(&self) -> Option<usize> {
@@ -642,10 +655,7 @@ impl Shell {
         let image = self.viewport?;
         let span = self.span().filter(|_| self.clock.chase)?;
         let eye = self.chase_eye?;
-        Some((
-            eye,
-            viewport::fit(image.shrink(viewport::MARGIN), span.aspect),
-        ))
+        Some((eye, viewport::fit(image.shrink(self.margin()), span.aspect)))
     }
 
     pub fn camera_frame(&self) -> Option<Rect> {
@@ -655,7 +665,7 @@ impl Shell {
         let image = self.viewport?;
         self.through()?;
         Some(viewport::fit(
-            image.shrink(viewport::MARGIN),
+            image.shrink(self.margin()),
             self.render_aspect(),
         ))
     }
@@ -1338,6 +1348,12 @@ impl Shell {
                 ctx.memory_mut(|memory| memory.request_focus(search_id()));
             }
             (_, Key::Num0) if self.live() => self.jump(self.camera),
+            (_, Key::Num7) if self.live() => self.snap(crate::tape::View::Top),
+            (_, Key::Num1) if self.live() => self.snap(crate::tape::View::Front),
+            (_, Key::Num3) if self.live() => self.snap(crate::tape::View::Side),
+            (_, Key::Num9) if self.live() => self.snap(crate::tape::View::Back),
+            (_, Key::Num5) if self.live() => self.snap(crate::tape::View::Orbit),
+            (_, Key::Home) if self.live() => self.fit_selection(),
             (_, Key::Z) if self.live() => self.toggle_wireframe(),
             (_, Key::K) if self.live() && self.has_curves() => self.toggle_curves(),
             (_, Key::Space | Key::Comma | Key::Period | Key::F) if self.span().is_some() => {
@@ -1714,6 +1730,8 @@ impl Shell {
                     ("ctrl", "snap"),
                     ("esc", "cancel"),
                     ("z", "wire"),
+                    ("7 1 3 9 5", "views"),
+                    ("home", "frame"),
                     ("0", "to camera"),
                 ];
             }
@@ -2013,7 +2031,7 @@ impl Shell {
                     } else {
                         Sense::hover()
                     };
-                    let bar = if shell.span().is_some() {
+                    let bar = if shell.span().is_some() && shell.strip {
                         transport::HEIGHT + shell.curves_height()
                     } else {
                         0.0
@@ -2312,6 +2330,7 @@ impl Shell {
             if let Some(frame) = self.camera_frame() {
                 viewport::passepartout(painter, image, frame);
             }
+            self.overlays(painter, &eye, image);
             viewport::axes(painter, image, &orbit::basis(&eye));
             if !self.scene && self.view_error.is_none() {
                 let clipped = painter.with_clip_rect(image);

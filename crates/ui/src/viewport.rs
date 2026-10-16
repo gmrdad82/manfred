@@ -45,6 +45,7 @@ pub struct Solid {
     pub min: DVec3,
     pub max: DVec3,
     pub objects: Vec<usize>,
+    pub name: String,
 }
 
 impl Solid {
@@ -64,6 +65,7 @@ impl Solid {
             min: corners.iter().fold(DVec3::INFINITY, |a, b| a.min(*b)),
             max: corners.iter().fold(DVec3::NEG_INFINITY, |a, b| a.max(*b)),
             objects: self.objects.clone(),
+            name: self.name.clone(),
         }
     }
 
@@ -115,7 +117,12 @@ pub fn solids(recipe: &Recipe, built: &Built) -> Vec<Solid> {
                 }
                 objects.push(parent);
             }
-            Solid { min, max, objects }
+            Solid {
+                min,
+                max,
+                objects,
+                name: part.node.name.clone(),
+            }
         })
         .collect()
 }
@@ -642,6 +649,7 @@ mod tests {
             min: DVec3::new(-0.1, 0.0, -0.05),
             max: DVec3::new(0.1, 0.2, 0.05),
             objects: vec![3, 0],
+            name: String::new(),
         };
         let along_z = |solids: &[Solid]| -> Vec<f64> {
             grid_lines(&eye, image, solids)

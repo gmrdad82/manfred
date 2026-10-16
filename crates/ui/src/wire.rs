@@ -15,7 +15,7 @@ pub const CREASE_DEGREES: f32 = 1.0;
 const PRECISION: f32 = 1e4;
 const EDGE_BYTES: u64 = 32;
 const PLACED_BYTES: usize = 96;
-const VIEW_BYTES: u64 = 176;
+const VIEW_BYTES: u64 = 192;
 const LINE_WIDTH: f32 = 1.0;
 const SELECTED_WIDTH: f32 = 1.6;
 const ROUTE_WIDTH: f32 = 2.0;
@@ -215,7 +215,8 @@ pub struct Scene<'a> {
     pub key: u64,
     pub outlines: &'a [Outline<'a>],
     pub routes: &'a [RouteSpec],
-    pub selected: Option<u32>,
+    pub selected: &'a [u32],
+    pub pieces: &'a [String],
 }
 
 pub struct Target<'a> {
@@ -225,6 +226,7 @@ pub struct Target<'a> {
     pub size: [u32; 2],
     pub camera: (Matrix, Matrix),
     pub scale: f32,
+    pub region: Option<[f32; 4]>,
 }
 
 struct Pipes {
@@ -269,6 +271,16 @@ fn depth_terms(projection: &Matrix) -> [f32; 4] {
         projection[2][3],
         projection[3][3],
     ]
+}
+
+pub fn region_pixels(region: Option<[f32; 4]>, size: [u32; 2]) -> [f32; 4] {
+    match region {
+        Some([x0, y0, x1, y1]) => {
+            let [w, h] = size.map(|side| side as f32);
+            [x0 * w, y0 * h, x1 * w, y1 * h]
+        }
+        None => [0.0; 4],
+    }
 }
 
 fn storage(device: &wgpu::Device, label: &str, bytes: &[u8]) -> wgpu::Buffer {
@@ -349,6 +361,7 @@ impl Wire {
             ],
         );
         push_floats(&mut uniform, depth_terms(&projection));
+        push_floats(&mut uniform, region_pixels(target.region, target.size));
         gpu.queue.write_buffer(&pipes.view, 0, &uniform);
         let (Some(edges), Some(placed)) = (&self.edges, &self.placed) else {
             return Err("the wireframe has no buffers".into());
@@ -456,7 +469,9 @@ impl Wire {
             push_floats(bytes, [width * scale, through, 0.0, 0.0]);
         };
         for outline in scene.outlines {
-            if scene.selected == Some(outline.id) {
+            if scene.selected.contains(&outline.id)
+                || scene.pieces.iter().any(|piece| piece == outline.name)
+            {
                 put(
                     &mut bytes,
                     &outline.model,
@@ -589,6 +604,12 @@ struct View {
     amount: f32,
     hidden: f32,
     depth: vec4f,
+    region: vec4f,
+}
+
+fn kept(pixel: vec2f) -> bool {
+    let r = view.region;
+    return r.x < r.z && pixel.x >= r.x && pixel.x < r.z && pixel.y >= r.y && pixel.y < r.w;
 }
 
 struct Edge {
@@ -698,7 +719,7 @@ fn distance_at(pixel: vec2i) -> f32 {
 @fragment
 fn ink(line: Line) -> @location(0) vec4f {
     let cover = clamp(line.half + 0.5 - abs(line.across), 0.0, 1.0);
-    if cover <= 0.0 {
+    if cover <= 0.0 || kept(line.clip.xy) {
         discard;
     }
     var shown = 1.0;
@@ -726,7 +747,10 @@ fn cover(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
 }
 
 @fragment
-fn flat() -> @location(0) vec4f {
+fn flat(@builtin(position) at: vec4f) -> @location(0) vec4f {
+    if kept(at.xy) {
+        discard;
+    }
     return vec4f(view.ground.rgb, view.amount);
 }
 "#;
@@ -832,7 +856,8 @@ mod tests {
             key: 1,
             outlines,
             routes: &[],
-            selected: None,
+            selected: &[],
+            pieces: &[],
         };
         let target = Target {
             output: &output,
@@ -841,6 +866,7 @@ mod tests {
             size,
             camera: (eye.view(), eye.projection(size, 0.05, 1000.0)),
             scale: 1.0,
+            region: None,
         };
         assert!(
             gpu.device
@@ -936,6 +962,7 @@ mod tests {
             indices: &indices,
             model: IDENTITY,
             id: 1,
+            name: "",
         }];
         let (count, best, median) = timed(&gpu, &outlines, &eye);
         println!(
@@ -965,6 +992,7 @@ mod tests {
                 indices: &draw.geometry.indices,
                 model: draw.model,
                 id: draw.id,
+                name: "",
             })
             .collect();
         let triangles: usize = outlines.iter().map(|o| o.indices.len() / 3).sum();

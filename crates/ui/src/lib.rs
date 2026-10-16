@@ -9,6 +9,7 @@ mod follow;
 mod gizmo;
 mod open;
 mod orbit;
+mod overlay;
 mod panel;
 mod pick;
 mod routes;
@@ -35,7 +36,9 @@ pub use follow::{Follow, Mode};
 pub use pfx_editor_shell::{Error, Pulse, Script, shot, window};
 pub use shell::Shell;
 pub use start::{start_recipe, start_recipe_here};
-pub use tape::{Layout, MAX_FRAMES, Tape, frame_png, play, poster_png, steps as tape_steps};
+pub use tape::{
+    Act, Layout, MAX_FRAMES, Tape, View, frame_png, play, poster_png, steps as tape_steps,
+};
 pub use viewer::Viewer;
 pub use watched::is_scene;
 pub use wire::Look;
