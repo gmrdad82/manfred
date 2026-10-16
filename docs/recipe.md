@@ -140,7 +140,7 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
 - **`lathe`**: `profile = [[r, y], …]` revolved around Y, `segments = 128`, `weld = 1e-7`.
 - **`sweep`**: `path = [[x, y, z], …]`, `radius` or `radii = [r, …]`, `ring = 16`, `closed`, `caps`. Beads and tubes. Caps are n-gon fans, as Blender's.
   - `along = { outline = <outline>, offset, depth }` replaces `path`. The ring is swept along an outline in the plate frame, pushed out by `offset` along the outline's outward normal, at `depth`. It is closed and capless, with one `radius`. The ring starts on the outward normal and turns toward the camera: a lip round a pocket, a bezel round a slot. Its outline is one contour, with no hole.
-- **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets).
+- **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets). It keeps the file's material texture maps, and the recipe's `[materials]` set or replace them; see [Texture maps](#texture-maps).
 - **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings) and [`manfred/furniture`](#manfredfurniture). The window builds it through the same registry and lets you place it.
   - The generator gets the object, its `params`, the recipe's folder and a seed: the recipe's `seed` mixed with the object's index in the file (`manfred::build::seed`), so two objects never share one.
   - It returns one or more pieces, each a named mesh; each becomes a node with the piece's name. A piece may share its own object's name, never another object's or another piece's.
@@ -257,6 +257,29 @@ params = { route = "main", spacing = [22, 30], crosswalks = [120.0, 310.0] }
 - **Materials** it returns: `furniture_metal`, `furniture_wire`, `furniture_lamp` (emissive) or `furniture_lamp_off`, `furniture_sign` and `furniture_signal` (the lit red lamp); a recipe entry of the same name wins.
 - **Lights:** each lit lamp is a spot light under its head, `<object>.lamp<n>` counted from the route's start, pointing down and a little over the road, with no shadow. The scene writes them as `[[light]]` tables with `kind = "spot"`, `position`, `direction`, `cone`, `color`, `intensity`, `range` and `shadow`, after the recipe's own lights, while the engine has room (4 local lights with pfx today); `manfred build` prints a line naming the ones left out.
 - **Deterministic:** the same route, params and seed build the same bytes.
+
+### Texture maps
+
+A material carries texture maps, kept from a `mesh` object's file or set under `[materials.<name>]`. A recipe without them builds the same bytes as before.
+
+- **What is kept from a mesh file:** for each glTF material the read primitives use, its `baseColorTexture`, `normalTexture` with its `scale`, `metallicRoughnessTexture` and `occlusionTexture` with its `strength`, each with its `texCoord` set, its sampler (filters and wrap) and, on the base and metallic-roughness textures, its `KHR_texture_transform`; and with them the material's `baseColorFactor`, `metallicFactor` and `roughnessFactor`. An image is kept when it is a PNG or a JPEG, embedded in the file's buffers or a file beside it, and its bytes are kept as they are, never decoded or encoded again. A texture whose image is neither, or a `data:` URI, is not kept. A material with no kept map writes as before, factors included. The maps follow the file's material names, so an object that sets `material` draws its own material and leaves them behind.
+- **The keys,** beside the material's engine keys (`base`, `roughness`, `metalness` and the rest), spelled after the engine's own names:
+
+  | key | glTF slot | default |
+  |---|---|---|
+  | `base_map = "tex/face.png"` | `baseColorTexture` | |
+  | `normal_map` | `normalTexture` | |
+  | `normal_scale` | `normalTexture.scale` | 1.0 |
+  | `roughness_map` | `metallicRoughnessTexture`: roughness in G, metalness in B, as glTF packs them | |
+  | `occlusion_map` | `occlusionTexture` | |
+  | `occlusion_strength` | `occlusionTexture.strength`, from 0 to 1 | 1.0 |
+  | `detail_normal_map` | the material's `extras.detailNormalTexture`, on TEXCOORD_1 | |
+  | `detail_normal_scale` | its `scale` | 1.0 |
+
+  A path is relative to the recipe; a map the recipe sets is on TEXCOORD_0 with no sampler (glTF's repeat and the viewer's filters), except the detail normal map on TEXCOORD_1, which `detail_uv` makes. A map the recipe sets replaces the file's map of that slot; a slot it doesn't set keeps the file's. `normal_scale`, `occlusion_strength` and `detail_normal_scale` set the scale of the slot's map, the file's or the recipe's. The keys never reach the engine's material: `manfred check` and the scene file read the rest of the table as before.
+- **Refused:** a key whose value is not a path or a number (a strength outside 0 to 1) when the recipe is read; and at build, at the key (`materials.skin.base_map`), a file that cannot be read, a file that is not a PNG (read by its first bytes), and an image too large for a card, read from its header alone as a card's is: a side whose 16-texel cell with its gutters passes 16384. A mesh file's image past that size is refused at the object's `path`.
+- **The GLB** embeds every image once in its binary chunk, in a buffer view of its own, with its `mimeType`; images are read once per build, and two maps of the same bytes share one image. Samplers and textures are shared the same way. A material with maps has the file's factors, or without a file 1.0 base colour under a base map, metalness and roughness 1.0 under a roughness map, and Manfred's 0.8 grey, 0 and 0.5 otherwise. `KHR_texture_transform` is listed in `extensionsUsed` when a map carries it. The same inputs give the same bytes.
+- **The views:** `manfred shot` and the window draw the base, normal and roughness maps through the engine's material maps (`Renderer::set_maps`), which multiply the material's `base`, `roughness` and `metalness` (glTF's factor times texture, with the recipe's material as the factor) and bend the normal toward the map's by `normal_scale`, clamped to 0..1. They read TEXCOORD_0, repeat as glTF's default sampler does, and ignore a map's sampler and transform. Each kind's maps are resized to the largest of them, at most 4096 texels a side. `manfred render` draws the base map alone, as content multiplied over the material's `base`, once over UV 0..1. The occlusion and detail normal maps are only carried in the GLB: no view draws them, and `manfred render` draws no normal or roughness map, as the engine's tracer reads none.
 
 ## Includes and uses
 

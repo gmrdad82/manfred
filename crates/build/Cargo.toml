@@ -21,7 +21,7 @@ pfx-scene.workspace = true
 toml = "1.1"
 serde_json.workspace = true
 glam.workspace = true
-gltf = { workspace = true, features = ["extras"] }
+gltf = { workspace = true, features = ["extras", "KHR_texture_transform"] }
 png.workspace = true
 
 [dev-dependencies]

@@ -313,10 +313,14 @@ fn found(recipe: &Recipe, pieces: &[Piece], memory: &Memory) -> Result<Found, Er
 }
 
 pub fn layered(material: Material) -> Material {
+    layered_as(material, Blend::Over)
+}
+
+pub fn layered_as(material: Material, blend: Blend) -> Material {
     Material {
         content_layer: ContentLayer {
             slot: SLOT as i32,
-            blend: Blend::Over,
+            blend,
             ..ContentLayer::default()
         },
         ..material

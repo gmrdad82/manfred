@@ -51,6 +51,7 @@ fn part(name: &str, object: usize, mut mesh: Mesh, material: &str) -> Part {
         shadow: Shadow::Cast,
         two_sided: false,
         hidden: false,
+        looks: Default::default(),
     }
 }
 

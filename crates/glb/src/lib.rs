@@ -8,13 +8,15 @@ pub use reader::summary;
 pub use sidecars::{
     FACTS, SidecarWriter, facts, grade_json, merge, mover_json, room_json, sidecar_text,
 };
-pub use writer::{write, write_animated, write_tree, write_with_extras};
+pub use writer::{write, write_animated, write_looks, write_tree, write_with_extras};
 
 pub use glam::DMat4;
 use manfred_mesh::{Mesh, Morph};
 pub use manfred_motion::Trs;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::Arc;
 
 #[derive(Clone, Debug)]
 pub struct Node {
@@ -62,6 +64,117 @@ pub struct Targets {
     pub base: Mesh,
     pub morph: Morph,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Mime {
+    Png,
+    Jpeg,
+}
+
+impl Mime {
+    pub fn of(bytes: &[u8]) -> Option<Mime> {
+        if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
+            Some(Mime::Png)
+        } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+            Some(Mime::Jpeg)
+        } else {
+            None
+        }
+    }
+
+    pub fn text(self) -> &'static str {
+        match self {
+            Mime::Png => "image/png",
+            Mime::Jpeg => "image/jpeg",
+        }
+    }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct Image {
+    pub bytes: Arc<[u8]>,
+    pub mime: Mime,
+    pub size: [u32; 2],
+}
+
+impl fmt::Debug for Image {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Image({}, {}x{}, {} bytes)",
+            self.mime.text(),
+            self.size[0],
+            self.size[1],
+            self.bytes.len()
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Sampler {
+    pub mag: Option<u32>,
+    pub min: Option<u32>,
+    pub wrap: [u32; 2],
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct UvTransform {
+    pub offset: [f32; 2],
+    pub rotation: f32,
+    pub scale: [f32; 2],
+    pub tex_coord: Option<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Map {
+    pub image: Image,
+    pub tex_coord: u32,
+    pub scale: f32,
+    pub sampler: Option<Sampler>,
+    pub transform: Option<UvTransform>,
+}
+
+impl Map {
+    pub fn new(image: Image) -> Map {
+        Map {
+            image,
+            tex_coord: 0,
+            scale: 1.0,
+            sampler: None,
+            transform: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Look {
+    pub base_color: Option<[f32; 4]>,
+    pub metallic: Option<f32>,
+    pub roughness: Option<f32>,
+    pub base: Option<Map>,
+    pub normal: Option<Map>,
+    pub metal_roughness: Option<Map>,
+    pub occlusion: Option<Map>,
+    pub detail_normal: Option<Map>,
+}
+
+impl Look {
+    pub fn maps(&self) -> [Option<&Map>; 5] {
+        [
+            self.base.as_ref(),
+            self.normal.as_ref(),
+            self.metal_roughness.as_ref(),
+            self.occlusion.as_ref(),
+            self.detail_normal.as_ref(),
+        ]
+    }
+
+    pub fn has_maps(&self) -> bool {
+        self.maps().iter().any(Option::is_some)
+    }
+}
+
+pub type Looks = BTreeMap<String, Look>;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Order {

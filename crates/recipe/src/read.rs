@@ -13,7 +13,8 @@ use crate::{
     Mover, NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey,
     PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy,
     REFERENCE_HOUR, Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight,
-    Span, Sun, TextSpace, Timeline, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
+    Span, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use, Uv, Variant, VariantOutput,
+    View, Volume,
 };
 
 pub(crate) struct Source {
@@ -610,6 +611,59 @@ pub(crate) fn json_of_item(item: &Item) -> serde_json::Value {
                 .collect(),
         ),
     }
+}
+
+fn read_textures(cx: &Cx, name: &str, keys: &dyn TableLike) -> Result<Option<Textures>, Error> {
+    let path = |key: &str| format!("materials.{name}.{key}");
+    let file = |key: &str| -> Result<Option<String>, Error> {
+        let Some(item) = keys.get(key) else {
+            return Ok(None);
+        };
+        match item.as_str() {
+            Some(text) if !text.trim().is_empty() => Ok(Some(text.to_string())),
+            _ => Err(bad_item(
+                cx,
+                &path(key),
+                item,
+                "a PNG path relative to the recipe",
+            )),
+        }
+    };
+    let number = |key: &str, range: Option<[f64; 2]>| -> Result<Option<f64>, Error> {
+        let Some(item) = keys.get(key) else {
+            return Ok(None);
+        };
+        let found = item
+            .as_float()
+            .or_else(|| item.as_integer().map(|v| v as f64))
+            .filter(|v| v.is_finite());
+        match (found, range) {
+            (Some(v), Some([lo, hi])) if !(lo..=hi).contains(&v) => Err(Error::new(
+                path(key),
+                Some(cx.item_line(item)),
+                format!("expected a number from {lo} to {hi}, found {v}"),
+            )),
+            (Some(v), _) => Ok(Some(v)),
+            (None, Some([lo, hi])) => Err(bad_item(
+                cx,
+                &path(key),
+                item,
+                &format!("a number from {lo} to {hi}"),
+            )),
+            (None, None) => Err(bad_item(cx, &path(key), item, "a number")),
+        }
+    };
+    let found = Textures {
+        base_map: file("base_map")?,
+        normal_map: file("normal_map")?,
+        normal_scale: number("normal_scale", None)?,
+        roughness_map: file("roughness_map")?,
+        occlusion_map: file("occlusion_map")?,
+        occlusion_strength: number("occlusion_strength", Some([0.0, 1.0]))?,
+        detail_normal_map: file("detail_normal_map")?,
+        detail_normal_scale: number("detail_normal_scale", None)?,
+    };
+    Ok((found != Textures::default()).then_some(found))
 }
 
 fn json_map<C: FromIterator<(String, serde_json::Value)>>(t: &dyn TableLike) -> C {
@@ -2881,6 +2935,7 @@ fn read_root(
     let timeline = read_timeline(cx, &mut root, seed)?;
 
     let mut wet = BTreeMap::new();
+    let mut textures = BTreeMap::new();
     let materials = match root.peek(cx, "materials") {
         Some(item) => match item.as_table_like() {
             Some(table) => {
@@ -2895,12 +2950,18 @@ fn read_root(
                         if let Some(item) = keys.get("wet") {
                             wet.insert(name.to_string(), effects::read_wet(cx, name, item)?);
                         }
+                        if let Some(found) = read_textures(cx, name, keys)? {
+                            textures.insert(name.to_string(), found);
+                        }
                     }
                 }
                 let mut map: BTreeMap<String, serde_json::Value> = json_map(table);
                 for value in map.values_mut() {
                     if let Some(keys) = value.as_object_mut() {
                         keys.remove("wet");
+                        for key in TEXTURE_KEYS {
+                            keys.remove(key);
+                        }
                     }
                 }
                 map
@@ -2935,6 +2996,7 @@ fn read_root(
         timeline,
         materials,
         effects,
+        textures,
         uses,
         files: Files::default(),
         source: text.to_string(),

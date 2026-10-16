@@ -1,5 +1,6 @@
 use crate::cards::{self, Atlas, Dress, Shown};
 use crate::light::{Hours, Lighting};
+use crate::maps;
 use crate::memory::Memory;
 use crate::parts::{self, Palette, Piece};
 use crate::text::{self, Drawn, Laid};
@@ -14,6 +15,7 @@ use pfx_live::frame::{
     multiply,
 };
 use pfx_live::glass;
+use pfx_live::maps::MapImages;
 use pfx_live::renderer::{Effects, Exposure, Finish, Renderer, RendererError, Text};
 use pfx_live::shadow::{Quality, ReceiverBox};
 use pfx_materials::Material;
@@ -105,6 +107,7 @@ pub struct Prepared {
     clips: Vec<[[f32; 4]; 2]>,
     dress: Vec<Dress>,
     atlas: Option<Atlas>,
+    maps: Option<maps::Set>,
 }
 
 impl Prepared {
@@ -117,13 +120,17 @@ impl Prepared {
         let pieces = dressed.pieces;
         let Palette {
             names,
-            materials,
+            mut materials,
             slots,
         } = parts::palette(
             recipe,
             &pieces,
             dressed.dress.iter().map(|worn| worn.card.is_some()),
         )?;
+        let maps = maps::Set::of(&pieces);
+        if let Some(set) = &maps {
+            set.dress(&names, &mut materials);
+        }
         let glass: Vec<bool> = slots
             .iter()
             .map(|&slot| parts::glassy(&materials[slot as usize]))
@@ -156,6 +163,7 @@ impl Prepared {
             clips,
             dress: dressed.dress,
             atlas: dressed.atlas,
+            maps,
         })
     }
 
@@ -207,6 +215,7 @@ pub struct Stage {
     glass: Vec<glass::Surface>,
     dress: Vec<Dress>,
     atlas: Option<Shown>,
+    maps: Option<u64>,
     pacer: Pacer,
     faced: Vec<Instance>,
     through: Option<Shot>,
@@ -278,6 +287,7 @@ impl Stage {
             glass: Vec::new(),
             dress: Vec::new(),
             atlas: None,
+            maps: None,
             pacer: Pacer::default(),
             faced: Vec::new(),
             through: None,
@@ -314,6 +324,7 @@ impl Stage {
             clips,
             dress,
             atlas,
+            maps,
         } = prepared;
         let opaque = opaque_at(&glass);
         let opaque_marks: Vec<Mark> = opaque.iter().map(|&at| marks[at].clone()).collect();
@@ -371,6 +382,7 @@ impl Stage {
         self.instances = instances(&pieces, &slots, &dress, &uploaded, &opaque);
         self.restore_models(&uploaded);
         self.atlas = show(&self.renderer, &mut self.pacer, self.atlas, atlas)?;
+        self.maps = show_maps(&mut self.renderer, self.maps, maps)?;
         surfaces(&self.renderer, &dress)?;
         self.dress = dress;
         self.faced.clear();
@@ -851,6 +863,36 @@ fn show(
         None => {
             if shown.is_some() {
                 renderer.frame().release_content(cards::SLOT);
+            }
+            Ok(None)
+        }
+    }
+}
+
+fn show_maps(
+    renderer: &mut Renderer,
+    shown: Option<u64>,
+    set: Option<maps::Set>,
+) -> Result<Option<u64>, Error> {
+    match set {
+        Some(set) if shown == Some(set.key) => Ok(shown),
+        Some(set) => {
+            let [base, normal, roughness, metal] = set.images()?;
+            renderer
+                .set_maps(&MapImages {
+                    base: &base,
+                    normal: &normal,
+                    roughness: &roughness,
+                    metal: &metal,
+                })
+                .map_err(|e| Error(format!("texture maps: {e}")))?;
+            Ok(Some(set.key))
+        }
+        None => {
+            if shown.is_some() {
+                renderer
+                    .set_maps(&MapImages::default())
+                    .map_err(|e| Error(format!("texture maps: {e}")))?;
             }
             Ok(None)
         }

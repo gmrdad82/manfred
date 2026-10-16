@@ -65,12 +65,36 @@ pub struct Recipe {
     pub timeline: Option<Timeline>,
     pub materials: BTreeMap<String, serde_json::Value>,
     pub effects: Effects,
+    pub textures: BTreeMap<String, Textures>,
     pub uses: Vec<Use>,
     pub files: Files,
     pub source: String,
     pub base: Option<PathBuf>,
     pub lines: Lines,
     pub twins: Vec<Problem>,
+}
+
+pub const TEXTURE_KEYS: [&str; 8] = [
+    "base_map",
+    "normal_map",
+    "normal_scale",
+    "roughness_map",
+    "occlusion_map",
+    "occlusion_strength",
+    "detail_normal_map",
+    "detail_normal_scale",
+];
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Textures {
+    pub base_map: Option<String>,
+    pub normal_map: Option<String>,
+    pub normal_scale: Option<f64>,
+    pub roughness_map: Option<String>,
+    pub occlusion_map: Option<String>,
+    pub occlusion_strength: Option<f64>,
+    pub detail_normal_map: Option<String>,
+    pub detail_normal_scale: Option<f64>,
 }
 
 #[derive(Clone, Debug, Default)]

@@ -1,5 +1,5 @@
 use glam::DMat4;
-use manfred_glb::{Animation, Lens, Node, Order, Track, Trs, write_animated, write_tree};
+use manfred_glb::{Animation, Lens, Looks, Node, Order, Track, Trs, write_animated, write_tree};
 use manfred_mesh::Mesh;
 
 fn tri() -> Mesh {
@@ -57,6 +57,7 @@ fn a_track_writes_the_timeline_animation_and_a_camera_track_its_camera_node() {
         &nodes,
         &[],
         &[],
+        &Looks::new(),
         Order::File,
         "manfred test",
         Some(Animation {
@@ -144,11 +145,12 @@ fn a_track_writes_the_timeline_animation_and_a_camera_track_its_camera_node() {
 fn no_tracks_write_the_same_bytes_as_before() {
     let nodes = vec![node("a"), node("b")];
     let plain = write_tree(&nodes, &[], &[], Order::File, "manfred test").unwrap();
-    let none = write_animated(&nodes, &[], &[], Order::File, "manfred test", None).unwrap();
+    let none = write_animated(&nodes, &[], &[], &Looks::new(), Order::File, "manfred test", None).unwrap();
     let empty = write_animated(
         &nodes,
         &[],
         &[],
+        &Looks::new(),
         Order::File,
         "manfred test",
         Some(Animation {
@@ -173,6 +175,7 @@ fn a_track_naming_no_node_is_refused() {
         &[node("a")],
         &[],
         &[],
+        &Looks::new(),
         Order::File,
         "manfred test",
         Some(Animation {

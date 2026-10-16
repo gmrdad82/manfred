@@ -3,7 +3,7 @@ use manfred_build::Part;
 use manfred_recipe::{Recipe, Shadow};
 use manfred_scene::{Card, Cards, Error, Eye, Laid, Lighting, Palette, Picture, Piece};
 use pfx_live::sky::SkySource;
-use pfx_materials::Material;
+use pfx_materials::{Blend, Material};
 use pfx_post::Chain;
 use pfx_trace::detail::Lens;
 use pfx_trace::lights::{LightShape, LocalLight};
@@ -35,6 +35,7 @@ pub struct Staging {
     pub names: Vec<String>,
     pub materials: Vec<Material>,
     pub cards: Vec<Option<Card>>,
+    pub mapped: Vec<Option<usize>>,
     pub images: Vec<Picture>,
     pub clips: Vec<[[f32; 4]; 2]>,
     pub sky: Environment,
@@ -52,16 +53,7 @@ impl Staging {
     pub fn of(recipe: &Recipe, parts: &[Part]) -> Result<Staging, Error> {
         let pieces = manfred_scene::pieces(parts);
         let found = Cards::of(recipe, &pieces)?;
-        let Palette {
-            names,
-            materials,
-            slots,
-        } = manfred_scene::palette(recipe, &pieces, found.cards.iter().map(Option::is_some))?;
-        let clips = pieces
-            .iter()
-            .map(|piece| manfred_scene::clips(recipe, piece.object))
-            .collect();
-        let images = found
+        let mut images: Vec<Picture> = found
             .pictures
             .iter()
             .map(|picture| Picture {
@@ -69,6 +61,50 @@ impl Staging {
                 height: picture.height,
                 texels: manfred_scene::premultiplied(picture),
             })
+            .collect();
+        let mut mapped: Vec<Option<usize>> = vec![None; pieces.len()];
+        let mut seen: Vec<(&[u8], usize)> = Vec::new();
+        for ((at, piece), card) in pieces.iter().enumerate().zip(&found.cards) {
+            let Some(map) = piece
+                .look
+                .as_ref()
+                .and_then(|look| look.base.as_ref())
+                .filter(|map| card.is_none() && map.tex_coord == 0)
+            else {
+                continue;
+            };
+            let index = match seen.iter().find(|(bytes, _)| **bytes == *map.image.bytes) {
+                Some(&(_, index)) => index,
+                None => {
+                    let picture = manfred_scene::decode(&map.image.bytes).map_err(|e| {
+                        Error(format!("materials.{}: the base map: {e}", piece.material))
+                    })?;
+                    images.push(Picture {
+                        width: picture.width,
+                        height: picture.height,
+                        texels: manfred_scene::premultiplied(&picture),
+                    });
+                    seen.push((&map.image.bytes, images.len() - 1));
+                    images.len() - 1
+                }
+            };
+            mapped[at] = Some(index);
+        }
+        let layers = found.cards.iter().zip(&mapped).map(|(card, map)| {
+            if card.is_some() {
+                Some(Blend::Over)
+            } else {
+                map.map(|_| Blend::Multiply)
+            }
+        });
+        let Palette {
+            names,
+            materials,
+            slots,
+        } = manfred_scene::palette_with(recipe, &pieces, layers)?;
+        let clips = pieces
+            .iter()
+            .map(|piece| manfred_scene::clips(recipe, piece.object))
             .collect();
         let lighting = Lighting::of(recipe)?;
         let shine = lighting.shine(None);
@@ -95,6 +131,7 @@ impl Staging {
             names,
             materials,
             cards: found.cards,
+            mapped,
             images,
             clips,
             sky,
@@ -153,14 +190,17 @@ impl Staging {
             .zip(&self.pieces)
             .zip(&self.cards)
             .zip(&self.clips)
+            .zip(&self.mapped)
             .enumerate()
-            .map(|(mesh, (((&material, piece), card), clip))| {
+            .map(|(mesh, ((((&material, piece), card), clip), mapped))| {
                 let model = card
                     .and_then(|card| card.face)
                     .map_or(IDENTITY, |face| manfred_scene::facing(&face, eye));
                 let mut placed = Placement {
                     casts_shadow: piece.shadow != Shadow::None,
-                    content: card.as_ref().map(|card| self.content(card)),
+                    content: card.as_ref().map(|card| self.content(card)).or_else(|| {
+                        mapped.map(|picture| PlacementContent::new(self.image(picture)))
+                    }),
                     clip: *clip,
                     shadow_only: piece.shadow == Shadow::Only,
                     two_sided: piece.two_sided,

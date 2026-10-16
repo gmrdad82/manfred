@@ -5,6 +5,7 @@ use manfred_recipe::{self as recipe, Kind, Object, Recipe, Shadow};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 mod bake;
 pub mod builtin;
@@ -12,6 +13,7 @@ pub mod detail_uv;
 mod extras;
 mod facts;
 mod holes;
+mod maps;
 mod scene;
 mod shape;
 mod timeline;
@@ -23,7 +25,9 @@ pub use manfred_glb::{
 };
 pub use manfred_glb::{Lens, Track};
 pub use manfred_motion::{Route, Timeline, Trs, matrix, sample, trs_from_matrix};
+pub use manfred_glb::{Image, Look, Looks, Map, Mime};
 pub use manfred_recipe::NO_SIDECAR;
+pub use maps::{LARGEST_IMAGE, image, image_fits};
 pub use scene::object_ids;
 pub use timeline::{Animates, Bake, Baker, camera_track, lens, pose, time_refusal};
 
@@ -224,6 +228,7 @@ pub struct Part {
     pub shadow: Shadow,
     pub two_sided: bool,
     pub hidden: bool,
+    pub looks: Arc<Looks>,
 }
 
 #[derive(Clone, Debug)]
@@ -240,6 +245,7 @@ pub struct Built {
     pub tracks: Vec<Track>,
     generated: serde_json::Map<String, serde_json::Value>,
     pub lights: Vec<GeneratedLight>,
+    pub looks: Arc<Looks>,
     nest: Vec<Option<(usize, DMat4)>>,
 }
 
@@ -326,7 +332,15 @@ impl Built {
                 fps: timeline.fps,
                 tracks: &tracks,
             });
-        manfred_glb::write_animated(&nodes, &parents, &extras, self.order, GENERATOR, animation)
+        manfred_glb::write_animated(
+            &nodes,
+            &parents,
+            &extras,
+            &self.looks,
+            self.order,
+            GENERATOR,
+            animation,
+        )
             .map_err(|e| Error::new("", e.0))
     }
 
@@ -755,6 +769,7 @@ struct Made {
     facts: serde_json::Map<String, serde_json::Value>,
     materials: BTreeMap<String, serde_json::Value>,
     lights: Vec<GeneratedLight>,
+    looks: Looks,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -824,14 +839,16 @@ fn make(
 ) -> Result<Made, Error> {
     let object = &recipe.objects[index];
     let mut morph: Option<Morph> = None;
+    let mut looks = Looks::new();
     let generated = if matches!(object.kind, Kind::Generator { .. }) {
         generate(recipe, index, base, registry, routes)?
     } else {
         let mesh = match &object.kind {
             Kind::Mesh { path, node, .. } => {
-                let (mesh, mut found) = shape::imported(object, base, path, node.as_deref())?;
+                let (mesh, mut found, kept) = shape::imported(object, base, path, node.as_deref())?;
                 shape::weights(object, &mut found)?;
                 morph = (!found.is_empty()).then_some(found);
+                looks = kept;
                 mesh
             }
             _ => shape::local(object, cuts, base)?,
@@ -855,6 +872,7 @@ fn make(
         facts,
         materials,
         lights: Vec::new(),
+        looks,
     };
     taken(
         pieces.iter().map(|piece| piece.name.as_str()).collect(),
@@ -946,6 +964,7 @@ fn assemble(
     let mut generated = serde_json::Map::new();
     let mut offered: BTreeMap<String, (&str, serde_json::Value)> = BTreeMap::new();
     let mut lights = Vec::new();
+    let mut imported = Looks::new();
     for (index, object) in recipe.objects.iter().enumerate() {
         if matches!(object.kind, Kind::Pocket { .. }) {
             continue;
@@ -988,6 +1007,9 @@ fn assemble(
         if !object.hidden {
             lights.extend(made.lights);
         }
+        for (name, look) in made.looks {
+            imported.entry(name).or_insert(look);
+        }
         for node in made.nodes {
             parts.push(Part {
                 node,
@@ -995,8 +1017,13 @@ fn assemble(
                 shadow: object.shadow,
                 two_sided: object.two_sided,
                 hidden: object.hidden,
+                looks: Arc::default(),
             });
         }
+    }
+    let looks = Arc::new(maps::resolve(recipe, base, imported)?);
+    for part in &mut parts {
+        part.looks = looks.clone();
     }
     let facts = facts::facts(recipe, &generated);
     let sidecar = sidecar(recipe, registry, &facts)?;
@@ -1021,6 +1048,7 @@ fn assemble(
         catalogue,
         notes,
         lights,
+        looks,
         extras: extras::of(recipe, &parts, &facts.movers),
         nest: nest(recipe, &parts),
         timeline: recipe.timeline,

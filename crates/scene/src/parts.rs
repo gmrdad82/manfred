@@ -1,11 +1,11 @@
 use crate::Error;
 use crate::vector::single::{cross, dot, sub, unit};
-use manfred_build::Part;
+use manfred_build::{Look, Part};
 use manfred_glb::{DMat4, Node};
 use manfred_mesh::{Mesh, Slot};
 use manfred_recipe::{Recipe, Shadow};
 use pfx_geom::mesh::Mesh as Geometry;
-use pfx_materials::{Family, Material};
+use pfx_materials::{Blend, Family, Material};
 
 const DEFAULT_MATERIAL: &str = "default";
 const DEGENERATE: f32 = 1e-14;
@@ -17,6 +17,7 @@ pub struct Piece {
     pub name: String,
     pub shadow: Shadow,
     pub two_sided: bool,
+    pub look: Option<Look>,
 }
 
 pub fn pieces(parts: &[Part]) -> Vec<Piece> {
@@ -82,6 +83,7 @@ pub fn pieces(parts: &[Part]) -> Vec<Piece> {
                 name: node.name.clone(),
                 shadow: part.shadow,
                 two_sided: part.two_sided,
+                look: part.looks.get(&slot.material).cloned(),
             });
         }
     }
@@ -185,12 +187,24 @@ pub fn palette(
     pieces: &[Piece],
     carded: impl IntoIterator<Item = bool>,
 ) -> Result<Palette, Error> {
-    let mut keys: Vec<(&str, bool)> = Vec::new();
+    palette_with(
+        recipe,
+        pieces,
+        carded.into_iter().map(|card| card.then_some(Blend::Over)),
+    )
+}
+
+pub fn palette_with(
+    recipe: &Recipe,
+    pieces: &[Piece],
+    layers: impl IntoIterator<Item = Option<Blend>>,
+) -> Result<Palette, Error> {
+    let mut keys: Vec<(&str, Option<Blend>)> = Vec::new();
     let mut names = Vec::new();
     let mut materials = Vec::new();
     let mut slots = Vec::with_capacity(pieces.len());
-    for (piece, card) in pieces.iter().zip(carded) {
-        let key = (piece.material.as_str(), card);
+    for (piece, layer) in pieces.iter().zip(layers) {
+        let key = (piece.material.as_str(), layer);
         let index = match keys.iter().position(|known| *known == key) {
             Some(index) => index,
             None => {
@@ -199,10 +213,9 @@ pub fn palette(
                 };
                 keys.push(key);
                 names.push(piece.material.clone());
-                materials.push(if card {
-                    crate::cards::layered(material)
-                } else {
-                    material
+                materials.push(match layer {
+                    Some(blend) => crate::cards::layered_as(material, blend),
+                    None => material,
                 });
                 keys.len() - 1
             }
@@ -308,6 +321,7 @@ pub fn glb_parts(bytes: &[u8]) -> Result<Vec<Part>, Error> {
                 shadow: Shadow::Cast,
                 two_sided: false,
                 hidden: false,
+                looks: Default::default(),
             });
         }
         for &child in node.children.iter().rev() {
@@ -374,6 +388,7 @@ mod tests {
             shadow: Shadow::Cast,
             two_sided: false,
             hidden: false,
+            looks: Default::default(),
         }
     }
 

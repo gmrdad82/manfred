@@ -1,4 +1,6 @@
-use crate::{ANIMATION, Animation, Error, Lens, Node, Order, Track, Trs};
+use crate::{
+    ANIMATION, Animation, Error, Image, Lens, Look, Looks, Map, Node, Order, Sampler, Track, Trs,
+};
 use gltf_json as json;
 use json::accessor::{ComponentType, GenericComponentType, Type};
 use json::buffer::Target;
@@ -9,15 +11,22 @@ use json::{Index, Root};
 use manfred_mesh::{Mesh, Morph, natural_cmp};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 const BASE_COLOR: [f32; 4] = [0.8, 0.8, 0.8, 1.0];
 const ROUGHNESS: f32 = 0.5;
 const DEFAULT_MATERIAL: &str = "default";
+const TRANSFORM: &str = "KHR_texture_transform";
+const DETAIL_NORMAL: &str = "detailNormalTexture";
 
-struct Builder {
+struct Builder<'a> {
     root: Root,
     bin: Vec<u8>,
     materials: Vec<String>,
+    looks: &'a Looks,
+    images: Vec<Image>,
+    samplers: Vec<Sampler>,
+    textures: Vec<(usize, Option<usize>)>,
 }
 
 fn short(value: f32) -> Value {
@@ -38,7 +47,7 @@ fn bounds<const N: usize>(data: &[[f32; N]]) -> Option<([f32; N], [f32; N])> {
     Some((lo, hi))
 }
 
-impl Builder {
+impl Builder<'_> {
     fn pad(&mut self) {
         while !self.bin.len().is_multiple_of(4) {
             self.bin.push(0);
@@ -151,11 +160,166 @@ impl Builder {
         self.accessor(view, data.len(), ComponentType::F32, kind, range)
     }
 
+    fn image(&mut self, image: &Image) -> usize {
+        if let Some(at) = self
+            .images
+            .iter()
+            .position(|known| Arc::ptr_eq(&known.bytes, &image.bytes) || known.bytes == image.bytes)
+        {
+            return at;
+        }
+        self.pad();
+        let offset = self.bin.len();
+        self.bin.extend_from_slice(&image.bytes);
+        self.root.buffer_views.push(json::buffer::View {
+            buffer: Index::new(0),
+            byte_length: USize64::from(image.bytes.len()),
+            byte_offset: Some(USize64::from(offset)),
+            byte_stride: None,
+            extensions: None,
+            extras: Default::default(),
+            name: None,
+            target: None,
+        });
+        self.root.images.push(json::Image {
+            buffer_view: Some(Index::new(self.root.buffer_views.len() as u32 - 1)),
+            mime_type: Some(json::image::MimeType(image.mime.text().to_string())),
+            name: None,
+            uri: None,
+            extensions: None,
+            extras: Default::default(),
+        });
+        self.images.push(image.clone());
+        self.images.len() - 1
+    }
+
+    fn sampler(&mut self, sampler: Sampler) -> usize {
+        if let Some(at) = self.samplers.iter().position(|known| *known == sampler) {
+            return at;
+        }
+        let mut fields = serde_json::Map::new();
+        if let Some(mag) = sampler.mag {
+            fields.insert("magFilter".into(), Value::from(mag));
+        }
+        if let Some(min) = sampler.min {
+            fields.insert("minFilter".into(), Value::from(min));
+        }
+        fields.insert("wrapS".into(), Value::from(sampler.wrap[0]));
+        fields.insert("wrapT".into(), Value::from(sampler.wrap[1]));
+        let json = serde_json::from_value::<json::texture::Sampler>(Value::Object(fields))
+            .unwrap_or_default();
+        self.root.samplers.push(json);
+        self.samplers.push(sampler);
+        self.samplers.len() - 1
+    }
+
+    fn texture(&mut self, map: &Map) -> Index<json::Texture> {
+        let image = self.image(&map.image);
+        let sampler = map.sampler.map(|s| self.sampler(s));
+        let at = match self.textures.iter().position(|t| *t == (image, sampler)) {
+            Some(at) => at,
+            None => {
+                self.root.textures.push(json::Texture {
+                    name: None,
+                    sampler: sampler.map(|s| Index::new(s as u32)),
+                    source: Index::new(image as u32),
+                    extensions: None,
+                    extras: Default::default(),
+                });
+                self.textures.push((image, sampler));
+                self.textures.len() - 1
+            }
+        };
+        Index::new(at as u32)
+    }
+
+    fn info(&mut self, map: &Map) -> json::texture::Info {
+        let index = self.texture(map);
+        let extensions = map.transform.map(|t| {
+            if !self.root.extensions_used.iter().any(|e| e == TRANSFORM) {
+                self.root.extensions_used.push(TRANSFORM.to_string());
+            }
+            json::extensions::texture::Info {
+                texture_transform: Some(json::extensions::texture::TextureTransform {
+                    offset: json::extensions::texture::TextureTransformOffset(t.offset),
+                    rotation: json::extensions::texture::TextureTransformRotation(t.rotation),
+                    scale: json::extensions::texture::TextureTransformScale(t.scale),
+                    tex_coord: t.tex_coord,
+                    extras: Default::default(),
+                }),
+            }
+        });
+        json::texture::Info {
+            index,
+            tex_coord: map.tex_coord,
+            extensions,
+            extras: Default::default(),
+        }
+    }
+
+    fn textured(&mut self, name: &str, look: &Look) -> json::Material {
+        let base = look.base.as_ref().map(|m| self.info(m));
+        let metal_roughness = look.metal_roughness.as_ref().map(|m| self.info(m));
+        let normal = look.normal.as_ref().map(|m| json::material::NormalTexture {
+            index: self.texture(m),
+            scale: m.scale,
+            tex_coord: m.tex_coord,
+            extensions: None,
+            extras: Default::default(),
+        });
+        let occlusion = look
+            .occlusion
+            .as_ref()
+            .map(|m| json::material::OcclusionTexture {
+                index: self.texture(m),
+                strength: json::material::StrengthFactor(m.scale),
+                tex_coord: m.tex_coord,
+                extensions: None,
+                extras: Default::default(),
+            });
+        let extras = look.detail_normal.as_ref().and_then(|m| {
+            let index = self.texture(m).value();
+            raw(Some(&serde_json::json!({
+                DETAIL_NORMAL: { "index": index, "texCoord": m.tex_coord, "scale": short(m.scale) }
+            })))
+        });
+        let mapped = metal_roughness.is_some();
+        let base_color =
+            look.base_color
+                .unwrap_or(if base.is_some() { [1.0; 4] } else { BASE_COLOR });
+        let fallback = |mapped_value: f32, plain: f32| if mapped { mapped_value } else { plain };
+        json::Material {
+            double_sided: true,
+            name: Some(name.to_string()),
+            pbr_metallic_roughness: json::material::PbrMetallicRoughness {
+                base_color_factor: json::material::PbrBaseColorFactor(base_color),
+                base_color_texture: base,
+                metallic_factor: json::material::StrengthFactor(
+                    look.metallic.unwrap_or(fallback(1.0, 0.0)),
+                ),
+                roughness_factor: json::material::StrengthFactor(
+                    look.roughness.unwrap_or(fallback(1.0, ROUGHNESS)),
+                ),
+                metallic_roughness_texture: metal_roughness,
+                ..Default::default()
+            },
+            normal_texture: normal,
+            occlusion_texture: occlusion,
+            extras,
+            ..Default::default()
+        }
+    }
+
     fn material(&mut self, name: &str) -> Index<json::material::Material> {
         let at = match self.materials.iter().position(|m| m == name) {
             Some(at) => at,
             None => {
                 self.materials.push(name.to_string());
+                if let Some(look) = self.looks.get(name).filter(|look| look.has_maps()) {
+                    let material = self.textured(name, look);
+                    self.root.materials.push(material);
+                    return Index::new(self.materials.len() as u32 - 1);
+                }
                 self.root.materials.push(json::Material {
                     double_sided: true,
                     name: Some(name.to_string()),
@@ -350,7 +514,18 @@ pub fn write_tree(
     order: Order,
     generator: &str,
 ) -> Result<Vec<u8>, Error> {
-    write_animated(nodes, parents, extras, order, generator, None)
+    write_animated(nodes, parents, extras, &Looks::new(), order, generator, None)
+}
+
+pub fn write_looks(
+    nodes: &[Node],
+    parents: &[Option<usize>],
+    extras: &[Option<Value>],
+    looks: &Looks,
+    order: Order,
+    generator: &str,
+) -> Result<Vec<u8>, Error> {
+    write_animated(nodes, parents, extras, looks, order, generator, None)
 }
 
 fn pose(trs: &Trs) -> ([f32; 3], json::scene::UnitQuaternion, [f32; 3]) {
@@ -497,6 +672,7 @@ pub fn write_animated(
     nodes: &[Node],
     parents: &[Option<usize>],
     extras: &[Option<Value>],
+    looks: &Looks,
     order: Order,
     generator: &str,
     animation: Option<Animation<'_>>,
@@ -531,6 +707,10 @@ pub fn write_animated(
         root: Root::default(),
         bin: Vec::new(),
         materials: Vec::new(),
+        looks,
+        images: Vec::new(),
+        samplers: Vec::new(),
+        textures: Vec::new(),
     };
     builder.root.asset.version = "2.0".to_string();
     builder.root.asset.generator = Some(generator.to_string());

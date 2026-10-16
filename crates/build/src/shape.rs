@@ -1,4 +1,4 @@
-use crate::{Error, holes, rotation};
+use crate::{Error, holes, maps, rotation};
 use glam::{DMat4, DVec3};
 use manfred_mesh::outline::{self, Outline as Ring, Shape};
 use manfred_mesh::{
@@ -260,7 +260,7 @@ pub(crate) fn imported(
     base: &Path,
     path: &str,
     node: Option<&str>,
-) -> Result<(Mesh, Morph), Error> {
+) -> Result<(Mesh, Morph, manfred_glb::Looks), Error> {
     let file = base.join(path);
     let bytes = std::fs::read(&file)
         .map_err(|e| fail(object, "path", format!("cannot read {path}: {e}")))?;
@@ -272,6 +272,7 @@ pub(crate) fn imported(
     let document = &parsed.document;
     let mut out = Mesh::default();
     let mut morph = Morph::default();
+    let mut looks = manfred_glb::Looks::new();
     let mut found = false;
     let roots: Vec<gltf::Node> = match document
         .default_scene()
@@ -348,7 +349,15 @@ pub(crate) fn imported(
                     indices,
                     slots: Vec::new(),
                 };
-                part.set_material(primitive.material().name().unwrap_or(""));
+                let material = primitive.material();
+                let name = material.name().unwrap_or("");
+                if material.index().is_some() && !looks.contains_key(name) {
+                    let look = maps::look(&material, &buffers, folder).map_err(|e| {
+                        fail(object, "path", format!("{path}: material `{name}`: {e}"))
+                    })?;
+                    looks.insert(name.to_string(), look);
+                }
+                part.set_material(name);
                 mesh::transform(&mut part, matrix);
                 let before = out.positions.len();
                 out.append(&part);
@@ -375,7 +384,10 @@ pub(crate) fn imported(
             "node",
             format!("{path} has no node `{want}` with a mesh"),
         )),
-        _ => Ok((out, morph)),
+        _ => {
+            looks.retain(|_, look| look.has_maps());
+            Ok((out, morph, looks))
+        }
     }
 }
 

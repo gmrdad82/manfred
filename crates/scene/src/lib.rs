@@ -8,6 +8,7 @@ use std::path::Path;
 mod cards;
 mod eye;
 mod light;
+mod maps;
 mod memory;
 mod parts;
 mod picture;
@@ -16,11 +17,13 @@ mod text;
 mod vector;
 
 pub use cards::{
-    Card, Cards, Face, Picture, clips, decode, facing, layered, linear, placeholder, premultiplied,
+    Card, Cards, Face, Picture, clips, decode, facing, layered, layered_as, linear, placeholder,
+    premultiplied,
 };
 pub use light::{Lighting, Lit, Shine};
+pub use maps::LARGEST_MAP;
 pub use memory::Memory;
-pub use parts::{Palette, Piece, glb_parts, material, palette, pieces};
+pub use parts::{Palette, Piece, glb_parts, material, palette, palette_with, pieces};
 use pfx_live::frame::Matrix;
 pub use pfx_live::frame::MeshStats;
 pub use picture::{difference, psnr, read_png, read_png_size, write_png};
