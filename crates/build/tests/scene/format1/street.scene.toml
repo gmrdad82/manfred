@@ -1,0 +1,153 @@
+format = 1
+
+materials = ["scenes/street.materials.toml"]
+sound = "recipes/street.sound.toml"
+
+[mesh.car]
+id = "8cdfssgfd1"
+file = "scenes/street.glb"
+node = "car"
+
+[mesh.road]
+id = "p9deqrvvgp"
+file = "scenes/street.glb"
+node = "road"
+
+[[object]]
+id = "dca4m7p1aq"
+name = "road"
+mesh = "road"
+material = "asphalt"
+pick = 1
+
+[[object]]
+id = "32ndz0n3bf"
+name = "car"
+mesh = "car"
+material = "paint"
+pick = 2
+
+[[light]]
+id = "kmg961xj62"
+name = "lamp"
+position = [3.0, 4.0, 0.0]
+color = [1.0, 1.0, 1.0]
+intensity = 20.0
+radius = 0.0
+range = 44.72136
+shadow = false
+
+[[light]]
+id = "j9qqpwrfpe"
+name = "headlight"
+kind = "spot"
+parent = "car"
+at = [0.6, 0.1, 2.1]
+direction = [0.0, -0.1, 1.0]
+cone = [15.0, 30.0]
+color = [1.0, 0.95, 0.85]
+intensity = 40.0
+radius = 0.0
+range = 25.0
+shadow = false
+
+[[particles]]
+id = "5gg0vj0rcg"
+name = "spray"
+parent = "car"
+at = [0.0, -0.4, -2.1]
+rate = 120.0
+rate_keys = [[0.0, 0.0], [1.0, 200.0]]
+burst = 10
+max = 400
+lifetime = [0.4, 0.9]
+speed = [2.0, 4.0]
+direction = [0.0, 0.3, -1.0]
+cone = 25.0
+inherit = 0.5
+gravity = [0.0, -9.8, 0.0]
+drag = 0.8
+size = [0.05, 0.3]
+alpha = [[0.0, 0.6], [1.0, 0.0]]
+colors = [[0.0, "#d8dde4"], [1.0, [0.5, 0.5, 0.55]]]
+spin = [-90.0, 90.0]
+stretch = 0.4
+blend = "alpha"
+lit = true
+seed = 7
+
+[[particles]]
+id = "9eppesqeje"
+name = "sparks"
+at = [0.0, 0.0, 5.0]
+color = "#ffb347"
+blend = "add"
+
+[sun]
+model = "daylight"
+hour = 16.0
+day = 172.0
+latitude = 45.0
+heading = 180.0
+reference_hour = 16.0
+radius = 0.27
+
+[sky]
+kind = "analytic"
+
+[haze]
+amount = 0.3
+reach = 120.0
+height = 0.0
+falloff = 0.15
+shafts = 0.6
+steps = 24
+color = [0.95, 0.8, 0.6]
+
+[camera]
+projection = "perspective"
+at = [0.0, 2.0, -8.0]
+look_at = [0.0, 0.5, 0.0]
+up = [0.0, 1.0, 0.0]
+fov = 50.0
+near = 0.0019062117
+far = 19.062117
+
+[[finish.pass]]
+exposure = 1.1
+
+[[finish.pass]]
+bloom = { down = 2.0, kind = "box", knee = 0.7, knee_width = 0.6, radius = 12.0, sigma = 50.0, soft = 0.15, strength = 0.0, threshold = 0.9 }
+
+[[finish.pass]]
+vignette = { aspect = 0.8, kind = "power", power = 2.4, scale = 1.28, strength = 0.0 }
+
+[[finish.pass]]
+saturation = 1.0
+
+[[finish.pass]]
+warmth = { amount = 0.0, kind = "linear" }
+
+[[finish.pass]]
+tone = "aces"
+
+[[finish.pass]]
+lut = "recipes/grade.cube"
+lut_amount = 0.75
+
+[flare]
+amount = 0.4
+ghosts = 4
+ghost_spacing = 0.3
+halo = 0.2
+halo_radius = 0.6
+starburst = 0.5
+threshold = 1.5
+
+[motion_blur]
+shutter = 0.5
+max_px = 40.0
+samples = 8
+
+[authoring]
+recipe = "recipes/street.toml"

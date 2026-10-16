@@ -3,8 +3,8 @@ use crate::{Built, Error, Part, local_matrix, world};
 use glam::{DMat4, DVec3};
 use manfred_recipe::toml_edit::{DocumentMut, Item, Value};
 use manfred_recipe::{
-    CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, Casters, Kind, MONO, Object, Projection, Recipe, Room,
-    SCENE_SUFFIX, Shadow, SkyAmbient, SkyKind, TextSpace, Trace, View,
+    CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, Casters, Kind, LightKind, MONO, Object, Projection,
+    Recipe, Room, SCENE_SUFFIX, Shadow, SkyAmbient, SkyKind, TextSpace, Trace, View,
 };
 use pfx_core::daylight::{Authored, Daylight};
 use pfx_load::{RoomLamp, RoomSky, Sky};
@@ -16,6 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
+mod effects;
 mod proxies;
 
 pub(crate) const REFERENCE_HOUR: f64 = 16.0;
@@ -143,6 +144,14 @@ pub(crate) fn text(
             format!("Manfred writes scene format 0 or 1, not {format}"),
         ));
     }
+    if format == 0
+        && let Some(key) = effects::format_1_key(recipe)
+    {
+        return Err(Error::new(
+            key,
+            "this key is scene format 1's, expected `[output] scene_format = 1` or the key removed",
+        ));
+    }
     let paths = Paths::of(scene, format)?;
     let mut out = String::new();
     let library_path = library_file(scene);
@@ -155,18 +164,24 @@ pub(crate) fn text(
         }
         None => None,
     };
+    if let Some(sound) = &recipe.effects.sound {
+        let sound = effects::file(&paths, base, sound, "sound")?;
+        let _ = writeln!(out, "sound = {}", string(&sound));
+    }
     let light = Light::of(recipe);
     sun(&mut out, recipe, &light)?;
     sky(&mut out, recipe, &light, &paths, base)?;
     camera(&mut out, recipe, built)?;
-    finish(&mut out, recipe)?;
+    finish(&mut out, recipe, &paths, base)?;
+    effects::tables(&mut out, recipe)?;
     haze(&mut out, recipe)?;
     trace(&mut out, recipe)?;
     let stands = match plates(&mut out, recipe, scene, &paths, base)? {
         Some(file) => Some((file, proxies::of(built, recipe)?)),
         None => None,
     };
-    lights(&mut out, recipe)?;
+    lights(&mut out, recipe, built)?;
+    effects::particles(&mut out, recipe, built)?;
     let glb_name = paths.relative(glb, "output.glb")?;
     objects(&mut out, built, recipe, &glb_name, &cards, paths.pick())?;
     contents(&mut out, &cards, &paths, base)?;
@@ -761,20 +776,42 @@ fn camera(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error>
 }
 
 fn haze(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
-    let Some(look) = &recipe.look else {
-        return Ok(());
-    };
-    let amount = look.grade.haze;
-    let hazy = amount > 0.0;
-    if look.view == View::Standard || !hazy {
+    let room = recipe
+        .look
+        .as_ref()
+        .filter(|look| look.view != View::Standard && look.grade.haze > 0.0)
+        .map(|look| look.grade.haze);
+    let open = recipe.effects.haze.as_ref();
+    let has = |key: &str| open.is_some_and(|keys| keys.iter().any(|(k, _)| *k == key));
+    if room.is_some() && has("amount") {
+        return Err(Error::new(
+            "haze.amount",
+            "look.grade.haze already sets the haze's amount, expected one of the two",
+        ));
+    }
+    if room.is_none() && open.is_some() && !has("height") && !has("falloff") {
+        return Err(Error::new(
+            "haze",
+            "an outdoor haze needs `height` or `falloff`; a room haze comes from look.grade.haze",
+        ));
+    }
+    if room.is_none() && open.is_none() {
         return Ok(());
     }
-    let mut s = Section::new(out, "[haze]", "look.grade.haze");
-    s.list("lo", &HAZE_LO)?;
-    s.list("hi", &HAZE_HI)?;
-    s.num("amount", amount.min(1.0))?;
-    s.num("phase", HAZE_PHASE)?;
-    s.num("back", HAZE_BACK)
+    let mut s = Section::new(out, "[haze]", "haze");
+    if let Some(amount) = room {
+        s.at = "look.grade.haze".to_string();
+        s.list("lo", &HAZE_LO)?;
+        s.list("hi", &HAZE_HI)?;
+        s.num("amount", amount.min(1.0))?;
+        s.num("phase", HAZE_PHASE)?;
+        s.num("back", HAZE_BACK)?;
+        s.at = "haze".to_string();
+    }
+    match open {
+        Some(settings) => effects::put(&mut s, settings),
+        None => Ok(()),
+    }
 }
 
 pub(crate) fn bounds(built: &Built) -> Option<[[f64; 3]; 2]> {
@@ -823,7 +860,24 @@ pub(crate) fn depth_range(camera: &Camera, bounds: Option<[[f64; 3]; 2]>) -> (f6
     (near, far.max(near * 2.0))
 }
 
-fn finish(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
+fn finish(out: &mut String, recipe: &Recipe, paths: &Paths, base: &Path) -> Result<(), Error> {
+    let lut = match recipe.look.as_ref().and_then(|look| look.lut.as_ref()) {
+        Some(lut) => Some(effects::file(paths, base, lut, "look.lut")?),
+        None => None,
+    };
+    let amount = recipe.look.as_ref().and_then(|look| look.lut_amount);
+    standard_or_graded(out, recipe)?;
+    if let Some(lut) = lut {
+        let mut s = Section::new(out, "[[finish.pass]]", "look.lut");
+        s.put("lut", &string(&lut));
+        if let Some(amount) = amount {
+            s.num("lut_amount", amount)?;
+        }
+    }
+    Ok(())
+}
+
+fn standard_or_graded(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
     let (exposure, grade) = match &recipe.look {
         None => (1.0, None),
         Some(look) => (look.exposure, Some(look)),
@@ -914,7 +968,7 @@ fn trace(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
     Ok(())
 }
 
-fn lights(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
+fn lights(out: &mut String, recipe: &Recipe, built: &Built) -> Result<(), Error> {
     if recipe.lights.len() > MAX_LIGHTS {
         return Err(Error::new(
             "light",
@@ -925,9 +979,32 @@ fn lights(out: &mut String, recipe: &Recipe) -> Result<(), Error> {
         ));
     }
     for light in &recipe.lights {
-        let mut s = Section::new(out, "[[light]]", format!("light[{}]", light.name));
+        let at = format!("light[{}]", light.name);
+        let parent = match &light.parent {
+            Some((name, place)) => Some((
+                effects::parent(built, recipe, name, &format!("{at}.parent"))?,
+                place,
+            )),
+            None => None,
+        };
+        let mut s = Section::new(out, "[[light]]", at);
         s.put("name", &string(&light.name));
-        s.list("position", &light.position)?;
+        if light.kind == LightKind::Spot {
+            s.put("kind", &string("spot"));
+        }
+        match parent {
+            Some((name, place)) => {
+                s.put("parent", &string(&name));
+                s.list("at", place)?;
+            }
+            None => s.list("position", &light.position)?,
+        }
+        if let Some(direction) = &light.direction {
+            s.list("direction", direction)?;
+        }
+        if let Some(cone) = &light.cone {
+            s.list("cone", cone)?;
+        }
         s.list("color", &light.color)?;
         s.num("intensity", light.intensity)?;
         s.num("radius", light.radius)?;
@@ -1485,6 +1562,9 @@ fn one(
                 toml::from_str(&text).map_err(|e| refused("materials", &e))?;
             for (name, material) in &mut library.materials {
                 material.id = next(&mut ids, None, "materials", name);
+                if let Some(wet) = recipe.effects.wet.get(name) {
+                    material.wet = Some(effects::wet(wet));
+                }
             }
             library.format = Some(FORMAT);
             library.authoring.clone_from(&authoring);
@@ -1493,7 +1573,14 @@ fn one(
         }
         None => None,
     };
+    for light in &mut scene.light {
+        light.id = next(&mut ids, None, "light", &light.name);
+    }
+    for particles in &mut scene.particles {
+        particles.id = next(&mut ids, None, "particles", &particles.name);
+    }
     let text = toml::to_string(&scene).map_err(|e| refused("output.scene", &e))?;
+    let text = effects::unplaced(text, recipe);
     let mut fonts = written.files;
     if let Some((file, stands)) = stands {
         let owned: Vec<Id> = stands

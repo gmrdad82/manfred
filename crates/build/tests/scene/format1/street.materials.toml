@@ -1,0 +1,112 @@
+format = 1
+
+[materials.asphalt]
+id = "24cgqwf0ss"
+family = "plain"
+base = [0.05, 0.05, 0.05]
+roughness = 0.9
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.asphalt.normal]
+source = "flat"
+strength = 0.0
+
+[materials.asphalt.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.asphalt.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.asphalt.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[materials.asphalt.wet]
+amount = 0.8
+puddles = 0.4
+puddle_scale = 2.5
+seed = 3
+
+[materials.paint]
+id = "h5r9gsk3tb"
+family = "plain"
+base = [0.6, 0.02, 0.02]
+roughness = 0.3
+metalness = 0.0
+specular = 0.04
+clearcoat = 0.0
+clearcoat_roughness = 0.05
+sheen = 0.0
+transmission = 0.0
+ior = 1.5
+dispersion = 0.0
+thickness = 0.0
+subsurface = 0.0
+subsurface_tint = [1.0, 1.0, 1.0]
+absorption = 0.0
+thin_film = 0.0
+thin_film_ior = 1.5
+thin_film_amount = 0.0
+emission = [0.0, 0.0, 0.0]
+fresnel_power = 5.0
+content = "none"
+
+[materials.paint.normal]
+source = "flat"
+strength = 0.0
+
+[materials.paint.maps]
+layer = -1.0
+tile = 1.0
+normal = 1.0
+albedo = 1.0
+
+[materials.paint.content_layer]
+slot = -1
+blend = "over"
+ink_roughness = -1.0
+emboss = 0.0
+strength = 1.0
+
+[materials.paint.ageing]
+fade = 0.0
+yellow = 0.0
+ink = 0.0
+scratch = 0.0
+edge = 0.0
+dust = 0.0
+patina = 0.0
+seed = 0
+
+[authoring]
+recipe = "recipes/street.toml"

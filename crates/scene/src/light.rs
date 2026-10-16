@@ -489,6 +489,7 @@ fn lights(recipe: &Recipe) -> Result<Vec<LocalLight>, Error> {
     Ok(recipe
         .lights
         .iter()
+        .filter(|light| light.parent.is_none())
         .map(|light| LocalLight {
             position: light.position.map(|v| v as f32),
             colour: light.color.map(|v| v as f32),

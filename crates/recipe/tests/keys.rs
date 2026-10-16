@@ -124,7 +124,7 @@ fn the_color_key_is_spelled_as_the_scene_file_spells_it() {
         error(
             "[[light]]\nname = \"a\"\nposition = [0.0, 1.0, 0.0]\nintensity = 1.0\ncolour = [1.0, 1.0, 1.0]\n"
         ),
-        "line 7: light[a].colour: unknown key `colour` in `light[a]`, expected one of: name, position, color, intensity, radius, range, shadow"
+        "line 7: light[a].colour: unknown key `colour` in `light[a]`, expected one of: name, kind, parent, at, position, direction, cone, color, intensity, radius, range, shadow"
     );
     assert_eq!(
         error(

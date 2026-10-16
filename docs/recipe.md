@@ -38,6 +38,7 @@ scene_format = 1
 ```
 
 - `include`: other files whose cameras, lights, sky, look, materials and objects merge into this recipe, under "Includes and uses" below.
+- `sound`: an optional `*.sound.toml` file, relative to the recipe, which the scene names as its top-level `sound` (format 1 only; see "Shot effects").
 - `params`: an optional JSON or TOML file whose values can be substituted into numeric fields as `"${params.camera.focal_mm}"`. An app's own solver writes the file; the recipe consumes it.
 - `[plate]`: declares plate pixels, and fixes the `plate` UV projection. `camera` names the camera that projection looks through; without it, the first `[[camera]]`.
   - **Twins:** with a plate, these keys have a `_px` twin read in pixels: `at_px`, `size_px`, `rect_px`, `radius_px`, `circle_px`, `points_px`, and a mover's `pivot_px`, `travel_px`, `clip_px` and `clip2_px`. A key and its twin together are an error, and a twin without a `[plate]` is a problem.
@@ -64,7 +65,7 @@ Where the recipe and the engine's `scene.toml` (pfx's `docs/scenes.md`) name the
 
 - **`[sun]`** takes `model`, required: `"daylight"` (`hour` and `latitude` and `heading` required, `day` 172, `reference_hour`) or `"authored"` (`toward` and `irradiance` required, `color` white, `radius_deg`). Each model takes only its own keys.
 - **`[sky.prepare]`** takes `cap`, `balance` and `mean` as the engine's bake does, and the table needs one of them.
-- **`[look]`** stays. The engine's `[finish]` is the post chain's own keys (`style`, `bloom`, `vignette`, `tone` and the rest), which `manfred` does not hold: `[look]` is what an author says (`view`, `exposure` and a `grade` of five amounts from 0 to 1, haze among them, which is the room's and not a post pass), and the writer turns it into a `[finish]` of numbers. A `[finish]` in a recipe is refused with a pointer to `[look]`.
+- **`[look]`** stays. The engine's `[finish]` is the post chain's own keys (`style`, `bloom`, `vignette`, `tone` and the rest), which `manfred` does not hold: `[look]` is what an author says (`view`, `exposure` and a `grade` of five amounts from 0 to 1, haze among them, which is the room's and not a post pass), and the writer turns it into a `[finish]` of numbers. A `[finish]` in a recipe is refused with a pointer to `[look]`. The finish's colour lookup table is an author's grade too, so it is `[look]`'s `lut` and `lut_amount`, which the writer passes to the scene's `[finish]` under the same names.
 - **The same, unchanged:** `[sky]`'s `kind` (`analytic`, `hdr`, `room`), `path`, `rotation_deg` and `intensity`; `[sky.room]` with its `[[sky.room.lights]]`; and `[[light]]`'s `name`, `position`, `color`, `intensity` and `radius`.
 
 **Left different on purpose:**
@@ -212,7 +213,7 @@ The rules follow the engine's `scene.toml` `include` where they fit (pfx's `docs
 
 - **Paths** are relative to the file that names them: an `include` or a use's `file`, and a sky's `path`, a card's `image`, a mesh's `path` and a span's font `family` inside an included or used file. An absolute path is refused. A `"${params.…}"` inside one reads the recipe's own params, and a `_px` key the recipe's own `[plate]`.
 - **`include = ["rig.toml", …]`** merges each file's tables into the recipe, in order and depth first: an included file's own includes come before it, and every included entry comes before the recipe's own. A file is included once per recipe; a second include of it is refused, and so is a cycle, naming the chain (`a.toml → b.toml → a.toml is a cycle`). A missing file is an error at the include that names it: `include: cannot read nope.toml: no such file`.
-- **What an included file holds:** `[[object]]`, `[[camera]]`, `[[light]]`, `[[mover]]`, `[[use]]`, `[sun]`, `[sky]`, `[look]`, `[materials.<name>]`, its own `include`, and optionally `manfred`. `name`, `seed`, `params`, `[plate]`, `[output]`, variants, `[sidecar]` and `[bake]` belong to the recipe and are refused in an included file.
+- **What an included file holds:** `[[object]]`, `[[camera]]`, `[[light]]`, `[[particles]]`, `[[mover]]`, `[[use]]`, `[sun]`, `[sky]`, `[look]`, `[flare]`, `[motion_blur]`, `[haze]`, `[materials.<name>]`, its own `include`, and optionally `manfred`. `name`, `seed`, `params`, `sound`, `[plate]`, `[output]`, variants, `[sidecar]` and `[bake]` belong to the recipe and are refused in an included file.
 - **Names:** an object, camera, light, mover group, non-empty use prefix or material is defined once across a recipe and the files it includes and uses. A second definition in another file is an error naming both files: ``light[lamp]: `lamp` is defined in rig.toml and in panel.toml``. The recipe overrides an entry by changing it in the file that holds it, never by defining it again.
 - **Tables:** `[sun]`, `[sky]` and `[look]` are set by one included file at most (two siblings setting one is refused, naming both), and the including file's own keys win over the included ones key by key, through nested tables such as `[sky.prepare]` and `[sky.room]`. Above, the panel keeps the rig's whole sky and changes only its intensity. An array or an inline table is one value and is replaced whole.
 - **A problem in another file** is reported at the recipe's line that brings the file in, with that file's own name and line before the key: `manfred check panel.toml` prints `panel.toml:3: rig.toml:24: light[lamp].colour: unknown key …`, and `Recipe::origin_of` gives the file and line of any key.
@@ -414,7 +415,7 @@ travel = 0.003
 clip = [0.0, 0.0, 1.0, 0.0]
 ```
 
-- Lights are the engine's point lights, four at most today.
+- Lights are the engine's point lights, or spot lights with `kind = "spot"`, four at most today; "Shot effects" below has the spot and parent keys.
 - A mover's parts are the objects named `mv_<group>` and `mv_<group>__<part>`, or listed in `parts`. The facts carry pivot, axis, travel and clip planes as written. Two movers may not share a `group`.
 - **A mover's keys:** `group`, `pivot`, `axis` and `travel` are required; `clip` and `clip2` are optional; `parts` is optional. `axis` is not [0, 0, 0].
   - **`pivot`** is in metres, in the recipe's own axes. `pivot_px = [x, y, z]` reads x and y as plate pixels, as `at_px` does, and z in metres, the depth along the recipe's z (0 when left out).
@@ -422,6 +423,61 @@ clip = [0.0, 0.0, 1.0, 0.0]
   - **`clip` and `clip2`** are planes `[nx, ny, nz, d]`: a point `p` with `dot(n, p) > d` is cut away while the part moves. `clip_px = [0, 1, 0, row]` and `clip2_px = [0, -1, 0, row]` put the plane on a plate row: the normal must be [0, ±1, 0], and `d` is the normal's y times the row's height in metres. So `clip_px = [0, 1, 0, 151]` cuts everything above row 151, and `clip2_px = [0, -1, 0, 738]` everything below row 738.
   - **In the live view** (`manfred shot` and the window) every piece of every part of a mover carries its mover's `clip` and `clip2` as the engine's per-instance clip planes, in world space as written: the pieces are drawn at their rest pose, so the recipe's axes are the world's. A part is cut, its shadow too. A part two movers claim takes the first mover's planes, as the extras do. `manfred render` clips movers too (`docs/render.md`). The glass parts of a mover are not clipped live until an engine release clips glass surfaces per instance.
   - **In the sidecar:** the facts dialect writes `movers.<group>` with `pivot`, `axis`, `travel`, and `clip` and `clip2` when the mover has them; an app's writer writes them as its loader reads them.
+
+## Shot effects
+
+The keys pfx-scene 1.1.0 added for a rendered shot. The recipe spells them as the scene file does (pfx-scene's `docs/format.md`), the writer passes them through, and Manfred validates them by type and range, naming the key. They need `[output] scene_format = 1`: a format 0 scene refuses them at the key. Manfred's own views (`manfred shot`, `render`, `clip` and the window) ignore them, and leave a light with a `parent` out, since it rides an object; pfx draws them when it renders the scene. `--set` and variants reach every key, as `particles.spray.rate`, `light.headlight.cone`, `flare.amount` or `materials.asphalt.wet.puddles`. A colour is `"#rrggbb"` or `[r, g, b]`, each at least 0; the key is `color`, never `colour`.
+
+```toml
+sound = "street.sound.toml"
+
+[[light]]
+name = "headlight"
+kind = "spot"
+parent = "hero.body"
+at = [0.6, 0.1, 2.1]
+direction = [0.0, -0.1, 1.0]
+cone = [15.0, 30.0]
+intensity = 40.0
+
+[[particles]]
+name = "spray"
+parent = "hero"
+at = [0.0, -0.4, -2.1]
+rate_keys = [[0.0, 0.0], [1.0, 200.0]]
+lifetime = [0.4, 0.9]
+alpha = [[0.0, 0.6], [1.0, 0.0]]
+colors = [[0.0, "#d8dde4"], [1.0, [0.5, 0.5, 0.55]]]
+
+[look]
+lut = "grade.cube"
+lut_amount = 0.75
+
+[flare]
+amount = 0.4
+
+[motion_blur]
+shutter = 0.5
+
+[haze]
+amount = 0.3
+height = 0.0
+falloff = 0.15
+
+[materials.asphalt.wet]
+amount = 0.8
+```
+
+- **A parent** (`parent` on a light or a particle system) names an object or a piece's node (`hero`, `hero.wheel_rl`). The writer writes the scene object that holds it: the node itself, or an object's first shown node; one that names nothing shown in the built scene is refused at build, at `light[<name>].parent` or `particles[<name>].parent`.
+- **`[[light]]`** also takes `kind`: `"point"` (the default) or `"spot"`. `direction` (`[x, y, z]`, not zero; pfx's default `[0, -1, 0]`) and `cone` (`[inner, outer]` degrees, 0 <= inner <= outer <= 180; pfx's default `[30, 45]`) belong to a spot and are refused on a point light. `parent` with `at` (`[x, y, z]` in the parent's frame, default `[0, 0, 0]`) places a light on an object in place of `position`: a parented light refuses `position`, an unparented one needs it and refuses `at`. A light without these keys writes the same scene as before.
+- **`[[particles]]`:** `name` (needed, unique), `parent` and `at` (where particles are born, in the parent's frame or the world's), `rate` (>= 0, per second), `rate_keys` (`[[seconds, rate], ...]`, each >= 0, times increasing; they drive the rate over `rate`), `burst` (whole number), `max` (whole number >= 1), `lifetime` (`[low, high]` seconds, 0 < low <= high), `speed` (`[low, high]`, 0 <= low <= high), `direction` (not zero), `cone` (0 to 180 degrees), `inherit` (0 to 1), `gravity` (`[x, y, z]`), `drag` (>= 0), `size` (`[start, end]`, each >= 0), `alpha` (`[[t, alpha], ...]`, each 0 to 1, t increasing), `color` (one colour) or `colors` (`[[t, colour], ...]`, t 0 to 1), not both, `spin` (two numbers, degrees per second), `stretch` (>= 0), `blend` (`"alpha"` or `"add"`), `lit` (bool) and `seed` (whole number). Every key but `name` is optional and takes pfx's default.
+- **`[look]`** `lut`: a `.cube` file, relative to the recipe; `lut_amount`: 0 to 1, only with `lut` (pfx's default when left out). The scene's finish gets one last `[[finish.pass]]` with both, after the tone.
+- **`[flare]`:** `amount` (0 to 1), `ghosts` (whole number), `ghost_spacing`, `halo`, `halo_radius`, `starburst` and `threshold` (each >= 0). Every key optional.
+- **`[motion_blur]`:** `shutter` (0 to 1, the share of a frame the shutter is open), `max_px` (>= 0) and `samples` (whole number >= 1). Every key optional.
+- **`[haze]`:** the outdoor haze: `amount` (0 to 1), `height` (a number), `falloff` (>= 0), `reach` (>= 0, metres the march goes), `shafts` (0 to 1), `steps` (whole number >= 1) and `color`. It needs `height` or `falloff`, unless `look.grade.haze` gives the room's haze, whose `[haze]` it then joins; `amount` and `look.grade.haze` together are refused at `haze.amount`.
+- **`[materials.<name>.wet]`:** `amount` and `puddles` (0 to 1), `puddle_scale` (> 0, metres) and `seed` (whole number). Manfred's own materials ignore it; the scene's library writes it on that material.
+- **`sound`:** a path ending in `.sound.toml`, relative to the recipe, written as the scene's `sound`.
+- **Paths:** `look.lut` and `sound` must be files when the scene is written, and are written relative to the project root, as the scene's other paths are.
 
 ## Variants, look and bake
 
@@ -559,7 +615,8 @@ The recipe is Manfred's authoring layer; `scene.toml` is the engine's runtime da
 - **Text:** a `text` object with one span is a `[text.<name>]`: the span's words, its font (the embedded mono, written beside the scene as `JetBrainsMonoNerdFont-Regular.ttf` or `-Bold.ttf` by weight, or the span's own file), its size times the placement's uniform scale, its colour with alpha 1, and `at` and `rotate` from its placement, `on` included.
 - **The sun:** an authored `[sun]` is `model = "authored"` with `toward`, `color`, `irradiance` and `hour = 16.0`, the sun as the still draws it at its own hour. `[daylight]` is `model = "daylight"` with `hour`, `day`, `latitude`, `heading` and `reference_hour = 16.0`, Manfred's reference. With neither, the daylight of Manfred's default hour, 16, at the engine's day, latitude and heading. `radius` is the recipe's `radius_deg` for an authored sun, 0 to 10 (refused at `sun.radius_deg` outside it), and 0.27 for a daylight sun. An authored sun also writes `reference_hour = 16.0`, so it is exactly as authored at hour 16 and follows the hour as the still's does.
 - **The sky:** `analytic` writes the sky's `intensity` as the analytic sky's `ambient` (times the daylight's ambient under `[daylight]`); its `rotation_deg` is not used, as live. `hdr` writes `path`, `rotation_deg`, and `[sky.prepare]` as the bake does (cap 60, the balance, mean 0.3). `room` writes `rotation_deg` and every `[sky.room]` and lamp key. For `hdr` and `room`, `intensity` is the recipe's times what the still multiplies the texels by at its hour: the `[sky.shade]` tint and the hourly ambient (under `[daylight]` for an HDR, and for a room with `ambient = "authored"`). Without `[sky]`, an analytic sky, as the still draws. A `mix` writes `kind = "mix"` with two `[[sky.layer]]`: the prepared HDR (`path`, `rotation_deg`, `intensity` as for `hdr`, and its `[sky.layer.prepare]`) and the room's lamps alone, a `room` layer with `floor`, `wall` and `ceiling` black, its `width` the HDR's, the same `rotation_deg` and `intensity`, and a `weight` of `fill` (0.25 unless set) times the prepared HDR's mean luminance over the lamps' own, the gain the still's mix applies, worked out from the file when the scene is written. The engine bakes the layers into one HDR at the HDR's width: Manfred's own mix. A mix with no lamps writes `weight = 0.0`, the HDR alone.
-- **Lights:** each `[[light]]` with every key: `range` resolved (`sqrt(intensity / 0.01)` when 0) and `shadow` written, since the scene's defaults differ.
+- **Lights:** each `[[light]]` with every key: `range` resolved (`sqrt(intensity / 0.01)` when 0) and `shadow` written, since the scene's defaults differ. A spot writes `kind`, `direction` and `cone`; a parented light `parent` and `at` in place of `position`. In format 1 each light has an `id`, derived under the kind `light`.
+- **Shot effects:** `[[particles]]` (each with an `id` under the kind `particles`, after the lights), `[flare]`, `[motion_blur]`, the outdoor `[haze]` keys, a material's `wet`, the LUT pass and `sound`, as "Shot effects" says.
 - **The camera:** `projection`, `at`, `look_at`, `up`, `fov` (vertical, from `focal_mm` at the plate's aspect, or at 1586 × 992 without a plate) or `height`, `near` and `far` as the still fits them to the scene's bounds, and `shift` when it isn't `[0, 0]`. A perspective camera with `fstop` above 0 writes `focal`, `sensor` (the vertical height, so the engine's fov is the camera's), `fstop` and, when set, `focus` (`focus_m`, the distance from the eye along the view, which is the engine's `focus`) in place of `fov`; a `focus_m` at or below the focal length is refused at `camera[<name>].focus_m`.
 - **The haze:** `look.grade.haze` above 0, under `view = "graded"`, is `[haze]` with `lo`, `hi` (Manfred's room), `amount`, `phase = 0.35` and `back = 0.7`: the engine's room haze, the same one the still draws. The tracer draws none.
 - **The finish:** `[look]` as the still's chain, in the still's own order: `exposure` alone for `view = "standard"`; for `graded` (and without `[look]`) one `[[finish.pass]]` each for `exposure`, a box `bloom` with the still's shape, a power `vignette` (2.4, 0.8, 1.28), `saturation`, linear `warmth` and the ACES `tone`. The engine orders inline keys by name, which puts the warmth after the tone where the still has it before, so the passes are listed in `[[finish.pass]]`, which the engine applies in the order written.
