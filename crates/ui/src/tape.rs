@@ -38,6 +38,8 @@ const INK: Color32 = Color32::from_rgb(0x0E, 0x0E, 0x0E);
 enum Beat {
     Step(Step),
     Wait(f32),
+    Fade { to: f32, seconds: f32 },
+    Xray(bool),
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -52,6 +54,31 @@ fn seconds(number: usize, text: &str) -> Result<f32, Error> {
         _ => Err(Error(format!(
             "line {number}: wait wants seconds, from 0 to {LONGEST_WAIT}"
         ))),
+    }
+}
+
+fn shading(number: usize, rest: &str) -> Result<Beat, Error> {
+    let words: Vec<&str> = rest.split_whitespace().collect();
+    let refused = |why: String| Error(format!("line {number}: {why}"));
+    match words.as_slice() {
+        ["xray", "on"] => Ok(Beat::Xray(true)),
+        ["xray", "off"] => Ok(Beat::Xray(false)),
+        ["xray", ..] => Err(refused("wireframe xray wants on or off".into())),
+        [amount] => Ok(Beat::Fade {
+            to: crate::wire::amount(amount).map_err(refused)?,
+            seconds: 0.0,
+        }),
+        [amount, time] => Ok(Beat::Fade {
+            to: crate::wire::amount(amount).map_err(refused)?,
+            seconds: seconds(number, time).map_err(|_| {
+                refused(format!(
+                    "a wireframe fade wants seconds, from 0 to {LONGEST_WAIT}"
+                ))
+            })?,
+        }),
+        _ => Err(refused(
+            "wireframe wants on, off, xray on|off, or an amount from 0 to 1 and seconds".into(),
+        )),
     }
 }
 
@@ -70,13 +97,18 @@ impl Tape {
                 .split_once(char::is_whitespace)
                 .unwrap_or((trimmed, ""));
             if command == "wait" {
-                order.push((number, Some(seconds(number, rest.trim())?)));
+                order.push((number, Some(Beat::Wait(seconds(number, rest.trim())?))));
+                script.push('\n');
+                continue;
+            }
+            if command == "wireframe" {
+                order.push((number, Some(shading(number, rest)?)));
                 script.push('\n');
                 continue;
             }
             if !VERBS.contains(&command) {
                 return Err(Error(format!(
-                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame and wait"
+                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait and wireframe"
                 )));
             }
             order.push((number, None));
@@ -87,8 +119,8 @@ impl Tape {
         let lines = order.iter().map(|(number, _)| *number).collect();
         let beats = order
             .into_iter()
-            .map(|(_, wait)| match wait {
-                Some(seconds) => Ok(Beat::Wait(seconds)),
+            .map(|(_, beat)| match beat {
+                Some(beat) => Ok(beat),
                 None => steps
                     .next()
                     .map(Beat::Step)
@@ -167,6 +199,8 @@ struct Frame {
     modifiers: Modifiers,
     pointer: Option<Pos2>,
     down: bool,
+    wire: Option<f32>,
+    xray: Option<bool>,
 }
 
 fn modifiers_of(mods: Mods) -> Modifiers {
@@ -201,6 +235,7 @@ struct Plan {
     down: Option<PointerButton>,
     held: Modifiers,
     step: Option<usize>,
+    wire: f32,
 }
 
 impl Plan {
@@ -218,7 +253,17 @@ impl Plan {
             modifiers,
             pointer: self.pointer,
             down: self.down.is_some(),
+            wire: None,
+            xray: None,
         });
+    }
+
+    fn shade(&mut self, wire: Option<f32>, xray: Option<bool>) {
+        self.frame(Vec::new());
+        if let Some(last) = self.frames.last_mut() {
+            last.wire = wire;
+            last.xray = xray;
+        }
     }
 
     fn frame(&mut self, events: Vec<Event>) {
@@ -341,6 +386,10 @@ impl Plan {
 }
 
 fn plan(tape: &Tape, fps: u32, points: [f32; 2]) -> Result<Vec<Frame>, Error> {
+    plan_from(tape, fps, points, 0.0)
+}
+
+fn plan_from(tape: &Tape, fps: u32, points: [f32; 2], wire: f32) -> Result<Vec<Frame>, Error> {
     if fps == 0 {
         return Err(Error("a clip has at least one frame a second".into()));
     }
@@ -352,6 +401,7 @@ fn plan(tape: &Tape, fps: u32, points: [f32; 2]) -> Result<Vec<Frame>, Error> {
         down: None,
         held: Modifiers::NONE,
         step: None,
+        wire,
     };
     for (index, beat) in tape.beats.iter().enumerate() {
         plan.step = Some(index);
@@ -362,6 +412,14 @@ fn plan(tape: &Tape, fps: u32, points: [f32; 2]) -> Result<Vec<Frame>, Error> {
                     plan.frame(Vec::new());
                 }
             }
+            Beat::Fade { to, seconds } => {
+                let frames = plan.count(*seconds).min(MAX_FRAMES + 1);
+                for amount in crate::wire::fade(plan.wire, *to, frames) {
+                    plan.shade(Some(amount), None);
+                }
+                plan.wire = *to;
+            }
+            Beat::Xray(on) => plan.shade(None, Some(*on)),
         }
         if plan.full() {
             return Err(Error(format!(
@@ -463,6 +521,12 @@ impl Player<'_, '_> {
             },
         );
         let app = &mut *self.app;
+        if let Some(amount) = frame.wire {
+            app.set_wireframe(amount);
+        }
+        if let Some(on) = frame.xray {
+            app.set_xray(on);
+        }
         let mut output = self.ctx.run_ui(input, |ui| {
             app.ui(ui);
             if let Some(at) = frame.pointer {
@@ -586,7 +650,7 @@ pub fn play(
     turns.turn();
     check(layout.size)?;
     check(layout.drawn())?;
-    let frames = plan(tape, fps, layout.points())?;
+    let frames = plan_from(tape, fps, layout.points(), app.wireframe().amount)?;
     let theme = app.theme();
     let gpu = block_on(Gpu::headless()).map_err(Error)?;
     turns.turn();
@@ -715,6 +779,66 @@ mod tests {
         assert!(!frames[pressed + 1].down);
         let second = Tape::parse("wait 1\n").unwrap();
         assert_eq!(plan(&second, 60, [200.0, 100.0]).unwrap().len(), 61);
+    }
+
+    #[test]
+    fn a_wireframe_step_switches_or_fades_the_shading_one_amount_a_frame() {
+        let tape =
+            Tape::parse("wireframe on\nwireframe xray on\nwireframe 0.5 0.1\nwireframe off\n")
+                .unwrap();
+        assert_eq!(
+            tape.beats,
+            vec![
+                Beat::Fade {
+                    to: 1.0,
+                    seconds: 0.0
+                },
+                Beat::Xray(true),
+                Beat::Fade {
+                    to: 0.5,
+                    seconds: 0.1
+                },
+                Beat::Fade {
+                    to: 0.0,
+                    seconds: 0.0
+                },
+            ]
+        );
+        let frames = plan(&tape, 30, [200.0, 100.0]).unwrap();
+        let wires: Vec<Option<f32>> = frames.iter().map(|frame| frame.wire).collect();
+        assert_eq!(
+            wires,
+            [
+                None,
+                Some(1.0),
+                None,
+                Some(1.0 - 0.5 / 3.0),
+                Some(1.0 - 1.0 / 3.0),
+                Some(0.5),
+                Some(0.0)
+            ]
+        );
+        assert_eq!(frames[2].xray, Some(true));
+        let faded = plan_from(
+            &Tape::parse("wireframe 1 1\n").unwrap(),
+            60,
+            [200.0, 100.0],
+            0.5,
+        )
+        .unwrap();
+        assert_eq!(faded.len(), 61);
+        assert_eq!(faded[1].wire, Some(0.5 + 0.5 / 60.0));
+        assert_eq!(faded[60].wire, Some(1.0));
+        assert_eq!(
+            Tape::parse("frame\nwireframe 2\n").unwrap_err().0,
+            "line 2: 2 is not a wireframe amount: on, off or a number from 0 to 1"
+        );
+        assert!(
+            Tape::parse("wireframe xray maybe\n")
+                .unwrap_err()
+                .0
+                .starts_with("line 1: wireframe xray wants")
+        );
     }
 
     #[test]

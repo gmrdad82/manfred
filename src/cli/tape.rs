@@ -408,6 +408,7 @@ fn film(args: &Args, rest: &[String], registry: &Registry) -> Result<ExitCode, S
         shell = shell.bare();
     }
     shell.set_registry(registry.clone());
+    super::gui::shade(args, &mut shell);
     let (frames_in, frames_out) = mpsc::sync_channel::<(usize, Vec<u8>)>(QUEUED);
     std::fs::create_dir_all(&partial_folder).map_err(|error| named(&partial_folder, &error))?;
     let writers = png_writers(partial_folder.clone(), size, frames_out);

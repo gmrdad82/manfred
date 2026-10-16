@@ -27,7 +27,7 @@ pub use parts::{Palette, Piece, glb_parts, material, palette, palette_with, piec
 use pfx_live::frame::Matrix;
 pub use pfx_live::frame::MeshStats;
 pub use picture::{difference, psnr, read_png, read_png_size, write_frame, write_png};
-pub use stage::{Change, Pick, Prepared, Stage, family_of};
+pub use stage::{Change, Outline, Pick, Prepared, Stage, family_of};
 pub use text::{Laid, fonts};
 
 pub const SETTLE_FRAMES: u32 = 48;

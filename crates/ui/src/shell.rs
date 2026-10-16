@@ -189,6 +189,7 @@ pub struct Shell {
     chase_eye: Option<Eye>,
     scrubber: Option<Rect>,
     bare: bool,
+    wire: crate::wire::Look,
 }
 
 impl fmt::Debug for Shell {
@@ -389,7 +390,13 @@ impl Shell {
     fn with(document: Document) -> Shell {
         let open = vec![false; document.nodes.len()];
         let hour = document.hour.unwrap_or(12.0);
+        let book = if cfg!(test) {
+            crate::open::Book::empty()
+        } else {
+            crate::open::Book::machine()
+        };
         Shell {
+            wire: book.view(),
             fixture: None,
             chosen: None,
             values: [0.25, 0.25, 0.25],
@@ -440,11 +447,7 @@ impl Shell {
             calm: false,
             first: None,
             solids: Vec::new(),
-            book: if cfg!(test) {
-                crate::open::Book::empty()
-            } else {
-                crate::open::Book::machine()
-            },
+            book,
             opened: None,
             registry: Registry::new(),
             trouble: None,
@@ -476,7 +479,31 @@ impl Shell {
 
     pub fn without_recent(mut self) -> Shell {
         self.book = crate::open::Book::empty();
+        self.wire = crate::wire::Look::default();
         self
+    }
+
+    pub fn wireframe(&self) -> crate::wire::Look {
+        self.wire
+    }
+
+    pub fn set_wireframe(&mut self, amount: f32) {
+        self.wire.amount = amount.clamp(0.0, 1.0);
+    }
+
+    pub fn set_xray(&mut self, on: bool) {
+        self.wire.xray = on;
+    }
+
+    fn toggle_wireframe(&mut self) {
+        let amount = if self.wire.on() { 0.0 } else { 1.0 };
+        self.set_wireframe(amount);
+        let _ = self.book.keep_view(self.wire);
+    }
+
+    fn toggle_xray(&mut self) {
+        self.wire.xray = !self.wire.xray;
+        let _ = self.book.keep_view(self.wire);
     }
 
     pub fn without_showcase(mut self) -> Shell {
@@ -1237,6 +1264,23 @@ impl Shell {
         for command in commands {
             self.command(ctx, command);
         }
+        let xray = ctx.input(|input| {
+            input.events.iter().any(|event| {
+                matches!(
+                    event,
+                    Event::Key {
+                        key: Key::Z,
+                        pressed: true,
+                        repeat: false,
+                        modifiers,
+                        ..
+                    } if modifiers.shift_only()
+                )
+            })
+        });
+        if xray && self.live() {
+            self.toggle_xray();
+        }
         let pressed: Vec<Key> = ctx.input(|input| {
             input
                 .events
@@ -1290,6 +1334,7 @@ impl Shell {
                 ctx.memory_mut(|memory| memory.request_focus(search_id()));
             }
             (_, Key::Num0) if self.live() => self.jump(self.camera),
+            (_, Key::Z) if self.live() => self.toggle_wireframe(),
             (_, Key::Space | Key::Comma | Key::Period | Key::F) if self.span().is_some() => {
                 self.transport_key(key);
             }
@@ -1626,6 +1671,7 @@ impl Shell {
                 ("drag", "orbit"),
                 ("⇧ drag", "pan"),
                 ("wheel", "dolly"),
+                ("z ⇧z", "wire x-ray"),
                 ("0", "back to camera"),
             ],
             _ => Shell::hints_for(panel, false),
@@ -1654,6 +1700,7 @@ impl Shell {
                     ("p", "routes"),
                     ("ctrl", "snap"),
                     ("esc", "cancel"),
+                    ("z ⇧z", "wire x-ray"),
                     ("0", "back to camera"),
                 ];
             }
@@ -1989,6 +2036,7 @@ impl Shell {
                         shell.steer(ui, &response, image);
                     }
                     shell.picture(ui, image);
+                    shell.shading(ui, image);
                     shell.shot_overlay(ui, image);
                     if bar > 0.0 {
                         shell.transport(ui);
@@ -2101,6 +2149,13 @@ impl Shell {
         };
         if self.paused() {
             info.push_str(" · paused");
+        }
+        if self.wire.on() {
+            info.push_str(if self.wire.xray {
+                " · wireframe x-ray"
+            } else {
+                " · wireframe"
+            });
         }
         info
     }
@@ -3001,6 +3056,43 @@ impl Shell {
         ));
         if clicked {
             self.full = true;
+        }
+    }
+
+    fn shading(&mut self, ui: &mut Ui, image: Rect) {
+        if self.full || self.view_error.is_some() {
+            return;
+        }
+        let mut right = image.right() - SECTION_GAP * 0.5;
+        let top = image.bottom() - SECTION_GAP * 0.5 - ROW_HEIGHT;
+        let mut toggle = |ui: &mut Ui, text: &str, on: bool| {
+            let colour = if on { ACCENT } else { TEXT_SECONDARY };
+            let font = Theme::of(ui.ctx()).font(SIZE_CODE);
+            let width = ui
+                .painter()
+                .layout_no_wrap(text.to_string(), font, colour)
+                .size()
+                .x
+                + 2.0 * SECTION_GAP;
+            let rect =
+                Rect::from_min_size(Pos2::new(right - width, top), Vec2::new(width, ROW_HEIGHT));
+            right = rect.left() - ITEM_SPACING;
+            ui.put(
+                rect,
+                Button::new(code(ui, text, colour))
+                    .wrap_mode(egui::TextWrapMode::Extend)
+                    .fill(if on { BG_SELECTED } else { BG_CHIP })
+                    .stroke(Stroke::new(STROKE, if on { ACCENT } else { LINE_BORDER }))
+                    .corner_radius(CornerRadius::same(RADIUS)),
+            )
+            .on_hover_text(if text == "wire" { "z" } else { "shift+z" })
+            .clicked()
+        };
+        if toggle(ui, "wire", self.wire.on()) {
+            self.toggle_wireframe();
+        }
+        if self.wire.on() && toggle(ui, "x-ray", self.wire.xray) {
+            self.toggle_xray();
         }
     }
 

@@ -18,6 +18,13 @@ manfred gui --start --shot start.png --size 1280x800
 
 `--size` sets the window (1586x992 by default). The frame shows the settled window: the scene built, the stage drawn, every panel laid out. `--bare` draws the viewport alone instead, filling the whole frame (see below).
 
+`--wireframe` draws the viewport as a wireframe (`z` in the window), `--blend <0..1>` stops part way between shaded and wireframe, and `--xray` shows the hidden edges brighter. They work for a recipe or a `.scene.toml`, with `--shot` and with `--clip`:
+
+```sh
+manfred gui showcase/chase.toml --shot wire.png --wireframe
+manfred gui showcase/chase.toml --shot half.png --wireframe --blend 0.5
+```
+
 ## Play a script first
 
 `--input <script>` plays a script of one step a line before the frame. Coordinates are points from the window's top left, and a line starting with `#` is a comment.
@@ -39,6 +46,9 @@ key g
 | `drag x y x y [middle]` | a whole drag in one line |
 | `scroll x y lines` | the wheel, positive to come nearer |
 | `frame` | draws one pass |
+| `wireframe on` / `wireframe off` | switches the viewport to wireframe or back to shaded, in one frame |
+| `wireframe <amount> [<seconds>]` | fades the viewport to an amount between shaded (0) and wireframe (1) over the seconds, one even step a frame at the clip's rate; without seconds it jumps; in a tape the fade takes its time like a `wait` |
+| `wireframe xray on` / `wireframe xray off` | shows the hidden edges brighter, or dimmed again |
 
 ```sh
 manfred gui showcase/workshop.toml --input pick.txt --shot picked.png

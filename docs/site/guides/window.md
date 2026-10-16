@@ -23,6 +23,10 @@ Ctrl+O opens the picker over the viewport at any time; Esc closes it. The window
 
 Drag in the viewport to orbit, Shift+drag or middle-drag to pan, and the wheel to dolly. `0` looks through the chosen camera again.
 
+## Wireframe
+
+`z` switches the viewport between shaded and wireframe, as do the `wire` and `x-ray` buttons at its bottom right: light edges over a dark ground, the selection in the accent colour and the recipe's routes on top. The flat diagonals of a face are left out and hidden edges are dimmed; Shift+Z shows them brighter, as an x-ray. It works on a recipe and on an opened `.scene.toml`, and the window remembers both switches the next time it opens. `manfred gui --wireframe` opens in wireframe.
+
 ## Pick and move a part
 
 - **Pick:** click a part in the viewport, or its row in the outliner. Glass and text pick like any part; the outliner also reaches hidden and shadow-only objects.

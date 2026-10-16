@@ -66,6 +66,18 @@ impl<'a> Manfred<'a> {
         }
     }
 
+    pub fn wireframe(&self) -> crate::wire::Look {
+        self.shell.wireframe()
+    }
+
+    pub fn set_wireframe(&mut self, amount: f32) {
+        self.shell.set_wireframe(amount);
+    }
+
+    pub fn set_xray(&mut self, on: bool) {
+        self.shell.set_xray(on);
+    }
+
     pub fn building(&self) -> bool {
         self.viewer
             .get()

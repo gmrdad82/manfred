@@ -49,6 +49,7 @@ fn options(args: &Args) -> Result<Options, String> {
 }
 
 pub fn run(args: &Args, registry: &Registry) -> ExitCode {
+    let shade = |shell: &mut Shell| super::gui::shade(args, shell);
     let mut options = match options(args) {
         Ok(options) => options,
         Err(error) => return super::refuse("gui --shot", &error),
@@ -81,6 +82,7 @@ pub fn run(args: &Args, registry: &Registry) -> ExitCode {
         let size = options.size.unwrap_or(SIZE);
         let mut shell = Shell::browse(folder).without_recent();
         shell.set_registry(registry.clone());
+        shade(&mut shell);
         manfred_ui::shot(&mut Manfred::new(&mut shell, None), size, &script).map(|png| (png, size))
     } else {
         match (&options.recipe, options.fixture) {
@@ -100,6 +102,7 @@ pub fn run(args: &Args, registry: &Registry) -> ExitCode {
                 if options.bare {
                     shell = shell.bare();
                 }
+                shade(&mut shell);
                 let size = options.size.unwrap_or(SIZE);
                 manfred_ui::shot(&mut Manfred::lent(&mut shell, &mut viewer), size, &script)
                     .map(|png| (png, size))

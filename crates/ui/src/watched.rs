@@ -19,6 +19,8 @@ const IN_FLIGHT: u64 = 2;
 const EMPTY: [[f64; 3]; 2] = [[-1.0, -1.0, -1.0], [1.0, 1.0, 1.0]];
 pub const CAMERA: &str = "camera";
 
+type Looked = ([[f32; 4]; 4], [[f32; 4]; 4]);
+
 fn worded(error: &SceneError, scene: &Path) -> String {
     let folder = scene.parent().unwrap_or(Path::new(""));
     let file = error.file.strip_prefix(folder).unwrap_or(&error.file);
@@ -351,6 +353,7 @@ pub struct Live {
     previous: Option<[[f32; 4]; 4]>,
     animated: Option<Animated>,
     time: f32,
+    looked: Option<Looked>,
 }
 
 impl Live {
@@ -367,6 +370,7 @@ impl Live {
             previous: None,
             animated: Animated::of(scene),
             time: 0.0,
+            looked: None,
         })
     }
 
@@ -430,6 +434,14 @@ impl Live {
         drops.ring + drops.late
     }
 
+    pub fn looked(&self) -> Option<Looked> {
+        self.looked
+    }
+
+    pub fn depth(&self) -> &wgpu::TextureView {
+        &self.renderer.frame().targets.depth_view
+    }
+
     pub fn pick(&mut self, x: u32, y: u32) -> Result<(), String> {
         self.renderer.pick(x, y)
     }
@@ -450,6 +462,7 @@ impl Live {
             position: eye.position.map(|v| v as f32),
         };
         self.previous = Some(current);
+        self.looked = Some((view, projection));
         camera
     }
 

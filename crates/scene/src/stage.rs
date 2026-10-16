@@ -220,6 +220,19 @@ pub struct Stage {
     faced: Vec<Instance>,
     through: Option<Shot>,
     posed: BTreeMap<String, Matrix>,
+    pieces: Vec<Piece>,
+    opaque: Vec<usize>,
+    glazed: Vec<usize>,
+    generation: u64,
+    looked: Option<(Matrix, Matrix)>,
+}
+
+pub struct Outline<'a> {
+    pub key: u64,
+    pub positions: &'a [[f32; 3]],
+    pub indices: &'a [u32],
+    pub model: Matrix,
+    pub id: u32,
 }
 
 impl Stage {
@@ -292,6 +305,11 @@ impl Stage {
             faced: Vec::new(),
             through: None,
             posed: BTreeMap::new(),
+            pieces: Vec::new(),
+            opaque: Vec::new(),
+            glazed: Vec::new(),
+            generation: 0,
+            looked: None,
         };
         stage.apply(prepared)?;
         Ok(stage)
@@ -402,6 +420,10 @@ impl Stage {
         self.seed = seed;
         self.parents = parents;
         self.text = Drawn::new(self.renderer.gpu(), text)?;
+        self.glazed = shown_glass(&glass).collect();
+        self.opaque = opaque;
+        self.pieces = pieces;
+        self.generation += 1;
         if change.sky {
             self.light()?;
         } else {
@@ -448,6 +470,55 @@ impl Stage {
 
     pub fn mesh_stats(&self) -> MeshStats {
         self.renderer.mesh_stats()
+    }
+
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    pub fn looked(&self) -> Option<(Matrix, Matrix)> {
+        self.looked
+    }
+
+    pub fn depth(&self) -> &wgpu::TextureView {
+        &self.renderer.frame().targets.depth_view
+    }
+
+    pub fn outlines(&self) -> Vec<Outline<'_>> {
+        let drawn = if self.faced.len() == self.instances.len() {
+            &self.faced
+        } else {
+            &self.instances
+        };
+        let outline = |at: usize, key: u64, model: Matrix, id: u32| {
+            let geometry = &self.pieces.get(at)?.geometry;
+            Some(Outline {
+                key,
+                positions: &geometry.positions,
+                indices: &geometry.indices,
+                model,
+                id,
+            })
+        };
+        let opaque = self
+            .opaque
+            .iter()
+            .zip(drawn)
+            .zip(&self.uploaded)
+            .filter(|((_, instance), _)| !instance.shadow_only)
+            .filter_map(|((&at, instance), uploaded)| {
+                outline(at, uploaded.mark.hash, instance.model, instance.id)
+            });
+        let glass = self
+            .glazed
+            .iter()
+            .zip(&self.glass)
+            .zip(&self.glassed)
+            .filter(|((_, surface), _)| !surface.shadow_only)
+            .filter_map(|((&at, surface), glassed)| {
+                outline(at, glassed.mark.hash, surface.model, surface.id)
+            });
+        opaque.chain(glass).collect()
     }
 
     pub fn preview(&mut self, object: usize, motion: Matrix) -> Result<(), Error> {
@@ -714,6 +785,7 @@ impl Stage {
             position: eye.position.map(|v| v as f32),
         };
         self.previous = Some(current);
+        self.looked = Some((view, projection));
         (camera, current)
     }
 

@@ -23,6 +23,7 @@ mod undo;
 mod viewer;
 mod viewport;
 mod watched;
+mod wire;
 
 use pfx_editor_style::widgets;
 
@@ -35,6 +36,7 @@ pub use start::{start_recipe, start_recipe_here};
 pub use tape::{Layout, MAX_FRAMES, Tape, frame_png, play, poster_png, steps as tape_steps};
 pub use viewer::Viewer;
 pub use watched::is_scene;
+pub use wire::Look;
 
 #[cfg(test)]
 use pfx_editor_shell::{encode_png, gpu_turn};

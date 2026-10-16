@@ -337,6 +337,46 @@ impl Book {
         }
         write_atomic(book, text.as_bytes())
     }
+
+    fn view_path(&self) -> Option<PathBuf> {
+        self.path.as_ref().map(|path| path.with_file_name("view"))
+    }
+
+    pub fn view(&self) -> crate::wire::Look {
+        let mut look = crate::wire::Look::default();
+        let Some(text) = self
+            .view_path()
+            .and_then(|path| std::fs::read_to_string(path).ok())
+        else {
+            return look;
+        };
+        for line in text.lines() {
+            match line
+                .split_once('=')
+                .map(|(key, value)| (key.trim(), value.trim()))
+            {
+                Some(("wireframe", value)) => {
+                    look.amount = crate::wire::amount(value).unwrap_or(0.0);
+                }
+                Some(("xray", value)) => look.xray = value == "on",
+                _ => {}
+            }
+        }
+        look
+    }
+
+    pub fn keep_view(&self, look: crate::wire::Look) -> std::io::Result<()> {
+        let Some(path) = self.view_path() else {
+            return Ok(());
+        };
+        let switch = |on: bool| if on { "on" } else { "off" };
+        let text = format!(
+            "wireframe = {}\nxray = {}\n",
+            switch(look.on()),
+            switch(look.xray)
+        );
+        write_atomic(&path, text.as_bytes())
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

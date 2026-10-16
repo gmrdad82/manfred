@@ -162,6 +162,83 @@ fn target(gpu: &Gpu, size: [u32; 2], format: wgpu::TextureFormat) -> Target {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn outline(
+    gpu: &Gpu,
+    wire: &mut crate::wire::Wire,
+    drawing: &Drawing,
+    target: &Target,
+    scene: Option<(&Watched, &(u64, pfx_load::scene::Draws))>,
+    recipe: Option<&Recipe>,
+    shell: &Shell,
+    scale: f32,
+) -> Result<(), String> {
+    let look = shell.wireframe();
+    if !look.on() {
+        return Ok(());
+    }
+    let selected = shell.selected();
+    let (outlines, key, depth, camera, routes, selected) = match drawing {
+        Drawing::Stage(stage) => {
+            let Some(camera) = stage.looked() else {
+                return Ok(());
+            };
+            let routes = recipe.map_or(&[][..], |recipe| &recipe.routes[..]);
+            (
+                stage.outlines(),
+                stage.generation(),
+                stage.depth(),
+                camera,
+                routes,
+                selected.map(|object| object as u32 + 1),
+            )
+        }
+        Drawing::Scene(live) => {
+            let (Some(camera), Some((watched, (key, draws)))) = (live.looked(), scene) else {
+                return Ok(());
+            };
+            let Some(found) = watched.scene() else {
+                return Ok(());
+            };
+            let outlines = draws
+                .items
+                .iter()
+                .filter(|draw| draw.shadow.drawn())
+                .map(|draw| manfred_scene::Outline {
+                    key: 0,
+                    positions: &draw.geometry.positions,
+                    indices: &draw.geometry.indices,
+                    model: draw.model,
+                    id: draw.id,
+                })
+                .collect();
+            let selected = selected
+                .and_then(|object| found.objects.get(object))
+                .map(|object| object.id);
+            (outlines, *key, live.depth(), camera, &[][..], selected)
+        }
+        Drawing::Fake(_) => return Ok(()),
+    };
+    wire.draw(
+        gpu,
+        &crate::wire::Scene {
+            key,
+            outlines: &outlines,
+            routes,
+            selected,
+        },
+        &crate::wire::Target {
+            output: &target.draw,
+            format: target.format,
+            depth,
+            size: target.size,
+            camera,
+            scale,
+        },
+        look,
+    )
+}
+
 enum Job {
     Made(Result<Drawing, String>),
     Prepared(Result<Box<Prepared>, String>),
@@ -206,6 +283,8 @@ pub struct Viewer {
     scene: Option<Watched>,
     seen: u64,
     steady: bool,
+    wire: crate::wire::Wire,
+    drawn_scene: Option<(u64, pfx_load::scene::Draws)>,
 }
 
 impl Viewer {
@@ -243,6 +322,8 @@ impl Viewer {
             scene,
             seen: 0,
             steady: false,
+            wire: crate::wire::Wire::default(),
+            drawn_scene: None,
         }
     }
 
@@ -759,6 +840,7 @@ impl Viewer {
                 drawing.render(gpu, &eye, view, live)
             })();
             settle |= live && drawing.settling();
+            let result = result.and_then(|()| self.outline(gpu, shell, pixels_per_point));
             match result {
                 Ok(()) => {
                     self.drawn = true;
@@ -778,6 +860,39 @@ impl Viewer {
                     self.preparing(),
                     self.shown,
                 )
+    }
+
+    fn outline(&mut self, gpu: &Gpu, shell: &Shell, scale: f32) -> Result<(), String> {
+        let Viewer {
+            drawing,
+            target,
+            scene,
+            follow,
+            wire,
+            drawn_scene,
+            ..
+        } = self;
+        if let Some(watched) = scene.as_ref().filter(|_| shell.wireframe().on())
+            && let Some(found) = watched.scene()
+            && drawn_scene
+                .as_ref()
+                .is_none_or(|(seen, _)| *seen != watched.generation())
+        {
+            *drawn_scene = Some((watched.generation(), found.draws()));
+        }
+        match (drawing.as_ref(), target.as_ref()) {
+            (Some(drawing), Some(target)) => outline(
+                gpu,
+                wire,
+                drawing,
+                target,
+                scene.as_ref().zip(drawn_scene.as_ref()),
+                follow.recipe(),
+                shell,
+                scale,
+            ),
+            _ => Ok(()),
+        }
     }
 
     fn pose(&mut self, shell: &mut Shell) -> bool {

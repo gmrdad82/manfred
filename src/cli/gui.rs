@@ -141,6 +141,39 @@ pub(super) struct Args {
         help = "Draw the start scene"
     )]
     pub(super) start: bool,
+    #[arg(
+        long,
+        help = "Draw the viewport as a wireframe: light edges over a dark ground, hidden edges dimmed (z in the window)"
+    )]
+    pub(super) wireframe: bool,
+    #[arg(
+        long,
+        value_name = "amount",
+        requires = "wireframe",
+        value_parser = blend,
+        help = "How far the viewport goes from shaded to wireframe, from 0 to 1 [default: 1]"
+    )]
+    pub(super) blend: Option<f32>,
+    #[arg(
+        long,
+        requires = "wireframe",
+        help = "Show the wireframe's hidden edges brighter, as an x-ray (shift+z in the window)"
+    )]
+    pub(super) xray: bool,
+}
+
+fn blend(text: &str) -> Result<f32, String> {
+    match text.parse::<f32>() {
+        Ok(value) if (0.0..=1.0).contains(&value) => Ok(value),
+        _ => Err(format!("{text} is not an amount from 0 to 1")),
+    }
+}
+
+pub(super) fn shade(args: &Args, shell: &mut Shell) {
+    if args.wireframe {
+        shell.set_wireframe(args.blend.unwrap_or(1.0));
+        shell.set_xray(args.xray);
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -193,6 +226,7 @@ pub fn run(
     };
     let pulse = host.beat.and_then(|beat| beat(shell.label().as_deref()));
     shell.set_registry(registry.clone());
+    shade(args, &mut shell);
     if installed {
         shell = shell.with_installed_showcase();
     }
