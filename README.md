@@ -272,6 +272,10 @@ manfred unkey <recipe> <path> [<t>] [--json]             remove the property's k
 manfred save <recipe> --manf <out.manf> [--thumb] [--json]   packs the recipe, its includes and every file it reads, its build and its pfx scene into one .manf
 manfred unpack <file.manf> <dir> [--json]                    writes a .manf's recipe and files into a folder, so building it there gives the same GLB
 manfred fold <file.manf> [--apply | --keep] [--json]         lists the scene edits pfx made in a .manf, folds them into the recipe or keeps them as overrides
+manfred import <file.glb> (--as <kind>/<name> | --out <x.manf>) [--tags <a,b>] [--thumb] [--json]
+                                                          a glTF 2.0 binary (a Blender export too) into a .manf: its glTF as-is, a one-object recipe and detected facts (size, wheels, light anchors)
+manfred export <file.manf|recipe> --glb <out.glb> [--only <object>] [--json]
+                                                          a standalone GLB with its node hierarchy and no Manfred extras
 ```
 
 `add`, `remove` and `duplicate` write the recipe file through the window's own edits, keeping its comments, check the recipe again after the write, and put the file back byte for byte when it no longer checks.

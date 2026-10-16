@@ -14,6 +14,7 @@ pub mod detail_uv;
 pub mod document;
 mod extras;
 mod facts;
+pub mod gltf_io;
 mod holes;
 pub mod library;
 mod lod;

@@ -50,6 +50,7 @@ It is not a modeller: there is no sculpting and no hand mesh editing. Meshes com
 - [Install](install/) Manfred and run the quick start.
 - [Your first scene](guides/first-scene/): write a recipe, check it, build it, draw it and trace it.
 - [The recipe](reference/recipe/) is the whole schema, and [the command line](reference/cli/) every command and flag.
+- [glTF in and out](guides/gltf/): import a glTF 2.0 binary, a Blender export included, into a `.manf` document, and export a document or a recipe as a standalone GLB.
 - [Your app's own generators](guides/app-generators/): link the `manfred` library and add meshes only your app knows. Its [API reference](api/manfred/index.html) is generated from the code.
 
 Manfred is built on [pfx](https://docs.pitomd.com/pfx/), PITO MD's engine: its live renderer draws the window, its tracer renders the stills, and a game loads the GLBs Manfred builds.

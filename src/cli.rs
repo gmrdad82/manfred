@@ -5,7 +5,9 @@ mod curve;
 mod diff;
 mod document;
 mod entries;
+mod export;
 mod gui;
+mod import;
 mod key;
 mod library;
 mod library_add;
@@ -137,6 +139,14 @@ enum Verb {
         about = "List the scene edits pfx made in a .manf, fold them into the recipe or keep them"
     )]
     Fold(document::FoldArgs),
+    #[command(
+        about = "Read a glTF 2.0 binary into a .manf document with its recipe and detected facts"
+    )]
+    Import(import::Args),
+    #[command(
+        about = "Write a .manf or a recipe as a standalone glTF 2.0 binary with no Manfred extras"
+    )]
+    Export(export::Args),
 }
 
 fn line(host: &Host) -> clap::Command {
@@ -368,6 +378,8 @@ fn run_verb(
         Verb::Save(parsed) => document::save(&parsed, registry),
         Verb::Unpack(parsed) => document::unpack(&parsed),
         Verb::Fold(parsed) => document::fold(&parsed, registry),
+        Verb::Import(parsed) => import::run(&parsed, registry),
+        Verb::Export(parsed) => export::run(&parsed, registry),
     }
 }
 
@@ -440,7 +452,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, curve, set, get, key, unkey, new, timeline, shoot, library, add, remove, duplicate, list, save, unpack, fold, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, curve, set, get, key, unkey, new, timeline, shoot, library, add, remove, duplicate, list, save, unpack, fold, import, export, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),
