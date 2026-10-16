@@ -8,7 +8,7 @@ pub use reader::summary;
 pub use sidecars::{
     FACTS, SidecarWriter, facts, grade_json, merge, mover_json, room_json, sidecar_text,
 };
-pub use writer::{write, write_animated, write_looks, write_tree, write_with_extras};
+pub use writer::{Content, write, write_animated, write_looks, write_tree, write_with_extras};
 
 pub use glam::DMat4;
 use manfred_mesh::{Mesh, Morph};
@@ -57,6 +57,15 @@ impl Track {
 pub struct Animation<'a> {
     pub fps: u32,
     pub tracks: &'a [Track],
+}
+
+#[derive(Clone, Debug)]
+pub struct Lod {
+    pub of: usize,
+    pub node: Node,
+    pub tangents: Option<Vec<[f32; 4]>>,
+    pub normal_map: Option<Vec<u8>>,
+    pub extras: serde_json::Value,
 }
 
 #[derive(Clone, Debug)]

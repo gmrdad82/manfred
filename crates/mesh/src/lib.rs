@@ -4,7 +4,9 @@ mod nets;
 mod normals;
 pub mod outline;
 mod prim;
+mod simplify;
 mod slab;
+mod tangents;
 
 use glam::{DMat4, DVec3, Vec3};
 pub use morph::Morph;
@@ -14,7 +16,9 @@ use outline::{Outline, Shape};
 pub use prim::{
     bead, capsule, cylinder, disc, lathe, rounded_box, sheet, sphere, surface, sweep, torus,
 };
+pub use simplify::{NORMAL_WEIGHT, Simplified, UV_WEIGHT, simplify};
 use std::cmp::Ordering;
+pub use tangents::{Tangents, tangents};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Mesh {

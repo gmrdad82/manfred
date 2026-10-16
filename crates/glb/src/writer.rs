@@ -1,5 +1,6 @@
 use crate::{
-    ANIMATION, Animation, Error, Image, Lens, Look, Looks, Map, Node, Order, Sampler, Track, Trs,
+    ANIMATION, Animation, Error, Image, Lens, Lod, Look, Looks, Map, Mime, Node, Order, Sampler,
+    Track, Trs,
 };
 use gltf_json as json;
 use json::accessor::{ComponentType, GenericComponentType, Type};
@@ -18,6 +19,7 @@ const ROUGHNESS: f32 = 0.5;
 const DEFAULT_MATERIAL: &str = "default";
 const TRANSFORM: &str = "KHR_texture_transform";
 const DETAIL_NORMAL: &str = "detailNormalTexture";
+const MSFT_LOD: &str = "MSFT_lod";
 
 struct Builder<'a> {
     root: Root,
@@ -247,6 +249,7 @@ impl Builder<'_> {
                     tex_coord: t.tex_coord,
                     extras: Default::default(),
                 }),
+                others: Default::default(),
             }
         });
         json::texture::Info {
@@ -320,21 +323,60 @@ impl Builder<'_> {
                     self.root.materials.push(material);
                     return Index::new(self.materials.len() as u32 - 1);
                 }
-                self.root.materials.push(json::Material {
-                    double_sided: true,
-                    name: Some(name.to_string()),
-                    pbr_metallic_roughness: json::material::PbrMetallicRoughness {
-                        base_color_factor: json::material::PbrBaseColorFactor(BASE_COLOR),
-                        metallic_factor: json::material::StrengthFactor(0.0),
-                        roughness_factor: json::material::StrengthFactor(ROUGHNESS),
-                        ..Default::default()
-                    },
-                    ..Default::default()
-                });
+                self.root.materials.push(plain_material(name));
                 self.materials.len() - 1
             }
         };
         Index::new(at as u32)
+    }
+
+    fn png_texture(&mut self, png: &[u8]) -> Index<json::Texture> {
+        let image = Image {
+            bytes: Arc::from(png),
+            mime: Mime::Png,
+            size: [0, 0],
+        };
+        let image = self.image(&image);
+        let at = match self.textures.iter().position(|t| *t == (image, None)) {
+            Some(at) => at,
+            None => {
+                self.root.textures.push(json::Texture {
+                    name: None,
+                    sampler: None,
+                    source: Index::new(image as u32),
+                    extensions: None,
+                    extras: Default::default(),
+                });
+                self.textures.push((image, None));
+                self.textures.len() - 1
+            }
+        };
+        Index::new(at as u32)
+    }
+
+    fn normal_material(
+        &mut self,
+        name: &str,
+        texture: Index<json::Texture>,
+    ) -> Index<json::material::Material> {
+        let key = format!("{name}\n{}", texture.value());
+        if let Some(at) = self.materials.iter().position(|m| *m == key) {
+            return Index::new(at as u32);
+        }
+        let mut material = match self.looks.get(name).filter(|look| look.has_maps()) {
+            Some(look) => self.textured(name, look),
+            None => plain_material(name),
+        };
+        material.normal_texture = Some(json::material::NormalTexture {
+            index: texture,
+            scale: 1.0,
+            tex_coord: 0,
+            extensions: None,
+            extras: Default::default(),
+        });
+        self.materials.push(key);
+        self.root.materials.push(material);
+        Index::new(self.materials.len() as u32 - 1)
     }
 
     fn targets(&mut self, morph: &Morph, kept: &[u32]) -> Vec<MorphTarget> {
@@ -367,16 +409,19 @@ impl Builder<'_> {
         morph: Option<&Morph>,
         material: &str,
         indices: &[u32],
+        surface: &Surface,
     ) -> Option<Primitive> {
         let vertices = mesh.positions.len();
         let normals = mesh.normals.len() == vertices;
         let uvs = mesh.uvs.as_ref().filter(|uvs| uvs.len() == vertices);
         let uvs1 = mesh.uvs1.as_ref().filter(|uvs| uvs.len() == vertices);
+        let tangents = surface.tangents.filter(|t| t.len() == vertices && normals);
         let mut remap = vec![u32::MAX; vertices];
         let mut positions = Vec::new();
         let mut normal_data = Vec::new();
         let mut uv_data = Vec::new();
         let mut uv1_data = Vec::new();
+        let mut tangent_data = Vec::new();
         let mut out = Vec::new();
         let mut kept = Vec::new();
         for triangle in indices.chunks_exact(3) {
@@ -399,6 +444,9 @@ impl Builder<'_> {
                     }
                     if let Some(uvs1) = uvs1 {
                         uv1_data.push(uvs1[old as usize]);
+                    }
+                    if let Some(tangents) = tangents {
+                        tangent_data.push(tangents[old as usize]);
                     }
                 }
                 out.push(*slot);
@@ -430,9 +478,18 @@ impl Builder<'_> {
                 self.vec_accessor(&uv1_data, Type::Vec2),
             );
         }
+        if tangents.is_some() {
+            attributes.insert(
+                Checked::Valid(Semantic::Tangents),
+                self.vec_accessor(&tangent_data, Type::Vec4),
+            );
+        }
         let indices = self.index_accessor(&out);
         let targets = morph.map(|morph| self.targets(morph, &kept));
-        let material = self.material(material);
+        let material = match surface.normal {
+            Some(texture) => self.normal_material(material, texture),
+            None => self.material(material),
+        };
         Some(Primitive {
             attributes,
             extensions: None,
@@ -444,19 +501,181 @@ impl Builder<'_> {
         })
     }
 
-    fn primitives(&mut self, mesh: &Mesh, morph: Option<&Morph>) -> Vec<Primitive> {
+    fn primitives(
+        &mut self,
+        mesh: &Mesh,
+        morph: Option<&Morph>,
+        surface: &Surface,
+    ) -> Vec<Primitive> {
         let mut out = Vec::new();
         if mesh.slots.is_empty() {
-            out.extend(self.primitive(mesh, morph, DEFAULT_MATERIAL, &mesh.indices));
+            out.extend(self.primitive(mesh, morph, DEFAULT_MATERIAL, &mesh.indices, surface));
             return out;
         }
         for slot in &mesh.slots {
-            let start = (slot.start as usize).min(mesh.indices.len());
-            let end = (start + slot.count as usize).min(mesh.indices.len());
-            out.extend(self.primitive(mesh, morph, &slot.material, &mesh.indices[start..end]));
+            out.extend(self.primitive(mesh, morph, &slot.material, slice(mesh, slot), surface));
         }
         out
     }
+
+    fn level_primitives(&mut self, base: &Node, level: &Node, surface: &Surface) -> Vec<Primitive> {
+        let (mesh, morph) = source(level);
+        let (whole, whole_morph) = source(base);
+        if whole.slots.is_empty() || mesh.slots.is_empty() {
+            return self.primitives(mesh, morph, surface);
+        }
+        let mut out = Vec::new();
+        let mut next = 0;
+        for slot in &whole.slots {
+            let vertices = whole.positions.len();
+            let full = slice(whole, slot);
+            if !full
+                .chunks_exact(3)
+                .any(|t| t.iter().all(|&i| (i as usize) < vertices))
+            {
+                continue;
+            }
+            let own = mesh.slots[next.min(mesh.slots.len())..]
+                .iter()
+                .position(|s| s.material == slot.material)
+                .map(|at| next + at);
+            let made = own.and_then(|at| {
+                next = at + 1;
+                self.primitive(
+                    mesh,
+                    morph,
+                    &slot.material,
+                    slice(mesh, &mesh.slots[at]),
+                    surface,
+                )
+            });
+            let made = made.or_else(|| {
+                let piece = smallest(whole, full)?;
+                let plain = Surface {
+                    tangents: None,
+                    normal: surface.normal,
+                };
+                self.primitive(whole, whole_morph, &slot.material, &piece, &plain)
+            });
+            out.extend(made);
+        }
+        out
+    }
+
+    fn mesh(
+        &mut self,
+        name: &str,
+        primitives: Vec<Primitive>,
+        morph: Option<&Morph>,
+    ) -> Option<Index<json::Mesh>> {
+        if primitives.is_empty() {
+            return None;
+        }
+        self.root.meshes.push(json::Mesh {
+            extensions: None,
+            extras: morph.and_then(|m| raw(Some(&serde_json::json!({ "targetNames": m.names })))),
+            name: Some(name.to_string()),
+            primitives,
+            weights: morph.map(|m| m.weights.clone()),
+        });
+        Some(Index::new(self.root.meshes.len() as u32 - 1))
+    }
+}
+
+fn source(node: &Node) -> (&Mesh, Option<&Morph>) {
+    match &node.targets {
+        Some(targets) if !targets.morph.is_empty() => (&targets.base, Some(&targets.morph)),
+        _ => (&node.mesh, None),
+    }
+}
+
+fn slice<'m>(mesh: &'m Mesh, slot: &manfred_mesh::Slot) -> &'m [u32] {
+    let start = (slot.start as usize).min(mesh.indices.len());
+    let end = (start + slot.count as usize).min(mesh.indices.len());
+    &mesh.indices[start..end]
+}
+
+fn smallest(mesh: &Mesh, indices: &[u32]) -> Option<[u32; 3]> {
+    let vertices = mesh.positions.len();
+    indices
+        .chunks_exact(3)
+        .filter(|t| t.iter().all(|&i| (i as usize) < vertices))
+        .map(|t| {
+            let p = |i: u32| glam::Vec3::from(mesh.positions[i as usize]);
+            let area = (p(t[1]) - p(t[0])).cross(p(t[2]) - p(t[0])).length();
+            (area, [t[0], t[1], t[2]])
+        })
+        .filter(|(area, _)| *area > 0.0)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, t)| t)
+}
+
+fn plain_material(name: &str) -> json::Material {
+    json::Material {
+        double_sided: true,
+        name: Some(name.to_string()),
+        pbr_metallic_roughness: json::material::PbrMetallicRoughness {
+            base_color_factor: json::material::PbrBaseColorFactor(BASE_COLOR),
+            metallic_factor: json::material::StrengthFactor(0.0),
+            roughness_factor: json::material::StrengthFactor(ROUGHNESS),
+            ..Default::default()
+        },
+        ..Default::default()
+    }
+}
+
+struct Surface<'a> {
+    tangents: Option<&'a [[f32; 4]]>,
+    normal: Option<Index<json::Texture>>,
+}
+
+const PLAIN: Surface<'static> = Surface {
+    tangents: None,
+    normal: None,
+};
+
+fn levels(builder: &mut Builder, nodes: &[Node], lods: &[Lod], placed: &[usize]) {
+    let mut ids: BTreeMap<usize, Vec<Value>> = BTreeMap::new();
+    for lod in lods {
+        let (Some(&master), Some(base)) = (placed.get(lod.of), nodes.get(lod.of)) else {
+            continue;
+        };
+        let normal = lod
+            .normal_map
+            .as_deref()
+            .map(|png| builder.png_texture(png));
+        let surface = Surface {
+            tangents: lod.tangents.as_deref(),
+            normal,
+        };
+        let primitives = builder.level_primitives(base, &lod.node, &surface);
+        let (_, morph) = source(&lod.node);
+        let mesh = builder.mesh(&lod.node.name, primitives, morph);
+        let owner = &builder.root.nodes[master];
+        let node = json::Node {
+            matrix: owner.matrix,
+            translation: owner.translation,
+            rotation: owner.rotation,
+            scale: owner.scale,
+            mesh,
+            name: Some(lod.node.name.clone()),
+            extras: raw(Some(&lod.extras)),
+            ..Default::default()
+        };
+        builder.root.nodes.push(node);
+        ids.entry(master)
+            .or_default()
+            .push(Value::from(builder.root.nodes.len() - 1));
+    }
+    if ids.is_empty() {
+        return;
+    }
+    for (master, list) in ids {
+        let mut others = serde_json::Map::new();
+        others.insert(MSFT_LOD.to_string(), serde_json::json!({ "ids": list }));
+        builder.root.nodes[master].extensions = Some(json::extensions::scene::Node { others });
+    }
+    builder.root.extensions_used.push(MSFT_LOD.to_string());
 }
 
 fn matrix(node: &Node) -> Option<[f32; 16]> {
@@ -488,7 +707,7 @@ pub fn write_with_extras(
     order: Order,
     generator: &str,
 ) -> Vec<u8> {
-    write_tree(nodes, &[], extras, order, generator).unwrap_or_default()
+    write_tree(nodes, &[], extras, &[], order, generator).unwrap_or_default()
 }
 
 fn resolved(parents: &[Option<usize>], count: usize) -> Vec<Option<usize>> {
@@ -511,18 +730,32 @@ pub fn write_tree(
     nodes: &[Node],
     parents: &[Option<usize>],
     extras: &[Option<Value>],
+    lods: &[Lod],
     order: Order,
     generator: &str,
 ) -> Result<Vec<u8>, Error> {
-    write_animated(
-        nodes,
-        parents,
-        extras,
-        &Looks::new(),
-        order,
-        generator,
-        None,
-    )
+    let content = Content {
+        lods,
+        ..Content::default()
+    };
+    write_animated(nodes, parents, extras, content, order, generator, None)
+}
+
+#[derive(Clone, Copy)]
+pub struct Content<'a> {
+    pub looks: &'a Looks,
+    pub lods: &'a [Lod],
+}
+
+static NO_LOOKS: Looks = Looks::new();
+
+impl Default for Content<'_> {
+    fn default() -> Self {
+        Content {
+            looks: &NO_LOOKS,
+            lods: &[],
+        }
+    }
 }
 
 pub fn write_looks(
@@ -533,7 +766,8 @@ pub fn write_looks(
     order: Order,
     generator: &str,
 ) -> Result<Vec<u8>, Error> {
-    write_animated(nodes, parents, extras, looks, order, generator, None)
+    let content = Content { looks, lods: &[] };
+    write_animated(nodes, parents, extras, content, order, generator, None)
 }
 
 fn pose(trs: &Trs) -> ([f32; 3], json::scene::UnitQuaternion, [f32; 3]) {
@@ -680,11 +914,12 @@ pub fn write_animated(
     nodes: &[Node],
     parents: &[Option<usize>],
     extras: &[Option<Value>],
-    looks: &Looks,
+    content: Content<'_>,
     order: Order,
     generator: &str,
     animation: Option<Animation<'_>>,
 ) -> Result<Vec<u8>, Error> {
+    let looks = content.looks;
     let tracks: &[Track] = animation.map_or(&[], |a| a.tracks);
     let keyed: BTreeMap<&str, &Track> = tracks
         .iter()
@@ -706,7 +941,9 @@ pub fn write_animated(
         sequence.sort_by(|a, b| natural_cmp(&a.1.name, &b.1.name));
     }
     let mut children: Vec<Vec<Index<json::Node>>> = vec![Vec::new(); nodes.len()];
+    let mut placed = vec![0; nodes.len()];
     for (position, (at, _, _)) in sequence.iter().enumerate() {
+        placed[*at] = position;
         if let Some(parent) = parents[*at] {
             children[parent].push(Index::new(position as u32));
         }
@@ -724,24 +961,9 @@ pub fn write_animated(
     builder.root.asset.generator = Some(generator.to_string());
     let mut scene_nodes = Vec::new();
     for &(at, node, extras) in &sequence {
-        let (source, morph) = match &node.targets {
-            Some(targets) if !targets.morph.is_empty() => (&targets.base, Some(&targets.morph)),
-            _ => (&node.mesh, None),
-        };
-        let primitives = builder.primitives(source, morph);
-        let mesh = if primitives.is_empty() {
-            None
-        } else {
-            builder.root.meshes.push(json::Mesh {
-                extensions: None,
-                extras: morph
-                    .and_then(|m| raw(Some(&serde_json::json!({ "targetNames": m.names })))),
-                name: Some(node.name.clone()),
-                primitives,
-                weights: morph.map(|m| m.weights.clone()),
-            });
-            Some(Index::new(builder.root.meshes.len() as u32 - 1))
-        };
+        let (mesh, morph) = source(node);
+        let primitives = builder.primitives(mesh, morph, &PLAIN);
+        let mesh = builder.mesh(&node.name, primitives, morph);
         let children = std::mem::take(&mut children[at]);
         let start = keyed
             .get(node.name.as_str())
@@ -762,6 +984,7 @@ pub fn write_animated(
             scene_nodes.push(Index::new(builder.root.nodes.len() as u32 - 1));
         }
     }
+    levels(&mut builder, nodes, content.lods, &placed);
     for track in tracks {
         let Some(lens_of) = &track.camera else {
             continue;

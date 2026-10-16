@@ -10,11 +10,11 @@ pub(crate) mod effects;
 use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
     Casters, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind, Lines, Loaded,
-    Look, Mover, NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey,
-    PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy,
-    REFERENCE_HOUR, RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus, RigShake, Room, RouteSpec, SCHEMA,
-    Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun, TEXTURE_KEYS, TextSpace, Textures,
-    Timeline, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
+    Lod, LodTarget, Look, Mover, NO_SIDECAR, NORMAL_SIZE, OLD_HEADER, Object, Orbit, Order, Origin,
+    Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind,
+    Projection, Proxy, REFERENCE_HOUR, RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus, RigShake, Room,
+    RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun, TEXTURE_KEYS,
+    TextSpace, Textures, Timeline, Trace, Use, Uv, Variant, VariantOutput, View, Volume,
 };
 
 pub(crate) struct Source {
@@ -1678,6 +1678,7 @@ fn read_object(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
             ),
         ));
     }
+    let lod = read_lod(cx, &mut tab, &kind_name)?;
     let kind = read_kind(cx, &mut tab, &kind_name)?;
     tab.finish(cx)?;
     Ok(Object {
@@ -1702,7 +1703,92 @@ fn read_object(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
         hidden,
         dynamic,
         proxy,
+        lod,
     })
+}
+
+fn read_lod(cx: &mut Cx, tab: &mut Tab<'_>, kind: &str) -> Result<Vec<Lod>, Error> {
+    let path = tab.kpath("lod");
+    let ipath = tab.kipath("lod");
+    let Some(item) = tab.peek(cx, "lod") else {
+        return Ok(Vec::new());
+    };
+    if matches!(kind, "pocket" | "text") {
+        return Err(Error::new(
+            path,
+            Some(cx.item_line(item)),
+            format!("a {kind} carries no mesh of its own, so it takes no `lod`"),
+        ));
+    }
+    let tables = table_list(cx, &path, item)?;
+    if tables.is_empty() {
+        return Err(Error::new(
+            path,
+            Some(cx.item_line(item)),
+            "expected at least one level, such as [{ triangles = 5000 }]",
+        ));
+    }
+    let mut levels = Vec::new();
+    for (i, (table, line)) in tables.into_iter().enumerate() {
+        let at = format!("{path}[{i}]");
+        let mut sub = Tab::new(cx, table, at.clone(), format!("{ipath}#{i}"), line);
+        let triangles = sub.opt(cx, "triangles", UINT)?;
+        let ratio = sub.opt(cx, "ratio", NUM)?;
+        let bake_normals = sub.or(cx, "bake_normals", false, BOOL)?;
+        let size = sub.opt(cx, "normal_size", UINT)?;
+        let bake_distance = sub.opt(cx, "bake_distance", NUM)?;
+        sub.finish(cx)?;
+        let fail =
+            |key: &str, text: &str| Error::new(dotted(&at, key), Some(line), text.to_string());
+        let target = match (triangles, ratio) {
+            (Some(n), None) if n > 0 => LodTarget::Triangles(n),
+            (Some(_), None) => return Err(fail("triangles", "expected a whole number from 1 up")),
+            (None, Some(r)) if r > 0.0 && r < 1.0 => LodTarget::Ratio(r),
+            (None, Some(_)) => {
+                return Err(fail("ratio", "expected a number above 0 and below 1"));
+            }
+            (Some(_), Some(_)) => {
+                return Err(fail(
+                    "ratio",
+                    "a level takes `triangles` or `ratio`, not both",
+                ));
+            }
+            (None, None) => {
+                return Err(Error::new(
+                    at,
+                    Some(line),
+                    "missing, expected `triangles` (a count) or `ratio` (of the object's triangles)",
+                ));
+            }
+        };
+        if !bake_normals && (size.is_some() || bake_distance.is_some()) {
+            let key = if size.is_some() {
+                "normal_size"
+            } else {
+                "bake_distance"
+            };
+            return Err(fail(key, "goes with bake_normals = true"));
+        }
+        let normal_size = size.unwrap_or(NORMAL_SIZE);
+        if !(16..=8192).contains(&normal_size) {
+            return Err(fail(
+                "normal_size",
+                "expected a whole number from 16 to 8192",
+            ));
+        }
+        if let Some(d) = bake_distance
+            && (d <= 0.0 || !d.is_finite())
+        {
+            return Err(fail("bake_distance", "expected a distance above 0"));
+        }
+        levels.push(Lod {
+            target,
+            bake_normals,
+            normal_size,
+            bake_distance,
+        });
+    }
+    Ok(levels)
 }
 
 type Placement = ([f64; 3], [f64; 3], [f64; 3]);

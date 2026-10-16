@@ -237,10 +237,18 @@ pub fn glb_parts(bytes: &[u8]) -> Result<Vec<Part>, Error> {
     let mesh = pfx_load::Mesh::parse(bytes).map_err(Error)?;
     let mut objects: Vec<String> = Vec::new();
     let mut parts = Vec::new();
+    let level = |root: &u32| {
+        mesh.nodes
+            .get(*root as usize)
+            .and_then(|node| node.extras.as_ref())
+            .and_then(|extras| extras.get("lod"))
+            .is_some_and(|lod| lod.get("of").is_some())
+    };
     let mut stack: Vec<(u32, DMat4)> = mesh
         .all_roots()
         .into_iter()
         .rev()
+        .filter(|root| !level(root))
         .map(|root| (root, DMat4::IDENTITY))
         .collect();
     let mut visits = 0usize;

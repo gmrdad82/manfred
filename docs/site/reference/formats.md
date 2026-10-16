@@ -11,7 +11,7 @@ A recipe is one TOML file, schema 1, starting with `manfred = 1`. [The recipe](.
 
 ## The GLB
 
-`manfred build` writes glTF 2.0 binary. Each `[[object]]` is a node named exactly as the object, and each material slot a glTF material named as the recipe's material, so an app finds both by name. `asset.generator` is `manfred <version>`. A mover's parts carry their group in the node's extras. A material with texture maps carries them as glTF textures, their PNG or JPEG images embedded in the binary chunk; [the recipe](../recipe/) says which. The bytes depend on the recipe and its inputs alone: the same recipe gives the same GLB on any machine.
+`manfred build` writes glTF 2.0 binary. Each `[[object]]` is a node named exactly as the object, and each material slot a glTF material named as the recipe's material, so an app finds both by name. `asset.generator` is `manfred <version>`. A mover's parts carry their group in the node's extras. A material with texture maps carries them as glTF textures, their PNG or JPEG images embedded in the binary chunk; [the recipe](../recipe/) says which. An object with `lod` adds its levels of detail as nodes `<name>.lod1`, `<name>.lod2`, … outside the scene, listed in the object's `MSFT_lod` extension, each with `extras.lod` (`of`, `level`, `triangles`, `target`, `error`), and a baked normal map as a PNG in the binary chunk (the recipe guide's "Levels of detail"). The bytes depend on the recipe and its inputs alone: the same recipe gives the same GLB on any machine.
 
 ## The sidecar, `facts` dialect
 

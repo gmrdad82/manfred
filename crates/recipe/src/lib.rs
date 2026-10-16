@@ -171,7 +171,24 @@ pub struct Object {
     pub hidden: bool,
     pub dynamic: Option<bool>,
     pub proxy: Option<Proxy>,
+    pub lod: Vec<Lod>,
 }
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum LodTarget {
+    Triangles(u32),
+    Ratio(f64),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Lod {
+    pub target: LodTarget,
+    pub bake_normals: bool,
+    pub normal_size: u32,
+    pub bake_distance: Option<f64>,
+}
+
+pub const NORMAL_SIZE: u32 = 1024;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Proxy {

@@ -15,7 +15,7 @@ manfred-motion.workspace = true
 glam.workspace = true
 serde.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
-gltf-json = { workspace = true, features = ["extras", "KHR_texture_transform"] }
+gltf-json = { workspace = true, features = ["extras", "extensions", "KHR_texture_transform"] }
 gltf = { workspace = true, features = ["extras", "KHR_texture_transform"] }
 
 [dev-dependencies]

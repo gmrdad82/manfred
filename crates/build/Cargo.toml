@@ -23,6 +23,7 @@ serde_json.workspace = true
 glam.workspace = true
 gltf = { workspace = true, features = ["extras", "KHR_texture_transform"] }
 png.workspace = true
+pfx-trace.workspace = true
 
 [dev-dependencies]
 pfx-post.workspace = true
@@ -30,6 +31,5 @@ pfx.workspace = true
 pfx-gpu.workspace = true
 pfx-bake.workspace = true
 pfx-live.workspace = true
-pfx-trace.workspace = true
 manfred-scene.workspace = true
 manfred-render.workspace = true

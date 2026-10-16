@@ -99,6 +99,7 @@ Common keys on every `[[object]]`:
 | `hidden` | built, not exported; useful for cutters you want to see in the window |
 | `dynamic` | `true` or `false`: whether the object moves or changes at run time, so a baked plate leaves it out and the live view draws it over the plate. Without it, a mover's part, a card that faces the camera, and an object whose `parent` is dynamic are dynamic, and everything else is static, as pfx derives it. `true` marks what the app moves itself; `false` keeps a mover's part in the plate. A text takes it too, under "Text" below; a pocket doesn't |
 | `morph` | `{ <target> = <weight>, … }` on a `mesh` object only: the weights of the file's morph targets; see [Morph targets](#morph-targets) |
+| `lod` | `[{ triangles = 5000 }, { ratio = 0.1 }, …]`: levels of detail written beside the object in the GLB, each simplified from the full mesh, with an optional baked normal map; see [Levels of detail](#levels-of-detail) |
 | `proxy` | `"box"` (the default) or `"hull"`: the invisible stand-in of a static object in the scene's proxies file, under "The scene". Only with a plate folder (`[bake.plates] dir`), never on a dynamic object, a text, a pocket or a hidden object |
 
 A part whose material the live renderer draws as glass (`transmission` above 0, or the glass or liquid family) is a glass surface, and it is not also an opaque instance. `shadow = "cast"` sets `glass::Surface::casts_shadow`, so the surface draws its own tinted sun shadow: transmission × base, or transmission × Beer–Lambert over the thickness when both are set (`glass::cast_tint`). `shadow = "none"` draws the glass and casts nothing. `shadow = "only"` keeps the surface with `shadow_only: true` and `casts_shadow: true`: it casts its tinted shadow and is not drawn. A part of a mover carries the mover's `clip` and `clip2` planes on its surface, so glass is cut at them as the opaque parts are. Glass tints the sun's shadow and, with engine v0.19.0, the shadowed local lights.
@@ -306,6 +307,37 @@ params = { style = "sports", paint = "#c8102e" }
 - **Materials** it returns, in the engine's form: `car_paint_<rrggbb>` for a `"#rrggbb"` paint and `car_paint_linear_<rrggbb>` for an `[r, g, b]` one (lacquer with a clear coat), `car_glass` (tinted, transmissive), `car_tyre`, `car_rim` (metal), `car_trim` (dark plastic), and `car_head` and `car_tail` (emissive warm white and red), or `car_head_off` and `car_tail_off` with `lights = false`. A recipe's own `[materials.<name>]` of the same name replaces one.
 - **Facts,** in the car's own frame (before the object's `at`, `rotate` and `scale`): `style`, `length`, `width`, `height`, `wheelbase`, `track`, and `wheels = { fl = { centre = [x, y, z], radius, axle = [1, 0, 0] }, fr = …, rl = …, rr = … }`, the point and axis each wheel spins and steers about.
 - **Deterministic:** the same params and seed give the same bytes. `showcase/car.toml` shows a sports car, a sedan and a van on a floor.
+
+### Levels of detail
+
+`lod = [ … ]` on any object with a mesh of its own (not a pocket or a text) asks `manfred build` for lower levels of it, in order, each simplified from the object's full mesh:
+
+| Key in a level | Meaning |
+|---|---|
+| `triangles` | the level's triangle count, below the object's own |
+| `ratio` | or a share of the object's triangles, above 0 and below 1; a level takes one of the two |
+| `bake_normals` | `true` (default `false`) bakes a tangent-space normal map from the full mesh onto the level |
+| `normal_size` | the map's side in pixels, 16 to 8192, default 1024; only with `bake_normals` |
+| `bake_distance` | how far from the level's surface, along its normal either way, a ray looks for the full mesh, in metres; only with `bake_normals`. Without it, 1% of the object's bounding-box diagonal or twice the level's simplification error, whichever is larger |
+
+```toml
+[[object]]
+name = "head"
+kind = "mesh"
+path = "head.glb"
+smooth = true
+lod = [
+  { triangles = 20000 },
+  { triangles = 5000, bake_normals = true, normal_size = 1024 },
+  { ratio = 0.05, bake_normals = true, normal_size = 512 },
+]
+```
+
+- **The simplifier** is a port of meshoptimizer's edge-collapse simplifier (0.25): quadric error with attribute weights (normals 0.5, TEXCOORD_0 and TEXCOORD_1 1.0), collapses ranked by error each pass. Open borders are locked and never move. A UV seam, a normal split and the line between two material slots stay where they are: a vertex on one collapses only along it, both sides together, so the seam never opens. Material slots and both UV sets are kept, and every vertex of a level is a vertex of the full mesh, so a mesh's morph targets carry over to each level with the kept vertices' deltas and the object's weights. A level lands at its count or one or two triangles under it, or above it where nothing more can collapse.
+- **The normal map** is baked on the CPU, on every core, and the same recipe gives the same bytes. The level gets MikkTSpace tangents (a port of bevy_mikktspace); every texel its TEXCOORD_0 covers casts a ray from `bake_distance` out along the level's normal, back through the surface, to the first hit on the full mesh; that hit's smooth normal is expressed in the level's interpolated tangent frame (normal, tangent and `sign × normal × tangent`, unnormalised, as a MikkTSpace shader rebuilds it) and written as RGB, 0.5 + 0.5 × the component. A texel whose ray hits nothing is flat (128, 128, 255), and the texels beside a chart are filled from it, 8 pixels deep. The bake needs the level's TEXCOORD_0 not to overlap: a level where more than 0.5% of the texels it covers lie under two triangles is refused, naming the object and the level.
+- **The GLB** keeps the object's node as it was and adds each level as a node `<name>.lod1`, `<name>.lod2`, … after every other node, outside the scene, so a viewer that knows nothing of levels draws the full mesh alone. The object's node lists them, highest detail first, in the `MSFT_lod` extension (`extensions.MSFT_lod.ids`, and `MSFT_lod` in `extensionsUsed`, not required), and each level node carries `extras.lod`: `of` (the object's node name), `level` (1, 2, …), `triangles`, `target` and `error`, the simplification's geometric error in metres in the GLB's space (the deviation pfx's levels are chosen by), with `normal_size` when it has a map. A level node carries its object node's own transform, the same matrix or translation, rotation and scale (pfx draws a level under its object's transform), and the same morph targets. It has as many primitives as its object's mesh, in the same material order: a slot the simplifier takes down to no triangles keeps the smallest non-degenerate triangle of that slot from the full mesh. With a baked map its primitives carry TANGENT (a kept smallest triangle has none), and its material is a copy of the slot's (same name, its texture maps included) with `normalTexture` on TEXCOORD_0 set to the baked map, the PNG embedded once in the GLB's binary chunk.
+- **What reads them:** pfx v2.0.0 builds its own chain from a single mesh at run time (`LodSet::add_mesh`, halving the triangles each level and picking a level by its projected error, 0.5 pixel), and reads no level from a GLB yet, so a game loads the levels by their `extras.lod` and their `error`. The window and `manfred shot` and `render` draw the full mesh and leave the levels out.
+- **Without `lod`** the GLB is byte-identical to one built before levels existed.
 
 ## Includes and uses
 

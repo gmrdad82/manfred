@@ -1,5 +1,5 @@
 use glam::{DMat4, DVec3};
-use manfred_glb::{Node, Order, Targets, sidecar_text};
+use manfred_glb::{Lod, Node, Order, Targets, sidecar_text};
 use manfred_mesh::Morph;
 use manfred_recipe::{self as recipe, Kind, Object, Recipe, Shadow};
 use std::collections::BTreeMap;
@@ -13,7 +13,9 @@ pub mod detail_uv;
 mod extras;
 mod facts;
 mod holes;
+mod lod;
 mod maps;
+mod normal_map;
 mod scene;
 mod shape;
 mod timeline;
@@ -248,6 +250,7 @@ pub struct Built {
     facts_by_object: serde_json::Map<String, serde_json::Value>,
     pub lights: Vec<GeneratedLight>,
     pub looks: Arc<Looks>,
+    pub lods: Vec<Lod>,
     nest: Vec<Option<(usize, DMat4)>>,
 }
 
@@ -321,6 +324,14 @@ impl Built {
             nodes.push(node);
             parents.push(parent);
         }
+        let lods: Vec<Lod> = self
+            .lods
+            .iter()
+            .filter_map(|lod| {
+                let of = placed.get(lod.of).copied().flatten()?;
+                Some(Lod { of, ..lod.clone() })
+            })
+            .collect();
         let tracks: Vec<Track> = self
             .tracks
             .iter()
@@ -338,7 +349,10 @@ impl Built {
             &nodes,
             &parents,
             &extras,
-            &self.looks,
+            manfred_glb::Content {
+                looks: &self.looks,
+                lods: &lods,
+            },
             self.order,
             GENERATOR,
             animation,
@@ -771,6 +785,7 @@ pub fn build_with(recipe: &Recipe, base: &Path, registry: &Registry) -> Result<B
 #[derive(Clone, Debug)]
 struct Made {
     nodes: Vec<Node>,
+    lods: Vec<Lod>,
     facts: serde_json::Map<String, serde_json::Value>,
     materials: BTreeMap<String, serde_json::Value>,
     lights: Vec<GeneratedLight>,
@@ -874,6 +889,7 @@ fn make(
     } = generated;
     let mut made = Made {
         nodes: Vec::with_capacity(pieces.len()),
+        lods: Vec::new(),
         facts,
         materials,
         lights: Vec::new(),
@@ -913,13 +929,20 @@ fn make(
             morph.pose(&mut mesh);
             Box::new(Targets { base, morph })
         });
-        made.nodes.push(Node {
+        let node = Node {
             name,
             mesh,
             transform,
             keep_transform: object.keep_transform,
             targets,
-        });
+        };
+        let of = made.nodes.len();
+        made.lods.extend(
+            lod::levels(object, &node)?
+                .into_iter()
+                .map(|lod| Lod { of, ..lod }),
+        );
+        made.nodes.push(node);
     }
     Ok(made)
 }
@@ -971,6 +994,7 @@ fn assemble(
     let mut offered: BTreeMap<String, (&str, serde_json::Value)> = BTreeMap::new();
     let mut lights = Vec::new();
     let mut imported = Looks::new();
+    let mut lods = Vec::new();
     for (index, object) in recipe.objects.iter().enumerate() {
         if matches!(object.kind, Kind::Pocket { .. }) {
             continue;
@@ -1022,6 +1046,11 @@ fn assemble(
         for (name, look) in made.looks {
             imported.entry(name).or_insert(look);
         }
+        let first = parts.len();
+        lods.extend(made.lods.into_iter().map(|lod| Lod {
+            of: first + lod.of,
+            ..lod
+        }));
         for node in made.nodes {
             parts.push(Part {
                 node,
@@ -1061,6 +1090,7 @@ fn assemble(
         notes,
         lights,
         looks,
+        lods,
         extras: extras::of(recipe, &parts, &facts.movers),
         nest: nest(recipe, &parts),
         timeline: recipe.timeline,
