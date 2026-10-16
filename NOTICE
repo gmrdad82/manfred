@@ -219,3 +219,12 @@ Tomorrow Open Source Technology License 1.0, which is the Apache License 2.0
      names, trademarks, service marks, or product names of the Licensor
      and its affiliates, except as required to comply with Section 4(c) of
      the License and to reproduce the content of the NOTICE file.
+
+The Windows setup, Manfred-vX.Y.Z-Setup.exe, is made with NSIS 3.13
+(https://nsis.sourceforge.io), copyright 1999-2026 its contributors. Its
+installer stub and plug-ins are under the zlib/libpng licence; its LZMA
+decompressor, copyright Igor Pavlov and Amir Szekely, is under the Common
+Public License 1.0 with the NSIS linking exception, which leaves the setup's
+own code under its own licence. The source of NSIS and its LZMA module is
+available from https://nsis.sourceforge.io. Manfred's setup script is
+packaging/windows/manfred.nsi.

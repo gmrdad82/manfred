@@ -35,7 +35,7 @@ update-mime-database "$d/mime"
 update-desktop-database "$d/applications"
 ```
 
-`bin/register-filetypes` does the same from a checkout or an unpacked archive. Gamer Dad's own copy is placed by pci's installer. Registration is for Linux only: Windows and macOS are not targets.
+`bin/register-filetypes` does the same from a checkout or an unpacked archive. Gamer Dad's own copy is placed by pci's installer. On Windows, `Manfred-vX.Y.Z-Setup.exe` registers `.manf` instead, and on macOS `Manfred.app` declares it.
 
 ## From source
 

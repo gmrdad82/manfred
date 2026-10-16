@@ -116,7 +116,7 @@ cargo install --locked --git https://github.com/gmrdad82/manfred --tag vX.Y.Z ma
 
 Replace `vX.Y.Z` with a [release](https://github.com/gmrdad82/manfred/releases) tag.
 
-**The .manf file type.** The release archive carries a `share/` tree (the `application/x-manfred` type for `*.manf`, a `manfred.desktop` launcher and Manfred's mark as the icon). Unpack the archive and run `bin/register-filetypes` (it works from a checkout too), or copy the files to `~/.local/share/{mime/packages,applications,icons}` and run `update-mime-database ~/.local/share/mime` and `update-desktop-database ~/.local/share/applications`. pci's installer places them for Gamer Dad's own copy. This is Linux only: Windows and macOS are not targets.
+**The .manf file type.** The release archive carries a `share/` tree (the `application/x-manfred` type for `*.manf`, a `manfred.desktop` launcher and Manfred's mark as the icon). Unpack the archive and run `bin/register-filetypes` (it works from a checkout too), or copy the files to `~/.local/share/{mime/packages,applications,icons}` and run `update-mime-database ~/.local/share/mime` and `update-desktop-database ~/.local/share/applications`. pci's installer places them for Gamer Dad's own copy. On Windows, `Manfred-vX.Y.Z-Setup.exe` registers `.manf`, and on macOS `Manfred.app` declares it (packaging/README.md).
 
 Manfred can use three optional command-line tools when they are on the `PATH`, and works without them:
 

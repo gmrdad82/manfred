@@ -14,14 +14,27 @@ concurrency:
 env:
   CARGO_INCREMENTAL: "0"
   CARGO_TERM_COLOR: always
+  TAG: ${{ github.ref_name }}
 
 jobs:
-  build:
+  version:
+    name: the tag matches the package version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+          [ "v$version" = "$TAG" ] || { echo "tag $TAG is not v$version" >&2; exit 1; }
+
+  linux:
     name: build (linux-x86_64)
+    needs: version
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     env:
-      TAG: ${{ github.ref_name }}
       NAME: manfred-${{ github.ref_name }}-linux-x86_64.tar.gz
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -31,18 +44,13 @@ jobs:
         with:
           toolchain: 1.97.1
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libwayland-dev
-      - name: the tag matches the package version
-        run: |
-          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
-          [ "v$version" = "$TAG" ] || { echo "tag $TAG is not v$version" >&2; exit 1; }
-      - run: cargo build --release --locked --bin manfred
+      - run: cargo build --release --locked -p manfred --bin manfred
       - name: pack
         run: |
-          mkdir -p dist/pack/licenses
+          mkdir -p dist/pack/licenses dist/pack/bin
           cp target/release/manfred LICENSE NOTICE README.md dist/pack/
           cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt dist/pack/licenses/
           cp -r share dist/pack/share
-          mkdir -p dist/pack/bin
           cp bin/register-filetypes dist/pack/bin/
           tar -czf "dist/$NAME" -C dist/pack manfred LICENSE NOTICE README.md licenses share bin
       - name: docs bundle
@@ -65,15 +73,144 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  windows:
+    name: build (windows-x86_64)
+    needs: version
+    runs-on: windows-2025
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      ZIP: manfred-${{ github.ref_name }}-windows-x86_64.zip
+      SETUP: Manfred-${{ github.ref_name }}-Setup.exe
+      NSIS_URL: https://downloads.sourceforge.net/project/nsis/NSIS%203/3.13/nsis-3.13.zip
+      NSIS_SHA256: ba63dffc4410ee89193e1cb5a41989991bd77c61068da17e3156d136b7b0b3d8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
+        with:
+          toolchain: 1.97.1
+      - name: version
+        run: |
+          version=${TAG#v}
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "VERSION_NUM=${version%%-*}.0" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked -p manfred --bin manfred
+      - run: cargo build --release --locked -p manfred-desk
+      - name: zip
+        run: |
+          mkdir -p dist/pack/licenses
+          cp target/release/manfred.exe LICENSE NOTICE README.md dist/pack/
+          cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt dist/pack/licenses/
+          (cd dist/pack && 7z a -tzip -bd "../$ZIP" manfred.exe LICENSE NOTICE README.md licenses)
+      - name: NSIS 3.13
+        run: |
+          mkdir -p tmp/nsis
+          curl -fsSL --retry 3 -o tmp/nsis/nsis-3.13.zip "$NSIS_URL"
+          echo "$NSIS_SHA256  tmp/nsis/nsis-3.13.zip" | sha256sum -c -
+          7z x -bd -otmp/nsis tmp/nsis/nsis-3.13.zip
+          test -f tmp/nsis/nsis-3.13/makensis.exe
+      - name: stage the setup
+        run: |
+          [ -f packaging/windows/manfred.ico ] || { echo "packaging/windows/manfred.ico is missing" >&2; exit 1; }
+          mkdir -p tmp/setup/licenses
+          cp target/release/manfred.exe target/release/manfred-desk.exe packaging/windows/manfred.ico LICENSE NOTICE tmp/setup/
+          cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt tmp/setup/licenses/
+      - name: setup
+        shell: pwsh
+        run: |
+          $src = (Resolve-Path tmp/setup).Path
+          $out = Join-Path (Resolve-Path dist).Path $env:SETUP
+          & tmp/nsis/nsis-3.13/makensis.exe /V3 /WX /INPUTCHARSET UTF8 "/DVERSION=$env:VERSION" "/DVERSION_NUM=$env:VERSION_NUM" "/DSRC=$src" "/DOUT=$out" packaging/windows/manfred.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: the setup installs and uninstalls silently
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:ProgramFiles 'Manfred'
+          $setup = Start-Process -FilePath (Join-Path (Resolve-Path dist).Path $env:SETUP) -ArgumentList '/S' -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "setup exited $($setup.ExitCode)" }
+          foreach ($file in 'manfred.exe', 'manfred-desk.exe', 'manfred.ico', 'uninstall.exe') {
+            if (-not (Test-Path (Join-Path $dir $file))) { throw "$file is not in $dir" }
+          }
+          & (Join-Path $dir 'manfred.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw 'manfred.exe --version failed' }
+          if ((Get-ItemProperty 'HKLM:\Software\Classes\.manf').'(default)' -ne 'Manfred.Document') { throw '.manf is not Manfred.Document' }
+          if ((Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Manfred').Publisher -ne 'PITO MD') { throw 'no Apps & features listing' }
+          $uninstall = Start-Process -FilePath (Join-Path $dir 'uninstall.exe') -ArgumentList '/S', "_?=$dir" -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "uninstall exited $($uninstall.ExitCode)" }
+          if (Test-Path (Join-Path $dir 'manfred.exe')) { throw 'manfred.exe is still installed' }
+          if (Test-Path 'HKLM:\Software\Classes\Manfred.Document') { throw 'the file type is still registered' }
+          if (Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Manfred') { throw 'the listing is still there' }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: windows-x86_64
+          path: |
+            dist/${{ env.ZIP }}
+            dist/${{ env.SETUP }}
+          if-no-files-found: error
+          retention-days: 1
+
+  macos:
+    name: build (macos-arm64)
+    needs: version
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      TARBALL: manfred-${{ github.ref_name }}-macos-arm64.tar.gz
+      APPZIP: manfred-${{ github.ref_name }}-macos-arm64.app.zip
+      MACOSX_DEPLOYMENT_TARGET: "13.3"
+      COPYFILE_DISABLE: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@89b12181fb390509a0842a86cc55eeb8eb928c1d
+        with:
+          toolchain: 1.97.1
+      - run: '[ "$(uname -m)" = arm64 ] || { echo "the runner is $(uname -m), not arm64" >&2; exit 1; }'
+      - run: cargo build --release --locked -p manfred --bin manfred
+      - run: cargo build --release --locked -p manfred-desk
+      - name: pack
+        run: |
+          mkdir -p dist/pack/licenses
+          cp target/release/manfred LICENSE NOTICE README.md dist/pack/
+          cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt dist/pack/licenses/
+          tar -czf "dist/$TARBALL" -C dist/pack manfred LICENSE NOTICE README.md licenses
+      - name: Manfred.app
+        run: |
+          [ -f packaging/macos/manfred.icns ] || { echo "packaging/macos/manfred.icns is missing" >&2; exit 1; }
+          version=${TAG#v}
+          app=dist/app/Manfred.app
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/licenses"
+          cp target/release/manfred-desk target/release/manfred "$app/Contents/MacOS/"
+          cp packaging/macos/manfred.icns LICENSE NOTICE "$app/Contents/Resources/"
+          cp assets/licenses/Apache-2.0.txt assets/fonts/OFL.txt "$app/Contents/Resources/licenses/"
+          printf 'APPL????' > "$app/Contents/PkgInfo"
+          sed -e "s/@VERSION@/$version/" -e "s/@BUNDLE_VERSION@/${version%%-*}/" -e "s/@MINIMUM_SYSTEM_VERSION@/$MACOSX_DEPLOYMENT_TARGET/" packaging/macos/Info.plist.in > "$app/Contents/Info.plist"
+          if grep -q '@[A-Z_]*@' "$app/Contents/Info.plist"; then echo "Info.plist has an unfilled placeholder" >&2; exit 1; fi
+          plutil -lint "$app/Contents/Info.plist"
+          [ "$(NO_COLOR=1 "$app/Contents/MacOS/manfred" --version)" = "manfred $version" ]
+          (cd dist/app && ditto -c -k --keepParent Manfred.app "../$APPZIP")
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: macos-arm64
+          path: |
+            dist/${{ env.TARBALL }}
+            dist/${{ env.APPZIP }}
+          if-no-files-found: error
+          retention-days: 1
+
   publish:
     name: publish
-    needs: build
+    needs: [linux, windows, macos]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
     env:
-      TAG: ${{ github.ref_name }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
     steps:
@@ -88,7 +225,7 @@ jobs:
         working-directory: dist
         run: |
           shopt -s nullglob
-          sha256sum manfred-* docs-* library-* > SHA256SUMS && cat SHA256SUMS
+          sha256sum manfred-* Manfred-* docs-* library-* > SHA256SUMS && cat SHA256SUMS
       - name: notes from the changelog
         run: |
           awk -v version="${TAG#v}" '
