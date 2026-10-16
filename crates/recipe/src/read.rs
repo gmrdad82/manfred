@@ -9,7 +9,7 @@ pub(crate) mod effects;
 
 use crate::{
     Along, Bake, Bend, BendForm, Bevel, CAP_LUMINANCE, CAP_MEAN, CAPPED, Camera, CameraPath, Caps,
-    Casters, Cup, Curl, Daylight, DetailUv, Ease, Error, Grade, Kind, Lines, Loaded, Look, Mover,
+    Casters, Cup, Curl, Daylight, DetailUv, Drift, Ease, Error, Follow, Grade, Kind, Lines, Loaded, Look, Mover,
     NO_SIDECAR, OLD_HEADER, Object, Orbit, Order, Origin, Outline, Output, PathKey, PathKind,
     Plate, PlateView, Plates, Problem, Profile, ProfileKind, Projection, Proxy, REFERENCE_HOUR,
     Recipe, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span, Sun,
@@ -2322,6 +2322,41 @@ fn read_mover(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Resu
     Ok(mover)
 }
 
+const SPEED: Rd<Vec<[f64; 2]>> = Rd("an array of [t, m/s] pairs", as_points::<2>);
+
+fn read_follow(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Result<Follow, Error> {
+    let path = format!("follow[{}]", label(t, "object", index));
+    let mut tab = Tab::new(cx, t, path, format!("follow#{index}"), line);
+    let object = tab.req(cx, "object", STR)?;
+    let route = tab.req(cx, "route", STR)?;
+    let lane = tab.or(cx, "lane", 0.0, NUM)?;
+    let start = tab.or(cx, "start", 0.0, NUM)?;
+    let speed = tab.req(cx, "speed", SPEED)?;
+    let drift = match tab.sub(cx, "drift")? {
+        Some(mut sub) => {
+            let drift = Drift {
+                amount: sub.req(cx, "amount", NUM)?,
+                period: sub.req(cx, "period", NUM)?,
+                slip_deg: sub.or(cx, "slip_deg", 0.0, NUM)?,
+            };
+            sub.finish(cx)?;
+            Some(drift)
+        }
+        None => None,
+    };
+    let ride = tab.or(cx, "ride", 0.0, NUM)?;
+    tab.finish(cx)?;
+    Ok(Follow {
+        object,
+        route,
+        lane,
+        start,
+        speed,
+        drift,
+        ride,
+    })
+}
+
 fn read_sidecar(
     cx: &mut Cx,
     root: &mut Tab<'_>,
@@ -2927,6 +2962,7 @@ fn read_root(
     let lights = tables(cx, &mut root, "light", effects::read_light)?;
     let movers = tables(cx, &mut root, "mover", read_mover)?;
     let routes = tables(cx, &mut root, "route", read_route)?;
+    let follows = tables(cx, &mut root, "follow", read_follow)?;
     let variants = read_variants(cx, &mut root)?;
     let sidecar = read_sidecar(cx, &mut root)?;
     let look = read_look(cx, &mut root)?;
@@ -2988,6 +3024,7 @@ fn read_root(
         lights,
         movers,
         routes,
+        follows,
         variants,
         sidecar,
         look,

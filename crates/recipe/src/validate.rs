@@ -88,6 +88,7 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     lights(&mut out);
     movers(&mut out);
     routes(&mut out);
+    follows(&mut out);
     output(&mut out);
     sky(&mut out);
     look(&mut out);
@@ -880,6 +881,58 @@ fn routes(out: &mut Out<'_>) {
         if let Err(text) = manfred_motion::Route::new(&route.points, route.closed) {
             let at = At::new(format!("route[{}]", route.name), format!("route#{i}"));
             out.at(&at, "points", text);
+        }
+    }
+}
+
+fn follows(out: &mut Out<'_>) {
+    let r = out.r;
+    for (i, f) in r.follows.iter().enumerate() {
+        let at = At::new(format!("follow[{}]", f.object), format!("follow#{i}"));
+        if r.follows[..i].iter().any(|g| g.object == f.object) {
+            out.at(
+                &at,
+                "object",
+                "another [[follow]] already moves this object, expected one per object",
+            );
+        }
+        if !r.objects.iter().any(|o| o.name == f.object) {
+            out.missing(&at, "object", "object", &f.object, "the name of an object");
+        }
+        if !r.routes.iter().any(|route| route.name == f.route) {
+            out.missing(&at, "route", "route", &f.route, "the name of a [[route]]");
+        }
+        if r.timeline.is_none() {
+            out.at(
+                &at,
+                "object",
+                "a follow moves its object along the timeline, expected a [timeline]",
+            );
+        }
+        if f.start < 0.0 {
+            out.at(&at, "start", "expected metres along the route from 0 up");
+        }
+        if f.speed.is_empty() {
+            out.at(&at, "speed", "expected one [t, m/s] key at least");
+        }
+        if f.speed.windows(2).any(|w| w[1][0] <= w[0][0]) {
+            out.at(
+                &at,
+                "speed",
+                "expected keys in rising time, each t after the last",
+            );
+        }
+        if f.speed.iter().any(|k| k[0] < 0.0 || k[1] < 0.0) {
+            out.at(&at, "speed", "expected times and speeds from 0 up");
+        }
+        if let Some(d) = &f.drift {
+            let at = at.child("drift", "drift");
+            if d.amount < 0.0 {
+                out.at(&at, "amount", "expected metres from 0 up");
+            }
+            if d.period <= 0.0 {
+                out.at(&at, "period", "expected seconds above 0");
+            }
         }
     }
 }

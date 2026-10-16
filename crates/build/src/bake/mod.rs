@@ -8,9 +8,11 @@ use std::collections::BTreeMap;
 use std::fmt::Write;
 use std::path::{Component, Path, PathBuf};
 
-pub(crate) const BAKERS: &[(&str, crate::Baker)] = &[];
+pub(crate) mod follow;
 
-pub(crate) const ANIMATES: &[crate::Animates] = &[];
+pub(crate) const BAKERS: &[(&str, crate::Baker)] = &[("follow", follow::bake)];
+
+pub(crate) const ANIMATES: &[crate::Animates] = &[follow::animates];
 
 pub(crate) const LIBRARY: &str = "bake-materials.toml";
 

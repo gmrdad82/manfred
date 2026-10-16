@@ -531,6 +531,7 @@ fn label_of(t: &Table) -> Option<&str> {
     t.get("name")
         .or_else(|| t.get("group"))
         .or_else(|| t.get("prefix"))
+        .or_else(|| t.get("object"))
         .and_then(Item::as_str)
 }
 

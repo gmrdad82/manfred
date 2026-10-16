@@ -652,6 +652,32 @@ Every key takes `--set` and a variant's `set`, as `--set timeline.fps=30`. A rec
 - **The GLB:** the keys are one glTF animation named `timeline`, with one LINEAR sampler a channel: the input is the frame times `n / fps` with their `min` and `max`, the output the translation, rotation (a unit quaternion, x, y, z, w) or scale. A channel whose keys never change is left out. Every animated node is at the top level of the GLB, named after its object or piece (`hero.body`), and starts at its key at 0. A camera the timeline moves is a top-level node `camera.<name>` holding a glTF perspective camera: `yfov` from the camera's `fov_y_deg`, or its `focal_mm` and `sensor_mm` at the timeline's aspect, `aspectRatio` the timeline's width over its height, `znear` 0.05 and no `zfar`. It looks down its own -Z, as glTF's cameras do.
 - **Posing:** `manfred shot` and `manfred render` take `--time <seconds>` and draw the scene at that time: each key is interpolated as glTF's LINEAR is, the rotation by slerp, and a camera the timeline moves looks from its pose there. `--time` without a `[timeline]`, or outside 0 to its length, is refused before anything is drawn. `manfred clip <recipe> --timeline` films the timeline: frames 0 to the last at its `fps`, through `--camera`, posed by the timeline when it moves that camera, in place of `--frames`, `--fps` and a camera path.
 
+## Follow
+
+A `[[follow]]` drives an object along a `[[route]]` over the `[timeline]`, as a car down a street: its nodes are keyed once a frame in the GLB's `timeline` animation. Every other `[[follow]]` in the recipe (traffic) is driven the same way.
+
+```toml
+[[follow]]
+object = "hero"
+route = "main"
+lane = 1.5
+start = 0.0
+speed = [[0.0, 12.0], [3.0, 28.0]]
+drift = { amount = 0.4, period = 2.5, slip_deg = 6.0 }
+ride = 0.0
+```
+
+- **`object`** (required) names an `[[object]]`; one `[[follow]]` per object. `--set follow.<object>.<key>=…` and a variant's `set` reach every key, as `follow.hero.lane` or `follow.hero.drift.amount`.
+- **`route`** (required) names a `[[route]]`.
+- **`lane`** is the sideways offset from the route in metres, + to the right of travel (0 by default).
+- **`start`** is the distance along the route at frame 0, in metres from 0 up (0 by default).
+- **`speed`** (required) is `[[t, m/s], …]`: seconds and metres a second, from 0 up, times rising, linear between keys and held past the ends. The distance at frame n is `start` plus the speed integrated at the timeline's fixed step (the trapezoid rule). A closed route wraps; an open one holds at its end.
+- **`drift`** (optional) is a seeded smooth sideways wander: `amount` metres (from 0 up) times a smooth noise in [-1, 1] at `t / period` (`period` seconds, above 0), added to the lane. The nose turns with the drift's sideways velocity, plus up to `slip_deg` degrees (0 by default) more as it slides, smoothed over 0.2 s. The noise's seed is the timeline's seed and the object's name, so each car wanders its own way.
+- **`ride`** is the height above the route in metres (0 by default).
+- **The object's frame:** its pieces are in the car's own frame, +Z forward, +Y up, the origin on the ground under its centre. The follow sets the whole pose: the object's `at` and `rotate` are not applied while it is followed, its `scale` is.
+- **Tracks:** every node of the object (`<object>` or `<object>.<piece>`) is keyed with the car's pose; a piece named `<object>.wheel_<corner>` (as `hero.wheel_fl`) is keyed with the pose times its centre, its steer, its spin and back. It spins about its axle by distance / radius, forward. The front wheels (a corner starting with `f`) steer about +Y by atan(wheelbase × the route's curvature at the car), clamped to ±35°. Centre, radius and axle come from the object's generator facts, `wheels = { fl = { centre, radius, axle }, … }` (`manfred/car` writes them); a wheel missing there takes its piece's bounds centre, half its height as radius, and the +X axle. The wheelbase is the distance between the mean front and mean rear wheel centres along Z, else the facts' `wheelbase`, else 2.7 m.
+- A `[[follow]]` needs a `[timeline]`, and its object and route must exist.
+
 ## Variants, look and bake
 
 ```toml

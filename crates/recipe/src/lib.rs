@@ -57,6 +57,7 @@ pub struct Recipe {
     pub lights: Vec<Light>,
     pub movers: Vec<Mover>,
     pub routes: Vec<RouteSpec>,
+    pub follows: Vec<Follow>,
     pub variants: BTreeMap<String, Variant>,
     pub sidecar: serde_json::Map<String, serde_json::Value>,
     pub look: Option<Look>,
@@ -523,6 +524,24 @@ pub struct RouteSpec {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct Follow {
+    pub object: String,
+    pub route: String,
+    pub lane: f64,
+    pub start: f64,
+    pub speed: Vec<[f64; 2]>,
+    pub drift: Option<Drift>,
+    pub ride: f64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Drift {
+    pub amount: f64,
+    pub period: f64,
+    pub slip_deg: f64,
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub struct Variant {
     pub drop: Vec<String>,
     pub set: BTreeMap<String, serde_json::Value>,
@@ -830,7 +849,13 @@ impl Recipe {
                     ..
                 }
             );
-            if turns || self.movers.iter().any(|mover| mover.owns(&object.name)) {
+            if turns
+                || self.movers.iter().any(|mover| mover.owns(&object.name))
+                || self
+                    .follows
+                    .iter()
+                    .any(|follow| follow.object == object.name)
+            {
                 return true;
             }
             let carrier = match (&object.parent, &object.kind) {
