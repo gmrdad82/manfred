@@ -63,6 +63,7 @@ pub(crate) enum Edit {
         variant: Box<Variant>,
     },
     Set(Vec<String>),
+    Keep(Vec<String>),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -100,7 +101,7 @@ impl Files {
     pub fn variant(&self) -> Option<&str> {
         self.edits.iter().rev().find_map(|edit| match edit {
             Edit::Variant { name, .. } => Some(name.as_str()),
-            Edit::Set(_) => None,
+            Edit::Set(_) | Edit::Keep(_) => None,
         })
     }
 

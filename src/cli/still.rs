@@ -40,6 +40,8 @@ pub(super) struct Args {
         help = "Pose the recipe's [timeline] at this many seconds"
     )]
     time: Option<f64>,
+    #[command(flatten)]
+    pick: super::Picks,
 }
 
 fn still(args: &Args, registry: &Registry) -> Result<Vec<u8>, Error> {
@@ -47,6 +49,7 @@ fn still(args: &Args, registry: &Registry) -> Result<Vec<u8>, Error> {
         &args.recipe,
         args.variant.as_deref(),
         &args.set,
+        &args.pick.pick(),
         registry,
         args.time,
     )?;
@@ -105,6 +108,7 @@ mod tests {
                 variant: Some("bare".into()),
                 set: vec!["sky.intensity=0.4".into()],
                 time: Some(2.0),
+                pick: Default::default(),
             }
         );
         for words in [

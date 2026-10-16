@@ -20,7 +20,9 @@ use std::process::ExitCode;
 
 use clap::{Arg, CommandFactory, FromArgMatches, Parser, Subcommand};
 use manfred_build::Registry;
-use manfred_recipe::{Camera, Error, Problem, Trace, apply_set, apply_variant, load, validate};
+use manfred_recipe::{
+    Camera, Error, Pick, Problem, Trace, apply_set, apply_variant, load, validate,
+};
 
 pub use manfred_ui::Pulse;
 
@@ -149,6 +151,32 @@ fn seconds(text: &str) -> Result<f64, String> {
     }
 }
 
+#[derive(clap::Args, Clone, Debug, Default, PartialEq)]
+pub(super) struct Picks {
+    #[arg(
+        long,
+        value_name = "N|name",
+        help = "Build only the objects of the recipe's stages 1 to N (a number or a stage's name)"
+    )]
+    pub(super) stage: Option<String>,
+    #[arg(
+        long,
+        value_name = "glob[,glob]",
+        value_delimiter = ',',
+        help = "Build only these objects, or <object>.<piece> pieces; globs take * and ?"
+    )]
+    pub(super) only: Vec<String>,
+}
+
+impl Picks {
+    pub(super) fn pick(&self) -> Pick {
+        Pick {
+            stage: self.stage.clone(),
+            only: self.only.clone(),
+        }
+    }
+}
+
 fn pair(text: &str) -> Result<String, String> {
     match text.split_once('=') {
         Some((key, _)) if !key.trim().is_empty() => Ok(text.to_string()),
@@ -184,6 +212,17 @@ fn precheck(
     camera: &str,
     time: Option<f64>,
 ) -> Result<(Camera, Trace), String> {
+    precheck_picked(recipe, variant, set, &Pick::default(), camera, time)
+}
+
+fn precheck_picked(
+    recipe: &Path,
+    variant: Option<&str>,
+    set: &[String],
+    pick: &Pick,
+    camera: &str,
+    time: Option<f64>,
+) -> Result<(Camera, Trace), String> {
     let file = recipe.display().to_string();
     let loaded = load(recipe).map_err(|e| read_failure(&file, &e))?;
     let chosen = match variant {
@@ -191,6 +230,7 @@ fn precheck(
         None => Ok(loaded.recipe),
     }
     .and_then(|chosen| apply_set(&chosen, set))
+    .and_then(|chosen| pick.apply(&chosen))
     .map_err(|e| read_failure(&file, &e))?;
     let mut problems = Vec::new();
     print_problems(&mut problems, &file, &validate(&chosen));

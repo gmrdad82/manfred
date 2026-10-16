@@ -89,6 +89,7 @@ pub fn validate(r: &Recipe) -> Vec<Problem> {
     movers(&mut out);
     routes(&mut out);
     follows(&mut out);
+    stages(&mut out);
     output(&mut out);
     sky(&mut out);
     look(&mut out);
@@ -990,6 +991,39 @@ fn routes(out: &mut Out<'_>) {
         if let Err(text) = manfred_motion::Route::new(&route.points, route.closed) {
             let at = At::new(format!("route[{}]", route.name), format!("route#{i}"));
             out.at(&at, "points", text);
+        }
+    }
+}
+
+fn stages(out: &mut Out<'_>) {
+    let r = out.r;
+    let names: Vec<&str> = r.stages.iter().map(|stage| stage.name.as_str()).collect();
+    duplicates(out, "stage", "name", &names);
+    for (i, stage) in r.stages.iter().enumerate() {
+        let at = At::new(format!("stage[{}]", stage.name), format!("stage#{i}"));
+        for glob in &stage.objects {
+            if !r
+                .objects
+                .iter()
+                .any(|o| crate::stage::selects(glob, &o.name))
+            {
+                out.at(
+                    &at,
+                    "objects",
+                    format!("`{glob}` matches no object, expected an object's name, a glob, or <object>.<piece>"),
+                );
+            }
+        }
+        if let Some(camera) = &stage.camera
+            && !r.cameras.iter().any(|c| c.name == *camera)
+        {
+            out.missing(
+                &at,
+                "camera",
+                "camera",
+                camera,
+                "the name of a `[[camera]]`",
+            );
         }
     }
 }

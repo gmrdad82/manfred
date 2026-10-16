@@ -273,6 +273,7 @@ fn traced(path: &Path, camera: &str, registry: &Registry, samples: u32) -> manfr
         view: View::Lens,
         variant: None,
         set: &[],
+        pick: &manfred_recipe::Pick::default(),
         crop: None,
         denoise: false,
         time: None,

@@ -30,6 +30,7 @@ pub use manfred_glb::{Image, Look, Looks, Map, Mime};
 pub use manfred_glb::{Lens, Track};
 pub use manfred_motion::{Route, Timeline, Trs, matrix, sample, trs_from_matrix};
 pub use manfred_recipe::NO_SIDECAR;
+pub use manfred_recipe::{apply_only as only, apply_stage as staged};
 pub use maps::{LARGEST_IMAGE, image, image_fits};
 pub use scene::object_ids;
 pub use timeline::{Animates, Bake, Baker, camera_track, lens, pose, pose_cameras, time_refusal};
@@ -1052,11 +1053,28 @@ fn assemble(
             imported.entry(name).or_insert(look);
         }
         let first = parts.len();
-        lods.extend(made.lods.into_iter().map(|lod| Lod {
-            of: first + lod.of,
-            ..lod
+        let shown: Vec<Option<usize>> = made
+            .nodes
+            .iter()
+            .scan(0, |next, node| {
+                Some(recipe.keeps(&object.name, &node.name).then(|| {
+                    *next += 1;
+                    *next - 1
+                }))
+            })
+            .collect();
+        lods.extend(made.lods.into_iter().filter_map(|lod| {
+            shown.get(lod.of).copied().flatten().map(|at| Lod {
+                of: first + at,
+                ..lod
+            })
         }));
-        for node in made.nodes {
+        for (node, _) in made
+            .nodes
+            .into_iter()
+            .zip(&shown)
+            .filter(|(_, at)| at.is_some())
+        {
             parts.push(Part {
                 node,
                 object: index,

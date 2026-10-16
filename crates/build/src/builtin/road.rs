@@ -30,6 +30,7 @@ const KEYS: &[&str] = &[
     "stripe_gap",
     "step",
     "seed",
+    "reveal",
 ];
 
 const LIFT: f64 = 0.002;
@@ -71,6 +72,7 @@ struct Spec {
     stripe_gap: f64,
     step: f64,
     seed: u64,
+    reveal: f64,
 }
 
 pub fn generate(call: &Call) -> Result<Generated, String> {
@@ -203,7 +205,29 @@ fn spec(params: &BTreeMap<String, Value>, seed: u64) -> Result<Spec, String> {
         stripe_gap: above(params, "stripe_gap", 0.6)?,
         step: above(params, "step", 1.0)?.max(MIN_STEP),
         seed,
+        reveal: reveal(params)?,
     })
+}
+
+fn reveal(params: &BTreeMap<String, Value>) -> Result<f64, String> {
+    let value = number(params, "reveal", 1.0)?;
+    if (0.0..=1.0).contains(&value) {
+        Ok(value)
+    } else {
+        Err("params.reveal: expected a fraction of the route from 0 to 1".to_string())
+    }
+}
+
+fn shown(runs: Vec<(f64, f64)>, reach: Option<f64>) -> Vec<(f64, f64)> {
+    match reach {
+        None => runs,
+        Some(reach) => runs
+            .into_iter()
+            .filter(|(a, _)| *a < reach)
+            .map(|(a, b)| (a, b.min(reach)))
+            .filter(|(a, b)| b > a)
+            .collect(),
+    }
 }
 
 struct Rng(u64);
@@ -424,6 +448,16 @@ fn road(object: &str, route: &Route, spec: &Spec) -> Result<Generated, String> {
     let crosswalks = crosswalk_list(spec, length, closed)?;
     let all = stations(route, spec.step);
     let whole = &all[..];
+    let reach = (spec.reveal < 1.0).then_some(spec.reveal * length);
+    let cut;
+    let ribbon = match reach {
+        None => whole,
+        Some(reach) if reach > 0.0 => {
+            cut = span(route, whole, 0.0, reach);
+            &cut[..]
+        }
+        Some(_) => &[],
+    };
     let lw = spec.lane_width;
     let half = spec.lanes as f64 * lw;
     let inner = half + spec.curb_width;
@@ -431,27 +465,27 @@ fn road(object: &str, route: &Route, spec: &Spec) -> Result<Generated, String> {
     let mut rng = Rng(spec.seed);
 
     let mut asphalt = Mesh::default();
-    flat(&mut asphalt, whole, -half, half, 0.0, -half);
+    flat(&mut asphalt, ribbon, -half, half, 0.0, -half);
 
     let mut curbs = Mesh::default();
     let mut sidewalks = Mesh::default();
     for side in [-1.0, 1.0] {
-        wall(&mut curbs, whole, side * half, 0.0, spec.curb, -side);
+        wall(&mut curbs, ribbon, side * half, 0.0, spec.curb, -side);
         let (a, b) = if side > 0.0 {
             (half, inner)
         } else {
             (-inner, -half)
         };
-        flat(&mut curbs, whole, a, b, spec.curb, a);
+        flat(&mut curbs, ribbon, a, b, spec.curb, a);
         if outer > inner {
             let (a, b) = if side > 0.0 {
                 (inner, outer)
             } else {
                 (-outer, -inner)
             };
-            flat(&mut sidewalks, whole, a, b, spec.curb, a);
+            flat(&mut sidewalks, ribbon, a, b, spec.curb, a);
         }
-        wall(&mut sidewalks, whole, side * outer, 0.0, spec.curb, side);
+        wall(&mut sidewalks, ribbon, side * outer, 0.0, spec.curb, side);
     }
 
     let depth = spec.crosswalk_depth * 0.5;
@@ -490,7 +524,7 @@ fn road(object: &str, route: &Route, spec: &Spec) -> Result<Generated, String> {
     }
     let phase = rng.unit() * (spec.dash + spec.dash_gap);
     for (x, dashed) in lines {
-        for (a, b) in line_runs(spec, length, dashed, phase, &gaps) {
+        for (a, b) in shown(line_runs(spec, length, dashed, phase, &gaps), reach) {
             flat(
                 &mut markings,
                 &span(route, whole, a, b),
@@ -512,7 +546,7 @@ fn road(object: &str, route: &Route, spec: &Spec) -> Result<Generated, String> {
             let x0 = first + i as f64 * pitch;
             let a = c - depth + rng.unit() * WEAR;
             let b = c + depth - rng.unit() * WEAR;
-            for (a, b) in wrapped(a, b, length, closed) {
+            for (a, b) in shown(wrapped(a, b, length, closed), reach) {
                 flat(
                     &mut zebra,
                     &span(route, whole, a, b),
@@ -637,6 +671,32 @@ mod tests {
         assert_ne!(a, bytes(&built(text, 8)));
         let pinned = r#"{ "route": "street", "every": 80, "offset": 30, "seed": 3 }"#;
         assert_eq!(bytes(&built(pinned, 7)), bytes(&built(pinned, 8)));
+    }
+
+    #[test]
+    fn a_reveal_builds_the_road_up_to_its_share_of_the_route_and_one_builds_it_all() {
+        let text = r#"{ "route": "street", "every": 80, "offset": 30 }"#;
+        let whole = built(text, 7);
+        let one = built(
+            r#"{ "route": "street", "every": 80, "offset": 30, "reveal": 1 }"#,
+            7,
+        );
+        assert_eq!(bytes(&whole), bytes(&one));
+        let half = built(
+            r#"{ "route": "street", "every": 80, "offset": 30, "reveal": 0.5 }"#,
+            7,
+        );
+        for piece in &whole.pieces {
+            let part = half.pieces.iter().find(|p| p.name == piece.name).unwrap();
+            let share = part.mesh.indices.len() as f64 / piece.mesh.indices.len() as f64;
+            assert!((0.35..0.65).contains(&share), "{} {share}", piece.name);
+        }
+        let none = built(
+            r#"{ "route": "street", "every": 80, "offset": 30, "reveal": 0 }"#,
+            7,
+        );
+        assert!(none.pieces.is_empty());
+        assert!(spec(&params(r#"{ "route": "street", "reveal": 1.5 }"#), 7).is_err());
     }
 
     #[test]

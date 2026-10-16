@@ -214,7 +214,7 @@ generator = "manfred/road"
 params = { route = "street", lanes = 2, every = 80, offset = 30 }
 ```
 
-- **`params`:** `route` (a route's name, required); `lanes` (each way, 1 to 8, default 2); `lane_width` (3.2 m); `sidewalk` (3.0 m from the curb's face to its outer edge); `curb` (its height, 0.15 m); `curb_width` (its top, 0.3 m); `line` (a marking's width, 0.15 m); `dash` and `dash_gap` (3 m and 6 m); `centre` (`"double"`, the default, `"dashed"` or `"solid"`); `edge` (the edge line's centre from the curb, 0.3 m, 0 for none); `crosswalks = [distances along the route, m]`, or `every` (m) with `offset` (default half of `every`); `crosswalk_depth` (4 m along the route); `stripe` and `stripe_gap` (a zebra stripe's width and the gap between, 0.5 m and 0.6 m); `step` (the longest step along the route, 1 m: curves step finer, 0.05 rad a step, down to 0.1 m); `seed` (default the object's). Any other key is refused. A listed crosswalk off an open route is refused; `every` keeps the ones that fit.
+- **`params`:** `route` (a route's name, required); `lanes` (each way, 1 to 8, default 2); `lane_width` (3.2 m); `sidewalk` (3.0 m from the curb's face to its outer edge); `curb` (its height, 0.15 m); `curb_width` (its top, 0.3 m); `line` (a marking's width, 0.15 m); `dash` and `dash_gap` (3 m and 6 m); `centre` (`"double"`, the default, `"dashed"` or `"solid"`); `edge` (the edge line's centre from the curb, 0.3 m, 0 for none); `crosswalks = [distances along the route, m]`, or `every` (m) with `offset` (default half of `every`); `crosswalk_depth` (4 m along the route); `stripe` and `stripe_gap` (a zebra stripe's width and the gap between, 0.5 m and 0.6 m); `step` (the longest step along the route, 1 m: curves step finer, 0.05 rad a step, down to 0.1 m); `seed` (default the object's); `reveal` (0 to 1, default 1: the asphalt, curbs, sidewalks, lines and zebra stripes are built from the route's start up to that share of its length, and 0 builds nothing). Any other key is refused. A listed crosswalk off an open route is refused; `every` keeps the ones that fit.
 - **Pieces:** `<object>.asphalt` (one ribbon, UVs in metres: u across from the left curb, v along the route), `<object>.curbs` (each curb's face and top), `<object>.sidewalks` (their tops and outer faces), `<object>.markings` (lane lines dashed, the centre line and the solid edge lines, 2 mm above the asphalt and broken at crosswalks), `<object>.crosswalks` (zebra stripes, 2 mm up; absent without crosswalks).
 - **Materials:** `road_asphalt` (dark, roughness 0.6), `road_paint` (white, slightly worn through `ageing`) and `road_concrete` (curbs and sidewalks). A recipe `[materials.road_asphalt]` replaces it, for a wet look among others. The seed moves the dashes' phase and wears each zebra stripe's ends by up to 12 cm; the same seed builds the same bytes.
 - **Facts:** `road = { route, length, width, lanes, lane_width, lane_centres, curb, sidewalk = [inner, outer], outer, crosswalks, crosswalk_depth }`. `width` is curb to curb; `lanes` is each way; `lane_centres` are the lanes' lateral offsets from left to right, the positive ones driving along the route; `sidewalk` gives its inner and outer offsets and `outer` where buildings may start; `crosswalks` are the distances built.
@@ -240,6 +240,7 @@ params = { route = "street", lanes = 2, every = 80, offset = 30 }
 | `window` | `{ width = 1.4, spacing = 3.0 }` / `{ width = 1.1, spacing = 2.4 }` | window width and centre spacing, metres; the width is at least 0.2 m less than the spacing; a window is 0.55 (towers) or 0.6 (lowrise) of a storey tall |
 | `lit` | `0.06` / `0.03` | the share of windows lit (2.5 times that for shopfronts), 0 to 1; the rest are dark glass that reflects the sky |
 | `seed` | the object's | a whole number; the same seed and params build the same bytes |
+| `reveal` | `1` | 0 to 1: only the buildings whose street front starts before that share of the route's length, so each side fills from the start; the ones built are the same as at 1 |
 
 A range is a number or `[min, max]`. An unknown param is refused.
 
@@ -280,6 +281,7 @@ params = { route = "main", spacing = [22, 30], crosswalks = [120.0, 310.0] }
 | `color` | `[1.0, 0.72, 0.42]` | each lamp's linear colour, a warm sodium white |
 | `cone` | `[35, 60]` | each lamp's inner and outer cone in degrees |
 | `seed` | the object's seed | the seed for the gaps and the signs |
+| `reveal` | `1` | 0 to 1: only the poles, lamps, lights, cables, signals and signs before that share of the route's length; the ones built are the same as at 1, and a closed route's last cable is left out below 1 |
 
 - **Pieces:** `<object>.poles` (posts, plinths, arms and head shells), `<object>.wires`, `<object>.lamps` (the lenses, emissive warm when lit) and `<object>.extras` (signals, bollards and signs); a piece with nothing in it is left out.
 - **Materials** it returns: `furniture_metal`, `furniture_wire`, `furniture_lamp` (emissive) or `furniture_lamp_off`, `furniture_sign` and `furniture_signal` (the lit red lamp); a recipe entry of the same name wins.
@@ -749,6 +751,32 @@ ride = 0.0
 - **The object's frame:** its pieces are in the car's own frame, +Z forward, +Y up, the origin on the ground under its centre. The follow sets the whole pose: the object's `at` and `rotate` are not applied while it is followed, its `scale` is.
 - **Tracks:** every node of the object (`<object>` or `<object>.<piece>`) is keyed with the car's pose; a piece named `<object>.wheel_<corner>` (as `hero.wheel_fl`) is keyed with the pose times its centre, its steer, its spin and back. It spins about its axle by distance / radius, forward. The front wheels (a corner starting with `f`) steer about +Y by atan(wheelbase × the route's curvature at the car), clamped to ±35°. Centre, radius and axle come from the object's generator facts, `wheels = { fl = { centre, radius, axle }, … }` (`manfred/car` writes them); a wheel missing there takes its piece's bounds centre, half its height as radius, and the +X axle. The wheelbase is the distance between the mean front and mean rear wheel centres along Z, else the facts' `wheelbase`, else 2.7 m.
 - A `[[follow]]` needs a `[timeline]`, and its object and route must exist.
+
+## Stages
+
+```toml
+[[stage]]
+name = "street"
+objects = ["road"]
+camera = "top"
+
+[[stage]]
+name = "car"
+objects = ["hero*"]
+
+[[stage]]
+name = "look"
+objects = ["*"]
+camera = "chase"
+```
+
+A `[[stage]]` is one step of building the scene up, for a breakdown: `manfred build <recipe> --stage <N|name>` builds the objects of stages 1 to N together, in file order, and drops the rest. `manfred shot` and `manfred render` take it too.
+- **`name`** (needed, unique) and **`objects`** (needed, may be empty): object names or globs (`*` and `?`), or `<object>.<piece>` globs (`road.crosswalks`), which keep that object but only its matching pieces (nodes) in the build. A glob that matches no object is refused, naming the stage.
+- **`camera`** (optional) names a `[[camera]]` that frames the stage, for the window and the tools that look through it.
+- **`--stage`** takes a number from 1 or a stage's name: `--stage 3` and `--stage city` build the same. Anything else is refused with the stages listed.
+- **What is dropped** goes as a variant's `drop` takes it, and with it what can't stand without it: an object whose `parent`, `on` or `into` is dropped, the `[[follow]]` of a dropped object (and so its tracks), a camera whose `rig` follows one, an `output.scene_camera` that names such a camera, and the `[[light]]` and `[[particles]]` parented to a dropped object or one of its pieces. The built recipe carries no `[[stage]]` or `[variant]` tables.
+- **`--only <glob>[,<glob>]`** builds only these objects or pieces, with the same rules, on `build`, `shot` and `render`; after `--stage` when both are given.
+- **Order:** the variant, then each `--set` (so `--set stage.<name>.objects=[...]` and a variant's `set` reach a stage), then `--stage`, then `--only`. In Rust: `manfred_recipe::apply_stage(&recipe, "3")`, `apply_only(&recipe, &globs)` and `Pick { stage, only }.apply(&recipe)`; `manfred_build::staged` and `manfred_build::only` are the same functions.
 
 ## Variants, look and bake
 

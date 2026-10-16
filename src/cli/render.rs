@@ -177,6 +177,8 @@ pub(super) struct Args {
         help = "Progress on stderr: plain lines, or JSON lines with the fraction and an ETA"
     )]
     progress: Progress,
+    #[command(flatten)]
+    pick: super::Picks,
     #[arg(skip)]
     trace: Trace,
 }
@@ -266,10 +268,11 @@ impl Args {
 }
 
 fn precheck(args: &Args) -> Result<Trace, String> {
-    super::precheck(
+    super::precheck_picked(
         &args.recipe,
         args.variant.as_deref(),
         &args.set,
+        &args.pick.pick(),
         &args.camera,
         args.time,
     )
@@ -444,6 +447,7 @@ fn traced(
     registry: &Registry,
     progress: &mut dyn FnMut(Step),
 ) -> Result<(Rendered, String), Fault> {
+    let pick = args.pick.pick();
     let request = Request {
         recipe: &args.recipe,
         camera: &args.camera,
@@ -454,6 +458,7 @@ fn traced(
         view: args.view(),
         variant: args.variant.as_deref(),
         set: &args.set,
+        pick: &pick,
         crop: args.crop.map(|rect| Crop {
             rect,
             apron: if args.denoising() { DENOISE_APRON } else { 0 },
@@ -591,6 +596,7 @@ mod tests {
                 out: "tmp/a.exr".into(),
                 master: Some("tmp/a.master.png".into()),
                 progress: Progress::Json,
+                pick: Default::default(),
                 trace: Trace::default(),
             }
         );

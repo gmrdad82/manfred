@@ -127,6 +127,39 @@ bank = [[0.0, 6.0], [2.2, 12.0], [4.0, 14.0], [7.8, 10.0]]
 shake = [[0.0, 0.6], [0.65, 1.4], [2.2, 1.0], [4.0, 1.5], [7.8, 1.0], [9.3, 0.5]]
 look_ahead = [[0.0, 0.1], [2.2, 0.2], [4.0, 0.35], [6.8, 0.3], [7.8, 0.2]]
 
+[[camera]]
+name = "top"
+kind = "orthographic"
+position = [-4.6, 400.0, 285.35]
+target = [-4.6, 0.0, 285.35]
+up = [0.0, 0.0, 1.0]
+ortho_height = 634.7
+
+[[stage]]
+name = "street"
+objects = ["road"]
+camera = "top"
+
+[[stage]]
+name = "car"
+objects = ["hero"]
+camera = "top"
+
+[[stage]]
+name = "city"
+objects = ["buildings", "furniture", "traffic1", "traffic2", "traffic3"]
+camera = "top"
+
+[[stage]]
+name = "camera"
+objects = []
+camera = "chase"
+
+[[stage]]
+name = "look"
+objects = ["*"]
+camera = "chase"
+
 [sun]
 model = "daylight"
 hour = 19.13

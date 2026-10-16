@@ -83,7 +83,14 @@ pub fn load(
     set: &[String],
     registry: &Registry,
 ) -> Result<(Recipe, Built), Error> {
-    load_at(path, variant, set, registry, None)
+    load_at(
+        path,
+        variant,
+        set,
+        &manfred_recipe::Pick::default(),
+        registry,
+        None,
+    )
 }
 
 pub fn poses(built: &Built, fps: u32, time: f64) -> std::collections::BTreeMap<String, Matrix> {
@@ -120,6 +127,7 @@ pub fn load_at(
     path: &Path,
     variant: Option<&str>,
     set: &[String],
+    pick: &manfred_recipe::Pick,
     registry: &Registry,
     time: Option<f64>,
 ) -> Result<(Recipe, Built), Error> {
@@ -130,6 +138,7 @@ pub fn load_at(
         None => loaded.recipe,
     };
     let recipe = manfred_recipe::apply_set(&recipe, set).map_err(failed)?;
+    let recipe = pick.apply(&recipe).map_err(failed)?;
     let base = path.parent().unwrap_or(Path::new(""));
     let built =
         manfred_build::build_with(&recipe, base, registry).map_err(|e| Error(e.to_string()))?;

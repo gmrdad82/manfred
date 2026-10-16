@@ -983,6 +983,7 @@ mod tests {
             view: manfred_render::View::Lens,
             variant: None,
             set: &[],
+            pick: &manfred_recipe::Pick::default(),
             crop: None,
             denoise: true,
             time: None,

@@ -14,7 +14,7 @@ use crate::{
     Outline, Output, PathKey, PathKind, Plate, PlateView, Plates, Problem, Profile, ProfileKind,
     Projection, Proxy, REFERENCE_HOUR, RELEASE_EASE, RIG_LOOK, RIG_OFFSET, Recipe, Rig, RigFocus,
     RigShake, RigTracks, Room, RouteSpec, SCHEMA, Shadow, Sky, SkyAmbient, SkyKind, SkyLight, Span,
-    Spring, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use, Uv, Variant,
+    Spring, Stage, Sun, TEXTURE_KEYS, TextSpace, Textures, Timeline, Trace, Use, Uv, Variant,
     VariantOutput, View, Volume,
 };
 
@@ -2452,6 +2452,18 @@ fn read_route(
     Ok(route)
 }
 
+fn read_stage(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Result<Stage, Error> {
+    let path = format!("stage[{}]", label(t, "name", index));
+    let mut tab = Tab::new(cx, t, path, format!("stage#{index}"), line);
+    let stage = Stage {
+        name: tab.req(cx, "name", STR)?,
+        objects: tab.req(cx, "objects", STRS)?,
+        camera: tab.opt(cx, "camera", STR)?,
+    };
+    tab.finish(cx)?;
+    Ok(stage)
+}
+
 fn missing_pair(tab: &Tab<'_>, key: &str, twin: &str, what: &str) -> Error {
     tab.missing(key, &format!("{what}, or `{twin}` in plate pixels"))
 }
@@ -3008,6 +3020,10 @@ fn edited(table: &mut Table, edit: &Edit) -> Result<(), Error> {
             variant,
         } => crate::variant::apply_to_table(table, name, recipe, output, variant.as_ref()),
         Edit::Set(sets) => crate::set::set_in(table, sets),
+        Edit::Keep(globs) => {
+            crate::stage::keep_in(table, globs);
+            Ok(())
+        }
     }
 }
 
@@ -3064,6 +3080,13 @@ fn read_recipe(
             recipe.twins = std::mem::take(&mut cx.twins)
                 .into_iter()
                 .map(|p| cx.src.problem(p))
+                .collect();
+            recipe.keep = edits
+                .iter()
+                .filter_map(|edit| match edit {
+                    Edit::Keep(globs) => Some(globs.clone()),
+                    _ => None,
+                })
                 .collect();
             recipe.files = Files {
                 list: asm.list,
@@ -3151,6 +3174,7 @@ fn read_root(
     let movers = tables(cx, &mut root, "mover", read_mover)?;
     let routes = tables(cx, &mut root, "route", read_route)?;
     let follows = tables(cx, &mut root, "follow", read_follow)?;
+    let stages = tables(cx, &mut root, "stage", read_stage)?;
     let variants = read_variants(cx, &mut root)?;
     let sidecar = read_sidecar(cx, &mut root)?;
     let look = read_look(cx, &mut root)?;
@@ -3216,6 +3240,8 @@ fn read_root(
         movers,
         routes,
         follows,
+        stages,
+        keep: Vec::new(),
         variants,
         sidecar,
         look,

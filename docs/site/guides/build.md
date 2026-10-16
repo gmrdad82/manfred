@@ -52,6 +52,16 @@ manfred build desk.toml --all-variants     # the recipe, then every variant in n
 
 `drop` removes objects by glob; `set` and `remove` take dotted paths, with an entry of an array of tables addressed by its name (`camera.main.fov_y_deg`, `light.lamp`). A variant's name goes before the last extension of each file name, unless `[variant.<name>.output]` names its files.
 
+A recipe's `[[stage]]`s build the scene up one step at a time:
+
+```sh
+manfred build street.toml --stage 1        # the first stage's objects only
+manfred build street.toml --stage city     # stages 1 to city, the rest dropped
+manfred build street.toml --only road,hero # only these objects (globs, or <object>.<piece>)
+```
+
+The generators `manfred/road`, `manfred/buildings` and `manfred/furniture` take `reveal = 0..1` to build only the part of the street from the route's start up to that share of its length.
+
 ## One-off overrides
 
 `--set key=value` replaces a value the recipe already has (or adds a mesh object's morph weight, `object.<name>.morph.<target>`), for that run only; the file is never written. `build`, `shot`, `render` and `clip` take it, as often as needed:

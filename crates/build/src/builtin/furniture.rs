@@ -13,7 +13,7 @@ const LAMP_OFF: &str = "furniture_lamp_off";
 const WIRE: &str = "furniture_wire";
 const SIGN: &str = "furniture_sign";
 const SIGNAL: &str = "furniture_signal";
-const KEYS: [&str; 18] = [
+const KEYS: [&str; 19] = [
     "route",
     "offset",
     "spacing",
@@ -32,6 +32,7 @@ const KEYS: [&str; 18] = [
     "color",
     "cone",
     "signs",
+    "reveal",
 ];
 const WIRE_SEGMENTS: usize = 12;
 const CLEAR: f64 = 3.5;
@@ -56,6 +57,7 @@ pub(crate) struct Params {
     pub color: [f64; 3],
     pub cone: [f64; 2],
     pub signs: f64,
+    pub reveal: f64,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -200,6 +202,7 @@ impl Params {
             color: numbers(params, "color", [1.0, 0.72, 0.42])?,
             cone: numbers(params, "cone", [35.0, 60.0])?,
             signs: number(params, "signs", 0.2)?,
+            reveal: number(params, "reveal", 1.0)?,
         };
         read.check()?;
         Ok(read)
@@ -213,6 +216,12 @@ impl Params {
                 Err(format!("params.{key}: expected {want}, found {found}"))
             }
         };
+        refuse(
+            (0.0..=1.0).contains(&self.reveal),
+            "reveal",
+            "a fraction of the route from 0 to 1",
+            self.reveal.to_string(),
+        )?;
         refuse(
             self.offset > 0.0,
             "offset",
@@ -532,14 +541,14 @@ fn sign(route: &Route, distance: f64, side: f64, p: &Params, rng: &mut Rng, into
     ));
 }
 
-fn extras(route: &Route, poles: &[Pole], p: &Params) -> Mesh {
+fn extras(route: &Route, poles: &[Pole], p: &Params, reach: f64) -> Mesh {
     let mut out = Mesh::default();
     if !p.extras {
         return out;
     }
     let length = route.length();
     for &crossing in &p.crosswalks {
-        if (0.0..=length).contains(&crossing) {
+        if (0.0..=length).contains(&crossing) && crossing < reach {
             for &side in &p.sides {
                 signal(route, crossing, side, p, &mut out);
             }
@@ -552,7 +561,7 @@ fn extras(route: &Route, poles: &[Pole], p: &Params) -> Mesh {
             continue;
         }
         let distance = (a.distance + b.distance) * 0.5;
-        if p.crosswalks.iter().all(|c| (distance - c).abs() > 6.0) {
+        if distance < reach && p.crosswalks.iter().all(|c| (distance - c).abs() > 6.0) {
             sign(route, distance, a.side, p, &mut rng, &mut out);
         }
     }
@@ -589,7 +598,18 @@ fn materials() -> BTreeMap<String, Value> {
 }
 
 pub(crate) fn furnish(route: &Route, object: &str, p: &Params) -> Generated {
-    let mut poles = poles(route, p);
+    let all = poles(route, p);
+    let whole = p.reveal >= 1.0;
+    let reach = if whole {
+        f64::INFINITY
+    } else {
+        p.reveal * route.length()
+    };
+    let mut poles: Vec<Pole> = all
+        .iter()
+        .filter(|pole| pole.distance < reach)
+        .cloned()
+        .collect();
     let mut posts = Mesh::default();
     let mut lamps = Mesh::default();
     for pole in &poles {
@@ -598,14 +618,14 @@ pub(crate) fn furnish(route: &Route, object: &str, p: &Params) -> Generated {
     }
     let mut cables = Mesh::default();
     if p.wires {
-        for path in wires(&poles, p, route.closed()) {
+        for path in wires(&poles, p, route.closed() && whole) {
             let path: Vec<[f64; 3]> = path.iter().map(|v| v.to_array()).collect();
             let mut wire = sweep(&path, &[0.012], 4, false, false);
             wire.set_material(WIRE);
             cables.append(&wire);
         }
     }
-    let extra = extras(route, &poles, p);
+    let extra = extras(route, &all, p, reach);
     let mut used = std::collections::BTreeSet::new();
     let mut pieces = Vec::new();
     for (suffix, mesh) in [
@@ -667,6 +687,27 @@ mod tests {
             map.extend(more);
         }
         Params::read(&map, 7).unwrap()
+    }
+
+    #[test]
+    fn a_reveal_builds_the_furniture_before_its_share_and_one_builds_it_all() {
+        let p = params(json!({"crosswalks": [100.0, 250.0]}));
+        let whole = furnish(&route(), "f", &p);
+        let one = furnish(
+            &route(),
+            "f",
+            &params(json!({"crosswalks": [100.0, 250.0], "reveal": 1.0})),
+        );
+        assert_eq!(format!("{whole:?}"), format!("{one:?}"));
+        let half = furnish(
+            &route(),
+            "f",
+            &params(json!({"crosswalks": [100.0, 250.0], "reveal": 0.5})),
+        );
+        let share = half.lights.len() as f64 / whole.lights.len() as f64;
+        assert!((0.3..0.7).contains(&share), "{share}");
+        let none = furnish(&route(), "f", &params(json!({"reveal": 0.0})));
+        assert!(none.pieces.is_empty() && none.lights.is_empty());
     }
 
     #[test]

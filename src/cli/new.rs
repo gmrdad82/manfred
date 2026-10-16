@@ -56,6 +56,7 @@ const LATITUDE: f64 = 44.4;
 const SUN_ELEVATION_DEG: f64 = 5.0;
 const EYE: f64 = 0.75;
 const FOV_Y_DEG: f64 = 80.0;
+const TOP_HEIGHT: f64 = 400.0;
 const ASPECT: f64 = 1080.0 / 1920.0;
 const CAR_SHARE: f64 = 0.375;
 const CAR_DOWN: f64 = 0.6;
@@ -371,6 +372,62 @@ fn follow_hero(w: &mut String) {
     let _ = writeln!(w);
 }
 
+fn top_camera(w: &mut String, route: &[[f64; 3]]) {
+    let (mut lo, mut hi) = ([f64::MAX; 2], [f64::MIN; 2]);
+    for p in route {
+        lo = [lo[0].min(p[0]), lo[1].min(p[2])];
+        hi = [hi[0].max(p[0]), hi[1].max(p[2])];
+    }
+    let margin = 2.0 * (SETBACK + 20.0);
+    let centre = [
+        round(0.5 * (lo[0] + hi[0]), 2),
+        round(0.5 * (lo[1] + hi[1]), 2),
+    ];
+    let tall = (hi[1] - lo[1] + margin).max((hi[0] - lo[0] + margin) / ASPECT);
+    let _ = writeln!(w, "[[camera]]");
+    let _ = writeln!(w, "name = \"top\"");
+    let _ = writeln!(w, "kind = \"orthographic\"");
+    let _ = writeln!(
+        w,
+        "position = {}",
+        point([centre[0], round(TOP_HEIGHT, 1), centre[1]])
+    );
+    let _ = writeln!(w, "target = {}", point([centre[0], 0.0, centre[1]]));
+    let _ = writeln!(w, "up = [0.0, 0.0, 1.0]");
+    let _ = writeln!(w, "ortho_height = {}", num(round(tall, 1)));
+    let _ = writeln!(w);
+}
+
+fn stages(w: &mut String, traffic: &[(String, f64, f64)]) {
+    let city: Vec<String> = ["buildings", "furniture"]
+        .iter()
+        .map(|name| name.to_string())
+        .chain(traffic.iter().map(|(name, _, _)| name.clone()))
+        .collect();
+    let list = |names: &[String]| {
+        names
+            .iter()
+            .map(|name| format!("\"{name}\""))
+            .collect::<Vec<_>>()
+            .join(", ")
+    };
+    for (name, objects, camera) in [
+        ("street", list(&["road".to_string()]), Some("top")),
+        ("car", list(&["hero".to_string()]), Some("top")),
+        ("city", list(&city), Some("top")),
+        ("camera", String::new(), Some("chase")),
+        ("look", list(&["*".to_string()]), Some("chase")),
+    ] {
+        let _ = writeln!(w, "[[stage]]");
+        let _ = writeln!(w, "name = \"{name}\"");
+        let _ = writeln!(w, "objects = [{objects}]");
+        if let Some(camera) = camera {
+            let _ = writeln!(w, "camera = \"{camera}\"");
+        }
+        let _ = writeln!(w);
+    }
+}
+
 pub(super) fn street(seed: u64) -> Made {
     let route = route(seed);
     let mut random = Random::new(seed.wrapping_add(0x5eed) as i64);
@@ -514,6 +571,8 @@ pub(super) fn street(seed: u64) -> Made {
         .collect();
     cinematic(w, &car, &crosswalks);
     let _ = writeln!(w);
+    top_camera(w, &route);
+    stages(w, &traffic);
     let low = sun(&route);
     let _ = writeln!(w, "[sun]");
     let _ = writeln!(w, "model = \"daylight\"");
@@ -753,6 +812,23 @@ mod tests {
     }
 
     #[test]
+    fn the_street_breaks_into_five_stages_from_the_road_to_the_look() {
+        let recipe = manfred_recipe::parse(&street(1).text).unwrap();
+        let names: Vec<&str> = recipe.stages.iter().map(|s| s.name.as_str()).collect();
+        assert_eq!(names, ["street", "car", "city", "camera", "look"]);
+        let road = manfred_recipe::apply_stage(&recipe, "1").unwrap();
+        let kept: Vec<&str> = road.objects.iter().map(|o| o.name.as_str()).collect();
+        assert_eq!(kept, ["road"]);
+        assert_eq!(manfred_recipe::validate(&road), []);
+        assert_eq!(
+            manfred_recipe::apply_stage(&recipe, "city").unwrap(),
+            manfred_recipe::apply_stage(&recipe, "3").unwrap()
+        );
+        let look = manfred_recipe::apply_stage(&recipe, "look").unwrap();
+        assert_eq!(look.objects.len(), recipe.objects.len());
+    }
+
+    #[test]
     fn the_street_loads_checks_clean_and_sprays_from_the_body_behind_the_rear_wheels() {
         let recipe = manfred_recipe::parse(&street(1).text).unwrap();
         assert_eq!(manfred_recipe::validate(&recipe), []);
@@ -875,7 +951,7 @@ mod tests {
                 tables("camera"),
                 tables("particles")
             ),
-            (1, 7, 4, 1, 2)
+            (1, 7, 4, 2, 2)
         );
         let points = doc["route"][0]["points"].as_array().unwrap();
         assert_eq!(points.len(), POINTS);

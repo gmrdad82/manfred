@@ -108,6 +108,7 @@ pub struct Request<'a> {
     pub view: View,
     pub variant: Option<&'a str>,
     pub set: &'a [String],
+    pub pick: &'a manfred_recipe::Pick,
     pub crop: Option<Crop>,
     pub denoise: bool,
     pub time: Option<f64>,
@@ -366,6 +367,7 @@ pub fn render(
         request.recipe,
         request.variant,
         request.set,
+        request.pick,
         registry,
         request.time,
     )?;
@@ -1034,6 +1036,7 @@ mod tests {
             view: View::Lens,
             variant: None,
             set: &[],
+            pick: &manfred_recipe::Pick::default(),
             crop: None,
             denoise: false,
             time: None,

@@ -33,6 +33,8 @@ pub(super) struct Args {
         help = "Write every file into this folder instead of the recipe's [output] paths"
     )]
     out: Option<PathBuf>,
+    #[command(flatten)]
+    pick: super::Picks,
 }
 
 fn recipes(loaded: Loaded, args: &Args) -> Result<Vec<Recipe>, Error> {
@@ -50,7 +52,7 @@ fn recipes(loaded: Loaded, args: &Args) -> Result<Vec<Recipe>, Error> {
     }
     recipes
         .iter()
-        .map(|recipe| apply_set(recipe, &args.set))
+        .map(|recipe| apply_set(recipe, &args.set).and_then(|set| args.pick.pick().apply(&set)))
         .collect()
 }
 

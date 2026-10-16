@@ -7,9 +7,9 @@ use std::collections::BTreeMap;
 
 pub const NAME: &str = "manfred/buildings";
 
-const PARAMS: [&str; 12] = [
+const PARAMS: [&str; 13] = [
     "route", "side", "style", "setback", "block", "height", "depth", "gap", "storey", "window",
-    "lit", "seed",
+    "lit", "seed", "reveal",
 ];
 
 const STEP: f64 = 0.5;
@@ -223,6 +223,7 @@ pub struct Params {
     pub window_spacing: f64,
     pub lit: f64,
     pub seed: Option<u64>,
+    pub reveal: f64,
 }
 
 impl Params {
@@ -298,6 +299,7 @@ impl Params {
             window_spacing,
             lit: number(params, "lit", if towers { 0.06 } else { 0.03 }, 0.0, 1.0)?,
             seed,
+            reveal: number(params, "reveal", 1.0, 0.0, 1.0)?,
         })
     }
 }
@@ -661,6 +663,9 @@ pub fn street(object: &str, route: &Route, params: &Params, seed: u64) -> Genera
             let at = d;
             d += w + gap;
             if w < params.block[0] - 1e-9 {
+                break;
+            }
+            if params.reveal < 1.0 && at >= params.reveal * length {
                 break;
             }
             let frame = route.at(at + w * 0.5);
@@ -1168,6 +1173,19 @@ mod tests {
         for style in ["towers", "lowrise"] {
             check(style);
         }
+    }
+
+    #[test]
+    fn a_reveal_builds_the_buildings_that_start_before_its_share_and_one_builds_them_all() {
+        let count = |g: &Generated| g.facts["buildings"]["count"].as_f64().unwrap();
+        let whole = street("street", &route(), &params(json!({})), 7);
+        let one = street("street", &route(), &params(json!({ "reveal": 1.0 })), 7);
+        assert_eq!(format!("{whole:?}"), format!("{one:?}"));
+        let half = street("street", &route(), &params(json!({ "reveal": 0.5 })), 7);
+        let share = count(&half) / count(&whole);
+        assert!((0.35..0.65).contains(&share), "{share}");
+        let none = street("street", &route(), &params(json!({ "reveal": 0.0 })), 7);
+        assert!(none.pieces.is_empty());
     }
 
     #[test]

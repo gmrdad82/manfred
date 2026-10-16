@@ -208,19 +208,19 @@ manfred gui desk.toml                                           opens the window
 ## Commands
 
 ```
-manfred build <recipe> [--variant <name> | --all-variants] [--set key=value]... [--out <dir>]
-                                                          recipe to GLB, sidecar and bake recipe
+manfred build <recipe> [--variant <name> | --all-variants] [--set key=value]... [--stage N|name] [--only <glob>[,<glob>]] [--out <dir>]
+                                                          recipe to GLB, sidecar and bake recipe; --stage builds stages 1 to N, --only those objects or pieces
 manfred check <recipe>                                       validate and list problems
 manfred diff <a.glb> <b.glb> [--json] [--render --recipe <recipe> [--camera <name>] [--size WxH] [--floor <dB>]]
                                                           structure, side by side, or both drawn alike and compared by PSNR
-manfred shot <recipe> --camera <name> --size WxH --out <png> [--variant <name>] [--set key=value]... [--time S]
+manfred shot <recipe> --camera <name> --size WxH --out <png> [--variant <name>] [--set key=value]... [--stage N|name] [--only <glob>,...] [--time S]
                                                           one still on the live renderer, headless; --set overrides a value the recipe has
-manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--crop x,y,w,h] [--variant V] [--set key=value]... [--time S] [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file.png|file.exr|file.hdr>
+manfred render <recipe> --camera <name> [--spp N] [--threshold T] [--min-samples N] [--draft] [--seed S] [--size WxH] [--equirect|--ortho] [--crop x,y,w,h] [--variant V] [--set key=value]... [--stage N|name] [--only <glob>,...] [--time S] [--denoise off|on] [--master <file.png>] [--progress plain|json] --out <file.png|file.exr|file.hdr>
                                                           path-traced on the engine's tracer
 manfred clip <recipe> --camera <name> (--frames N --fps F [--spin <object> [--turns N]] | --timeline) --size WxH --out <dir> [--trace [--spp N]] [--variant V] [--set key=value]... [--video <file.mp4|file.webm>]
                                                           a camera moving along the recipe's path, as frames and a video
 manfred new street [--seed N] [--out <file.toml>] [--json]
-                                                          writes a starter chase shot: a 9:16 timeline, a route, a low-rise street, a drifting hero car, traffic, a low chase camera, road spray behind each rear wheel, a golden-hour sun about 5 degrees up dead ahead down the route (its hour and heading from the daylight model) and lilac.cube beside the recipe, a lilac grade the scene copies beside itself when it is built
+                                                          writes a starter chase shot: a 9:16 timeline, a route, a low-rise street, a drifting hero car, traffic, a low chase camera, road spray behind each rear wheel, a golden-hour sun about 5 degrees up dead ahead down the route (its hour and heading from the daylight model), a top camera over the route, five stages (street, car, city, camera, look) and lilac.cube beside the recipe, a lilac grade the scene copies beside itself when it is built
 manfred timeline <recipe> [--json]                           builds the recipe and reports its frames, keyed nodes, camera node and each followed object's distance and top speed
 manfred shoot <recipe> --out <dir> [--draft|--final] [--range a..b] [--camera <name>] [--json]
                                                           builds the recipe and renders its timeline with `pfx shot` on the live renderer: frames, the scene's sound as a WAV and shoot.json; resumes where it stopped

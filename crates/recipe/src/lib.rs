@@ -8,6 +8,7 @@ mod path;
 mod read;
 mod route;
 mod set;
+mod stage;
 mod text;
 mod validate;
 mod variant;
@@ -22,6 +23,7 @@ pub use read::effects::{Colour, Effects, Particles, Setting, Settings};
 pub use read::{load, materials, parse};
 pub use route::{PointEdit, route_patch};
 pub use set::{Change, apply_set, json_of, set_values, tidy, value_of};
+pub use stage::{Pick, apply_only, apply_stage, stage_index};
 pub use text::{ANCHORS, MONO, anchor_names, anchor_point, default_anchor};
 pub use validate::{bake_product, missing_material_text, slug, validate};
 pub use variant::apply_variant;
@@ -58,6 +60,8 @@ pub struct Recipe {
     pub movers: Vec<Mover>,
     pub routes: Vec<RouteSpec>,
     pub follows: Vec<Follow>,
+    pub stages: Vec<Stage>,
+    pub keep: Vec<Vec<String>>,
     pub variants: BTreeMap<String, Variant>,
     pub sidecar: serde_json::Map<String, serde_json::Value>,
     pub look: Option<Look>,
@@ -630,6 +634,13 @@ pub struct Follow {
     pub ride: f64,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Stage {
+    pub name: String,
+    pub objects: Vec<String>,
+    pub camera: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Drift {
     pub amount: f64,
@@ -965,6 +976,14 @@ impl Recipe {
             }
         }
         false
+    }
+
+    pub fn keeps(&self, object: &str, node: &str) -> bool {
+        self.keep.iter().all(|globs| {
+            globs
+                .iter()
+                .any(|g| variant::glob_matches(g, object) || variant::glob_matches(g, node))
+        })
     }
 
     pub fn route(&self, name: &str) -> Option<&RouteSpec> {
