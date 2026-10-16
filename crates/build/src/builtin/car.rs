@@ -477,6 +477,7 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
         pieces,
         facts,
         materials,
+        ..Generated::default()
     })
 }
 

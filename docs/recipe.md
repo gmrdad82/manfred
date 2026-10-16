@@ -389,8 +389,34 @@ silhouettes = { side = [[-1.0, 0.2], [0.0, 0.5], [1.0, 0.15]], top = [[-1.0, 0.2
   - `seed`: a whole number. The loft has no random part, so it changes nothing.
 - **How it is built:** every column of the stations' points (the same index on each) is interpolated by a B-spline of degree 3 (or the station count less one) with the stations' `at` as its parameters and knots by averaging, so each ring is a plane section at its own place along the axis; the rings close with an n-gon cap at each end. The cage is fitted to the silhouettes, subdivided with OpenSubdiv's Catmull-Clark rules (smooth, crease and corner vertex rules, semi-sharp edges blended by their fractional sharpness, uniform sharpness decrement), fitted again, and triangulated. Normals are smooth, split along every edge still at least 1 sharp after the last level. UVs: u is metres along the axis from the first station, v metres round the girth from the lower centre line, with a seam there.
 - **Piece:** one, named as the object, a closed mesh with every edge shared by two triangles, in the `loft` material (a grey lacquer the generator returns) unless the object sets `material`. 32 around, 40 along and `subdivide = 2` make about 40,000 triangles.
-- **Facts:** `loft = { length, width, height, stations }`: the built extents in metres along the axis, across (a) and up (b), and the station count.
+- **Facts:** `loft = { length, width, height, stations }`: the built extents in metres along the axis, across (a) and up (b), and the station count. With `hinged` panels it adds `hinged = { <name> = { pivot, axis } }`, each panel's hinge midpoint and unit axis in the object's frame; the panel's node `<object>.<name>` sits at that pivot, so opening it is a rotation of the node about `axis`.
 - **Deterministic:** the same params build the same bytes. `showcase/loft-car.toml` lofts a made-up fastback coupe along z from fifteen half stations with a shoulder crease and all four silhouettes; `showcase/loft-bottle.toml` lofts a plain bottle up y, its profile held by the side and top silhouettes.
+
+### Regions, grooves and hinged panels
+
+Three general modelling tools carve a finished mesh: a window band on a fuselage, a waterline groove on a hull, a door cut in a house wall, a label region on a bottle. `manfred/loft` takes them as params on its body, applied in this order: `regions`, then `grooves`, then `hinged`; an app's generator calls the same tools on any mesh piece through `manfred_build::carve`.
+
+Each draws a 2D curve in one view: `side` looks across the mesh with points `[along, up]`, `top` looks down with `[along, across]`, `front` looks back along the axis from its far end with `[across, up]` and `rear` looks forward from its near end with `[across, up]`. On a loft the axes follow its `axis` (along it, with up the world's +Y, or +Z when the axis is vertical, and across = up × along); on any other mesh they are the world's: along +Z, up +Y, across +X, so `side` is `[z, y]` seen from +X, `top` `[z, x]`, `front` `[x, y]` seen from +Z and `rear` `[x, y]` seen from -Z. A curve picks the triangles that face its view and whose centre falls inside it, and the mesh is cut exactly along the curve first, so the split follows the drawn line and the parts meet edge to edge with no cracks. A `side` curve picks both sides, as a lofted body is mirrored across.
+
+```toml
+params.regions = [
+  { name = "windows", view = "side", material = "glass", curve = [[-6.0, 1.1], [6.0, 1.1], [6.0, 1.5], [-6.0, 1.5]] },
+  { name = "vent", view = "top", mode = "cut", lip = 0.03, curve = [[2.0, -0.2], [2.4, -0.2], [2.4, 0.2], [2.0, 0.2]] },
+]
+params.grooves = [
+  { name = "waterline", view = "side", width = 0.02, depth = 0.006, profile = "u", curve = [[-8.0, 0.4], [8.0, 0.4]] },
+  { name = "hatch_gap", view = "side", width = 0.006, depth = 0.004, curve = [[-1.0, 0.3], [0.2, 0.3], [0.2, 1.4], [-1.0, 1.4], [-1.0, 0.3]] },
+]
+params.hinged = [{ name = "hatch", gap = "hatch_gap", hinge = [[1.2, 0.3, 0.2], [1.2, 1.4, 0.2]] }]
+```
+
+- **`regions`:** `name` (unique), `view`, `curve` (at least 3 points, closed by itself; a repeated last point is dropped), `material` (optional) and `mode`:
+  - `"surface"` (the default) splits the picked triangles off into the piece `<object>.<name>`, given `material` when it is set and keeping the mesh's materials when not. The piece and the rest together cover exactly the surface there was.
+  - `"cut"` removes them and turns the opening's edge inward by `lip` metres (default 0.02; 0 leaves a bare hole) along the surface normal, so an opening shows a wall instead of a paper-thin edge. The lip's inner edge is one closed loop per opening.
+- **`grooves`:** `name` (unique), `view`, `curve` (at least 2 points; open, or closed when its last point repeats its first), `width` (metres, above 0), `depth` (metres) and `profile`: `"v"` (the default, straight walls, flat-shaded) or `"u"` (a rounded channel, smooth-shaded). The surface within half the width of the curve sinks along the view's axis, by `depth` on the curve and by nothing at the edges; the mesh is cut along the curve and along lines either side of it first, so the groove keeps its shape on a coarse mesh. A seam, a shut line or a panel gap is a groove.
+- **`hinged`:** any hinged panel, such as a door, a hatch or a lid: `name` (unique), `gap` (a groove whose curve encloses the panel) and `hinge`, two distinct points `[[x, y, z], [x, y, z]]` on the hinge line. The surface inside the gap, on the hinge's side for a `side` gap, splits off into the node `<object>.<name>`, pivoting at the hinge's midpoint, so opening it is a rotation of that node about the hinge line. List one panel per side; the same groove serves both.
+- **Refused:** an unknown field, a missing `name`, `view`, `curve`, `width`, `depth`, `gap` or `hinge`, a name used twice in one list, a curve with too few points or a non-number in it, a negative `lip` or `depth`, a `gap` that names no groove (the error lists the grooves) or encloses none of the mesh, and a hinge of one point; each error names its path, as in ``params.hinged.0.gap: no groove `gap`, expected one of: waterline, hatch_gap``.
+- **Deterministic:** the same mesh and params give the same bytes.
 
 ### Levels of detail
 

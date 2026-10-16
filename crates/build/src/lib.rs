@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 mod bake;
 pub mod builtin;
+pub mod carve;
 pub mod detail_uv;
 mod extras;
 mod facts;
@@ -92,6 +93,7 @@ pub struct Generated {
     pub facts: serde_json::Map<String, serde_json::Value>,
     pub materials: BTreeMap<String, serde_json::Value>,
     pub lights: Vec<GeneratedLight>,
+    pub pivots: BTreeMap<String, [f64; 3]>,
 }
 
 pub type FactsGenerator = fn(&Call) -> Result<Generated, String>;
@@ -892,6 +894,7 @@ fn make(
         facts,
         materials,
         lights,
+        pivots,
     } = generated;
     let mut made = Made {
         nodes: Vec::with_capacity(pieces.len()),
@@ -930,6 +933,23 @@ fn make(
             DMat4::IDENTITY
         };
         shape::normals(object, &mut mesh, morph.as_mut());
+        let (transform, keep_transform) = match pivots.get(&name) {
+            Some(&pivot) => {
+                let local = DVec3::from(pivot);
+                let at = if object.keep_transform {
+                    local
+                } else {
+                    matrix.transform_point3(local)
+                };
+                let back = DMat4::from_translation(-at);
+                manfred_mesh::transform(&mut mesh, back);
+                if let Some(morph) = morph.as_mut() {
+                    morph.transform(back);
+                }
+                (transform * DMat4::from_translation(at), true)
+            }
+            None => (transform, object.keep_transform),
+        };
         let targets = morph.map(|morph| {
             let base = mesh.clone();
             morph.pose(&mut mesh);
@@ -939,7 +959,7 @@ fn make(
             name,
             mesh,
             transform,
-            keep_transform: object.keep_transform,
+            keep_transform,
             targets,
         };
         let of = made.nodes.len();

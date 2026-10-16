@@ -1,3 +1,4 @@
+use crate::carve::{Frame, grooves, hinged, regions};
 use crate::{Call, Generated, Piece};
 use glam::{DVec2, DVec3};
 use manfred_mesh::{Mesh, Slot};
@@ -7,13 +8,16 @@ use std::f64::consts::{PI, TAU};
 
 pub const NAME: &str = "manfred/loft";
 
-const PARAMS: [&str; 6] = [
+const PARAMS: [&str; 9] = [
     "axis",
     "stations",
     "silhouettes",
     "subdivide",
     "samples",
     "seed",
+    "regions",
+    "grooves",
+    "hinged",
 ];
 const STATION: [&str; 5] = ["at", "curve", "half", "crease", "sharpness"];
 const VIEWS: [&str; 4] = ["side", "top", "front", "rear"];
@@ -43,6 +47,14 @@ pub enum Axis {
 }
 
 impl Axis {
+    fn vector(self) -> DVec3 {
+        match self {
+            Axis::X => DVec3::X,
+            Axis::Y => DVec3::Y,
+            Axis::Z => DVec3::Z,
+        }
+    }
+
     fn place(self, m: &mut Mesh) {
         let swap = match self {
             Axis::Z => return,
@@ -69,28 +81,64 @@ pub struct Loft {
 
 pub fn generate(call: &Call) -> Result<Generated, String> {
     let loft = parse(call.params)?;
+    let cut_regions = regions::parse(call.params.get("regions"), "params.regions")?;
+    let cut_grooves = grooves::parse(call.params.get("grooves"), "params.grooves")?;
+    let panels = hinged::parse(call.params.get("hinged"), "params.hinged", &cut_grooves)?;
     let mut surface = loft.build()?;
     let name = &call.object.name;
     let [lo, hi] = bounds(&surface);
     loft.axis.place(&mut surface);
-    let Value::Object(facts) = json!({
-        "loft": {
-            "length": hi[2] - lo[2],
-            "width": hi[0] - lo[0],
-            "height": hi[1] - lo[1],
-            "stations": loft.stations.len(),
-        }
-    }) else {
+    let frame = Frame::along(loft.axis.vector()).unwrap_or(Frame::WORLD);
+    let mut pieces = Vec::new();
+    for piece in regions::apply(&mut surface, &cut_regions, frame) {
+        pieces.push(Piece {
+            name: format!("{name}.{}", piece.name),
+            mesh: piece.mesh,
+        });
+    }
+    grooves::apply(&mut surface, &cut_grooves, frame);
+    let mut pivots = BTreeMap::new();
+    let mut opened = serde_json::Map::new();
+    for ((piece, pivot), panel) in hinged::split(&mut surface, &panels, &cut_grooves, frame)?
+        .into_iter()
+        .zip(&panels)
+    {
+        let node = format!("{name}.{}", piece.name);
+        pivots.insert(node.clone(), pivot.to_array());
+        opened.insert(
+            panel.name.clone(),
+            json!({ "pivot": pivot.to_array(), "axis": panel.axis().to_array() }),
+        );
+        pieces.push(Piece {
+            name: node,
+            mesh: piece.mesh,
+        });
+    }
+    pieces.insert(
+        0,
+        Piece {
+            name: name.clone(),
+            mesh: surface,
+        },
+    );
+    let mut loft_facts = json!({
+        "length": hi[2] - lo[2],
+        "width": hi[0] - lo[0],
+        "height": hi[1] - lo[1],
+        "stations": loft.stations.len(),
+    });
+    if !opened.is_empty() {
+        loft_facts["hinged"] = Value::Object(opened);
+    }
+    let Value::Object(facts) = json!({ "loft": loft_facts }) else {
         unreachable!()
     };
     Ok(Generated {
-        pieces: vec![Piece {
-            name: name.clone(),
-            mesh: surface,
-        }],
+        pieces,
         facts,
         materials: materials(),
-        lights: Vec::new(),
+        pivots,
+        ..Generated::default()
     })
 }
 
