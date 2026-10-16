@@ -2,9 +2,19 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 assets="${PITO_ASSETS:?PITO_ASSETS names the checkout of the PITO MD brand masters}"
-rev=df8903f179657cb36ca89268a37383e1ecb967be
-mkdir -p assets/marks .github
+rev=e41a9fbf67a424aa96deee605be370dc81336af5
+mkdir -p assets/marks/icons .github
 for file in manfred.svg wordmark.svg lockup.svg manfred-icon.png; do
   git -C "$assets" show "$rev:exports/manfred/assets/marks/$file" > "assets/marks/$file"
 done
 git -C "$assets" show "$rev:exports/manfred/.github/icon.png" > .github/icon.png
+for size in 16 22 24 32 48 64 128 256 512; do
+  git -C "$assets" show "$rev:exports/manfred/assets/marks/icons/manfred-$size.png" > "assets/marks/icons/manfred-$size.png"
+  for dir in "share/icons/hicolor/${size}x${size}/apps" "share/icons/hicolor/${size}x${size}/mimetypes"; do
+    mkdir -p "$dir"
+  done
+  cp "assets/marks/icons/manfred-$size.png" "share/icons/hicolor/${size}x${size}/apps/manfred.png"
+  cp "assets/marks/icons/manfred-$size.png" "share/icons/hicolor/${size}x${size}/mimetypes/application-x-manfred.png"
+done
+cp assets/marks/manfred.svg share/icons/hicolor/scalable/apps/manfred.svg
+cp assets/marks/manfred.svg share/icons/hicolor/scalable/mimetypes/application-x-manfred.svg

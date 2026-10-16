@@ -92,14 +92,30 @@ The machine is a Ryzen 9 9950X with a Radeon RX 9060 XT (RADV) on Linux. GPU com
 
 ## Install
 
-Manfred runs on Linux (x86_64) with a Vulkan GPU, and its window needs Wayland. It is built on [pfx](https://github.com/gmrdad82/pfx), and Windows and macOS are not supported today. Each [release](https://github.com/gmrdad82/manfred/releases/latest) carries a Linux binary with a `SHA256SUMS` file; it needs glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and later).
+Manfred is built on [pfx](https://github.com/gmrdad82/pfx). Each [release](https://github.com/gmrdad82/manfred/releases/latest) carries Linux (x86_64), Windows (x86_64) and macOS (Apple Silicon) builds with one `SHA256SUMS` file.
+
+**Linux.** The binary needs a Vulkan GPU, Wayland for the window, and glibc 2.39 or newer (Ubuntu 24.04, Debian 13, Fedora 40 and later).
 
 ```
 v=$(basename "$(curl -fsSLo /dev/null -w '%{url_effective}' https://github.com/gmrdad82/manfred/releases/latest)")
 mkdir -p ~/.local/bin && curl -fsSL "https://github.com/gmrdad82/manfred/releases/download/$v/manfred-$v-linux-x86_64.tar.gz" | tar -xz -C ~/.local/bin manfred
 ```
 
-`~/.local/bin` needs to be on your `PATH`. Then, in 30 seconds:
+`~/.local/bin` needs to be on your `PATH`.
+
+**Windows.** Run `Manfred-vX.Y.Z-Setup.exe` from the release. It is unsigned, so SmartScreen asks first (More info, then Run anyway). It installs per machine into `C:\Program Files\Manfred`, adds a Start-menu shortcut (and a desktop one, a checked option), registers `.manf`, and appends `C:\Program Files\Manfred` to the machine `Path`, so `manfred` runs in any terminal opened afterwards, Claude Code's included. `/S` installs silently; uninstalling takes the folder back off the `Path`. `manfred-vX.Y.Z-windows-x86_64.zip` holds `manfred.exe` alone, for a manual install.
+
+**macOS.** Unzip `manfred-vX.Y.Z-macos-arm64.app.zip` from the release and move `Manfred.app` to Applications. The release's app is unsigned, so the first open needs System Settings, Privacy & Security, Open Anyway. On its first launch it offers once to install the `manfred` command, the way an editor's "Install command in PATH" does: a `/usr/local/bin/manfred` link into the app, made through the administrator prompt. `/usr/local/bin` is on macOS's default `PATH`, so `manfred` then runs in any new terminal, Claude Code's included. Help, Install the manfred command, in the window does it later (or removes it), and so does `/Applications/Manfred.app/Contents/MacOS/manfred-desk --install-cli` (or `--remove-cli`). `manfred-vX.Y.Z-macos-arm64.tar.gz` holds `manfred` alone.
+
+**`manfred` in a terminal, by hand.** When an installer's step was skipped or declined:
+
+- Linux: pci's installer links `~/.local/bin/manfred`; otherwise put `manfred` in `~/.local/bin` and keep that folder on your `PATH` (`export PATH="$HOME/.local/bin:$PATH"` in `~/.bashrc` or `~/.zshrc`).
+- macOS: `sudo ln -sf /Applications/Manfred.app/Contents/MacOS/manfred /usr/local/bin/manfred`, or `export PATH="/Applications/Manfred.app/Contents/MacOS:$PATH"` in `~/.zshrc`.
+- Windows: add `C:\Program Files\Manfred` to `Path` in Environment Variables (Start, "Edit the system environment variables", Environment Variables, `Path`, New), the safe way. `setx PATH "%PATH%;C:\Program Files\Manfred"` works too, but `setx` cuts what it writes at 1,024 characters and writes the machine and user entries together into the user `Path`, so a long `PATH` loses its end; prefer the dialog.
+
+Check each with `manfred --version` in a new terminal.
+
+Then, in 30 seconds:
 
 ```
 manfred gui                                               the window, on Manfred's own mark; Ctrl+O opens a recipe
@@ -115,6 +131,8 @@ cargo install --locked --git https://github.com/gmrdad82/manfred --tag vX.Y.Z ma
 ```
 
 Replace `vX.Y.Z` with a [release](https://github.com/gmrdad82/manfred/releases) tag.
+
+**The .manf file type.** The release archive carries a `share/` tree (the `application/x-manfred` type for `*.manf`, a `manfred.desktop` launcher and Manfred's mark as the icon). Unpack the archive and run `bin/register-filetypes` (it works from a checkout too), or copy the files to `~/.local/share/{mime/packages,applications,icons}` and run `update-mime-database ~/.local/share/mime` and `update-desktop-database ~/.local/share/applications`. pci's installer places them for Gamer Dad's own copy. On Windows, `Manfred-vX.Y.Z-Setup.exe` registers `.manf`, and on macOS `Manfred.app` declares it (packaging/README.md).
 
 Manfred can use three optional command-line tools when they are on the `PATH`, and works without them:
 

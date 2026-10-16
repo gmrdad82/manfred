@@ -1,3 +1,3 @@
-Manfred's marks: the mark, the wordmark, the lockup and the 512 px icon tile.
-Copied by bin/marks from the PITO MD brand masters' exports/manfred/ at commit df8903f179657cb36ca89268a37383e1ecb967be; `.github/icon.png` is the README icon from the same commit.
+Manfred's marks: the mark, the wordmark, the lockup, the 512 px icon tile and, in icons/, the dog on its tile at 16, 22, 24, 32, 48, 64, 128, 256 and 512 px.
+Copied by bin/marks from the PITO MD brand masters' exports/manfred/ at commit e41a9fbf67a424aa96deee605be370dc81336af5; `.github/icon.png` is the README icon from the same commit. bin/marks also places the icons and the bare mark in share/icons/hicolor/ as the app and file-type icons.
 The Manfred name and logos are © Catalin Ilinca, all rights reserved, and are not covered by the MIT licence.

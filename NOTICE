@@ -7,8 +7,11 @@ repository that are not code, where each comes from, and what covers it.
 The Manfred brand, © Catalin Ilinca, all rights reserved and not covered by
 the MIT licence (TRADEMARKS.md):
 - assets/marks/: the mark, the wordmark, the lockup (shown at the README's
-  Licence section) and the icon tile, copied by bin/marks from the PITO MD
-  brand masters at df8903f179657cb36ca89268a37383e1ecb967be (assets/marks/SOURCE)
+  Licence section), the icon tile and the icons/ PNGs, copied by bin/marks from
+  the PITO MD brand masters at e41a9fbf67a424aa96deee605be370dc81336af5
+  (assets/marks/SOURCE)
+- share/icons/hicolor/: the app and .manf file-type icons, the same mark and
+  PNGs placed by bin/marks
 - .github/icon.png: the README's icon, from the same commit
 - brand/start/badge.glb: the badge in 3D, built by Manfred from brand/start/badge.toml
 - brand/start/wordmark.glb: the wordmark in 3D, built by Manfred from brand/start/wordmark.toml
@@ -216,3 +219,12 @@ Tomorrow Open Source Technology License 1.0, which is the Apache License 2.0
      names, trademarks, service marks, or product names of the Licensor
      and its affiliates, except as required to comply with Section 4(c) of
      the License and to reproduce the content of the NOTICE file.
+
+The Windows setup, Manfred-vX.Y.Z-Setup.exe, is made with NSIS 3.13
+(https://nsis.sourceforge.io), copyright 1999-2026 its contributors. Its
+installer stub and plug-ins are under the zlib/libpng licence; its LZMA
+decompressor, copyright Igor Pavlov and Amir Szekely, is under the Common
+Public License 1.0 with the NSIS linking exception, which leaves the setup's
+own code under its own licence. The source of NSIS and its LZMA module is
+available from https://nsis.sourceforge.io. Manfred's setup script is
+packaging/windows/manfred.nsi.

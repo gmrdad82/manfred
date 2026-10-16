@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Manfred
+Comment=Arrange, render and export 3D scenes
+Exec=manfred gui %f
+Icon=manfred
+Terminal=false
+MimeType=application/x-manfred;model/gltf-binary;
+Categories=Graphics;3DGraphics;

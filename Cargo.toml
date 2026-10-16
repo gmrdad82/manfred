@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/*", "packaging/launcher"]
 
 [workspace.package]
 version = "1.3.0"
@@ -77,6 +77,10 @@ test = true
 
 [[example]]
 name = "wordmark"
+test = true
+
+[[example]]
+name = "icons"
 test = true
 
 [dependencies]

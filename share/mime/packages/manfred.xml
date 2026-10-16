@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-manfred">
+    <comment>Manfred document</comment>
+    <icon name="application-x-manfred"/>
+    <glob pattern="*.manf"/>
+    <magic priority="50">
+      <match type="string" value="MANFRED\0" offset="0"/>
+    </magic>
+  </mime-type>
+</mime-info>

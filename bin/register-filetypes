@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "$0")/.." && pwd)"
+share="$here/share"
+[ -d "$share" ] || { echo "register-filetypes: no share/ tree in $here" >&2; exit 1; }
+data="${XDG_DATA_HOME:-$HOME/.local/share}"
+
+mkdir -p "$data/mime/packages" "$data/applications"
+install -m 644 "$share/mime/packages/manfred.xml" "$data/mime/packages/manfred.xml"
+install -m 644 "$share/applications/manfred.desktop" "$data/applications/manfred.desktop"
+(cd "$share/icons" && find hicolor -type f) | while IFS= read -r icon; do
+  mkdir -p "$data/icons/$(dirname "$icon")"
+  install -m 644 "$share/icons/$icon" "$data/icons/$icon"
+done
+
+if command -v update-mime-database > /dev/null; then
+  update-mime-database "$data/mime"
+else
+  echo "register-filetypes: update-mime-database is not installed (shared-mime-info); run it on $data/mime" >&2
+fi
+if command -v update-desktop-database > /dev/null; then
+  update-desktop-database "$data/applications"
+fi
+echo "register-filetypes: registered .manf and Manfred's launcher under $data"
