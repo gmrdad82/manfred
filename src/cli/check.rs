@@ -3,7 +3,7 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use manfred_build::{Registry, missing_materials, outlines};
-use manfred_recipe::{load, validate};
+use manfred_recipe::{Problem, Recipe, load, validate};
 
 use super::{print_problems, read_failure};
 
@@ -31,19 +31,24 @@ fn check(file: &str, registry: &Registry, out: &mut dyn Write, err: &mut dyn Wri
             return 1;
         }
     };
-    let mut problems = validate(&loaded.recipe);
+    let problems = problems(&loaded.recipe, file, registry);
+    print_problems(out, file, &problems);
+    u8::from(!problems.is_empty())
+}
+
+pub(super) fn problems(recipe: &Recipe, file: &str, registry: &Registry) -> Vec<Problem> {
+    let mut problems = validate(recipe);
     if problems.is_empty() {
-        problems = outlines(&loaded.recipe);
+        problems = outlines(recipe);
     }
     if problems.is_empty() {
         let base = Path::new(file)
             .parent()
             .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or(Path::new("."));
-        problems = missing_materials(&loaded.recipe, base, registry);
+        problems = missing_materials(recipe, base, registry);
     }
-    print_problems(out, file, &problems);
-    u8::from(!problems.is_empty())
+    problems
 }
 
 #[cfg(test)]

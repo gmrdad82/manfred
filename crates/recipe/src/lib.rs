@@ -21,7 +21,7 @@ pub use path::{CameraPath, Ease, Orbit, PathKey, PathKind};
 pub use read::effects::{Colour, Effects, Particles, Setting, Settings};
 pub use read::{load, materials, parse};
 pub use route::{PointEdit, route_patch};
-pub use set::apply_set;
+pub use set::{Change, apply_set, json_of, set_values, tidy, value_of};
 pub use text::{ANCHORS, MONO, anchor_names, anchor_point, default_anchor};
 pub use validate::{bake_product, missing_material_text, slug, validate};
 pub use variant::apply_variant;

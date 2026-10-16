@@ -235,6 +235,8 @@ manfred gui [<recipe>|<folder>] --clip <dir> --tape <file> --frames [--scale F] 
                                                           the same tape as PNG frames, laid out at a UI scale, framed in a larger frame or the viewport alone
 manfred route <recipe> list|set|add|remove [--route <name>] [--at <i>] [--point x,y,z] [--json]
                                                           list the routes' points and lengths, or move, add or remove a point in the file
+manfred set <recipe> <key>=<value>... [--json]               writes values into the recipe file by dotted key, as --set takes them, keeping its comments; refused and left untouched when the result does not check
+manfred get <recipe> <key>... [--json]                       prints the recipe's values by dotted key, as TOML or JSON
 ```
 
 `manfred --help` and `manfred help <command>` print the whole help. A line Manfred cannot parse gets clap's short error on stderr and exits 2; a recipe, camera or file it refuses after that is one line on stderr, `manfred <command>: …`, and exits 1.

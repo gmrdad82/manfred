@@ -7,6 +7,7 @@ mod new;
 mod process;
 mod render;
 mod route;
+mod set;
 mod shoot;
 mod shot;
 mod still;
@@ -77,6 +78,12 @@ enum Verb {
         about = "List a recipe's routes, or move, add or remove a route's points in the file"
     )]
     Route(route::Args),
+    #[command(
+        about = "Write values into a recipe's file by dotted key, keeping its comments, and check it"
+    )]
+    Set(set::SetArgs),
+    #[command(about = "Print a recipe's values by dotted key")]
+    Get(set::GetArgs),
     #[command(
         about = "Write a starter recipe",
         subcommand_required = true,
@@ -247,6 +254,8 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::Clip(parsed) => clip::run(&parsed, rest, registry),
         Verb::Gui(parsed) => gui::run(&parsed, rest, registry, host, installed),
         Verb::Route(parsed) => route::run(&parsed, registry),
+        Verb::Set(parsed) => set::run_set(&parsed, registry),
+        Verb::Get(parsed) => set::run_get(&parsed, registry),
         Verb::New(parsed) => new::run(&parsed),
         Verb::Timeline(parsed) => timeline::run(&parsed, registry),
         Verb::Shoot(parsed) => shoot::run(&parsed, registry),
@@ -322,7 +331,7 @@ mod tests {
             (
                 &[][..],
                 rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, new, timeline, shoot, help]",
+                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, new, timeline, shoot, help]",
                     Some("manfred <COMMAND>"),
                 ),
             ),

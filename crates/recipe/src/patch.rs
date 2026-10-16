@@ -371,6 +371,7 @@ pub fn reread(path: &Path, text: &str) -> Result<Loaded, Error> {
     })
 }
 
+#[derive(Clone, Copy)]
 enum At<'a> {
     Table(&'a Table),
     Tables(&'a ArrayOfTables),
@@ -412,6 +413,36 @@ pub(crate) fn value_in(table: &Table, path: &[Key]) -> Option<Value> {
     match at {
         At::Value(v) => Some(v.clone()),
         At::Table(_) | At::Tables(_) => None,
+    }
+}
+
+pub(crate) enum Reach {
+    Value(Value),
+    Item(Item),
+    Missing(usize, bool),
+    NoEntry(usize),
+    Inside(usize),
+}
+
+pub(crate) fn reach(table: &Table, path: &[Key]) -> Reach {
+    let mut at = At::Table(table);
+    for (i, key) in path.iter().enumerate() {
+        match step(at, key) {
+            Some(next) => at = next,
+            None => {
+                return match at {
+                    At::Table(_) => Reach::Missing(i, false),
+                    At::Value(Value::InlineTable(_)) => Reach::Missing(i, true),
+                    At::Tables(_) => Reach::NoEntry(i),
+                    At::Value(_) => Reach::Inside(i),
+                };
+            }
+        }
+    }
+    match at {
+        At::Value(v) => Reach::Value(v.clone()),
+        At::Table(t) => Reach::Item(Item::Table(t.clone())),
+        At::Tables(a) => Reach::Item(Item::ArrayOfTables(a.clone())),
     }
 }
 

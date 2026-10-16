@@ -108,6 +108,15 @@ One JSON object on stdout. `list` prints `recipe` (the path as given) and `route
 {"recipe":"street.toml","routes":[{"closed":false,"length":81.87448581919321,"name":"main","points":[[0.0,0.0,0.0],[0.0,0.0,40.0],[12.0,0.0,80.0]]}]}
 ```
 
+## `manfred set --json` and `manfred get --json`
+
+One JSON object on stdout. `set` prints `recipe` (the path as given), `set[]` with one entry a key, each its `key`, `old` (null when the key was added), `new` (as the file holds it after the edit) and `file` (the file it was written in, an included file's own path when the key lives there), and `check: "ok"`. `get` prints `recipe` and `values[]`, each a `key` and its `value`; a table comes as an object, an array of tables as an array of objects.
+
+```json
+{"check":"ok","recipe":"chase.toml","set":[{"file":"chase.toml","key":"sky.intensity","new":1.8,"old":1.5}]}
+{"recipe":"chase.toml","values":[{"key":"sky.intensity","value":1.8}]}
+```
+
 ## A clip's folder
 
 `manfred clip --out <dir>` writes:

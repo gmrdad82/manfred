@@ -787,6 +787,14 @@ grade = { vignette = 0.2, saturation = 1.0, warmth = 0.1, bloom = 0.1, haze = 0.
 - **Paths** in a value are relative to the recipe, as in the file; a caller in another folder passes absolute ones.
 - **Order:** the variant first, then each `--set` in the order given, then the usual checks. The recipe file is never written: the override lives only in that run (`manfred_recipe::apply_set`).
 
+## Editing from the command line
+
+Three commands write the recipe file itself, through the same edits the window makes, so its comments and layout stay as they were and a key that lives in an included file is written in that file.
+- `manfred set <recipe> <key>=<value>... [--json]` writes each value in order. The key and the value are `--set`'s (above): a dotted path, an array of tables entry by its `name`, a value of the kind it replaces. It may also add a key the recipe does not carry yet inside a table it has, and the tables on the way to it: `manfred set chase.toml look.grade.bloom=0.2` adds `[look.grade]` under an existing `[look]`; a new value is read as TOML, or as a string when it is not TOML. A top-level table or an array entry the recipe does not have is refused, by name. After writing, it reads the recipe back and checks it as `manfred check` does; when that fails, every file it wrote is put back byte for byte and it refuses, exit 1, in one line: `manfred set: chase.toml:12: look.exposure: expected a number above 0; the recipe is left as it was`. It prints each key with its new and old value and the file, then `check: ok`.
+- `manfred get <recipe> <key>... [--json]` prints the values as the file holds them, one `key = value` a line in TOML; a table prints as an inline table.
+- `manfred route <recipe> list|set|add|remove ...` lists and edits a route's points (see the route table).
+
+
 ## The sidecar table
 
 ```toml
