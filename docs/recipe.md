@@ -142,7 +142,7 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
 - **`sweep`**: `path = [[x, y, z], …]`, `radius` or `radii = [r, …]`, `ring = 16`, `closed`, `caps`. Beads and tubes. Caps are n-gon fans, as Blender's.
   - `along = { outline = <outline>, offset, depth }` replaces `path`. The ring is swept along an outline in the plate frame, pushed out by `offset` along the outline's outward normal, at `depth`. It is closed and capless, with one `radius`. The ring starts on the outward normal and turns toward the camera: a lip round a pocket, a bezel round a slot. Its outline is one contour, with no hole.
 - **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets). It keeps the file's material texture maps, and the recipe's `[materials]` set or replace them; see [Texture maps](#texture-maps).
-- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings), [`manfred/furniture`](#manfredfurniture), [`manfred/car`](#manfredcar), [`manfred/wheel`](#manfredwheel) and [`manfred/loft`](#manfredloft). The window builds it through the same registry and lets you place it.
+- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings), [`manfred/furniture`](#manfredfurniture), [`manfred/car`](#manfredcar), [`manfred/loft`](#manfredloft), [`manfred/sweep-profile`](#manfredsweep-profile) and the vehicle parts kit, [`manfred/wheel`](#manfredwheel) and [`manfred/vehicle-parts`](#manfredvehicle-parts). The window builds it through the same registry and lets you place it.
   - The generator gets the object, its `params`, the recipe's folder and a seed: the recipe's `seed` mixed with the object's index in the file (`manfred::build::seed`), so two objects never share one.
   - It returns one or more pieces, each a named mesh; each becomes a node with the piece's name. A piece may share its own object's name, never another object's or another piece's.
   - The object's transform, `parent`, `keep_transform`, `shadow`, `two_sided` and `hidden` apply to every piece. The pieces keep their own material slots, normals and UVs unless the object sets `material` (or one name in `materials`), `smooth` or `smooth_angle`, or `uv`.
@@ -418,6 +418,28 @@ params.hinged = [{ name = "hatch", gap = "hatch_gap", hinge = [[1.2, 0.3, 0.2], 
 - **Refused:** an unknown field, a missing `name`, `view`, `curve`, `width`, `depth`, `gap` or `hinge`, a name used twice in one list, a curve with too few points or a non-number in it, a negative `lip` or `depth`, a `gap` that names no groove (the error lists the grooves) or encloses none of the mesh, and a hinge of one point; each error names its path, as in ``params.hinged.0.gap: no groove `gap`, expected one of: waterline, hatch_gap``.
 - **Deterministic:** the same mesh and params give the same bytes.
 
+### manfred/sweep-profile
+
+`generator = "manfred/sweep-profile"` sweeps a closed profile curve along a polyline, for any trim, rail, skirt, kerb, wall coping or fin row, in the object's own frame (metres, +Y up). Kits call the same build (the vehicle kit's `kind = "extrusion"`).
+
+```toml
+[[object]]
+name = "fins"
+kind = "generator"
+generator = "manfred/sweep-profile"
+params = { profile = [[-0.004, 0.0], [0.004, 0.0], [0.004, 0.09], [-0.004, 0.09]], path = [[0.0, 0.12, -2.1], [0.0, 0.2, -2.45]], repeat = 7, step = [0.13, 0.0, 0.0] }
+```
+
+- **Params,** an unknown one is an error naming the params there are:
+  - `profile` (required): the cross-section, a closed curve `[[a, b], ...]` of at least 3 points in either winding, a to the path's right and b up (the path's own up is world +Y, or +Z where the path runs straight up).
+  - `path` (required): `[[x, y, z], ...]`, at least 2 distinct points; each bend is mitred so the section keeps its width.
+  - `closed = false`: `true` joins the path's ends into a loop; an open path is capped at both ends.
+  - `repeat` (1 to 64, default 1) copies the sweep `step` apart (`[x, y, z]`, default `[0.1, 0, 0]`), the copies centred on the path.
+  - `material`: the name of a material the recipe or the app defines; by default `sweep_trim` (dark plastic), which it returns.
+- **Pieces:** `<object>.sweep`, with UVs along the path and round the profile in metres.
+- **Facts:** `sweep = { length, repeat, bounds }`, the path's length in metres.
+- **Deterministic:** the same params give the same bytes.
+
 ### Vehicle parts kit
 
 An optional kit on top of the general modelling tools: generic parts that a recipe combines with its own objects into a vehicle (a body, and wheels parented at its axle centres), or uses alone, as a cart's or a machine's wheels. Each part is an ordinary generator object, built, placed, varied and followed like any other.
@@ -455,6 +477,30 @@ params = { tyre = "255/40R19", rim = { spokes = 10, twin = true, concavity = 0.6
 - **Facts:** `wheel = { radius, width, axle = [1, 0, 0] }` (the tyre's outer radius and section width in metres), `tyre = { size, rim_radius }` and `brake = { spin = false, disc }`: the brake turns with the steering but never spins.
 - **Under a follow:** an object named `<car>.wheel_<corner>` (as `hero.wheel_fl`) rides the followed `<car>` (below, Follow): it is keyed with the car's pose, its tyre and rim spin by distance / radius about the axle, its brake does not (a piece whose facts say `spin = false`), and a front corner's three steer.
 - **Deterministic:** the same params give the same bytes; nothing is random.
+
+#### manfred/vehicle-parts
+
+`generator = "manfred/vehicle-parts"` is the vehicle parts kit, an optional set of parts on top of the general generators: it builds one vehicle part, chosen by `kind`, in the object's own frame (metres, +Y up), to place with the object's `at`, `rotate` and `scale` on a body: a lamp, a mirror, a wiper, exhausts or an extruded trim piece. Every piece is its own node, named `<object>.<piece>`. No letters, badges or plates are made.
+
+```toml
+[[object]]
+name = "head_l"
+kind = "generator"
+generator = "manfred/vehicle-parts"
+at = [0.62, 0.62, 2.18]
+params = { kind = "lamp", outline = [[-0.18, -0.04], [0.18, -0.03], [0.16, 0.05], [-0.17, 0.04]], bars = [[[-0.15, 0.0], [0.14, 0.0], [0.14, 0.012], [-0.15, 0.012]]] }
+```
+
+- **Params,** every one optional but `kind` (and an extrusion's `profile` and `path`); an unknown one is an error naming the params that kind takes. A curve is `[[x, y], ...]`, at least 3 points, closed, in either winding.
+  - `kind = "lamp"`: `outline`, the lamp's shape in its XY plane (default a rounded 0.32 × 0.1 m bar); `depth` (0.08 m, 0.01 to 1) of the housing behind the lens; `lens` (0.006 m) the clear lens's thickness at the front (z from -lens to 0); `bars`, curves of the inner light bars, extruded `bar_depth` (0.004 m) thin behind the lens (default one bar, the outline shrunk to 70% about its centre; `[]` for none); `role = "head"` (the default) or `"tail"`, which sets the defaults of `color` (`"#fff2d8"` or `"#ff1a0a"`, sRGB), `strength` (the bars' emission, 5 or 3.2) and the light; `light = true` (the default), `false`, or `{ kind = "spot", intensity, cone = [inner, outer], color = "#rrggbb", range, shadow }`: a spot light `<object>.light` at the outline's centre 1 cm in front of the lens, facing the lamp's +Z, riding `<object>.housing` (head: intensity 90, cone [20, 40], range 40 m; tail: 6, [15, 35], 6 m; colour the bars' colour at full brightness; no shadow). The scene writes it as a `[[light]]` like a car's.
+  - `kind = "mirror"`: `side = "left"` (+X, the default) or `"right"` (mirrored in X); `profile`, the mirror face's curve about the housing's centre (default 0.22 × 0.13 m); the housing's centre sits at `reach` (0.16 m) out along X and `lift` (0.04 m) up from the origin, where the `stalk` (radius 0.014 m) leaves the door; the housing is lofted from the face at z = 0 forward to a dome `depth` (0.09 m) deep; `rim` (0.006 m) is the lip round the mirror glass, which faces -Z, recessed 3 mm; `material` names the housing's material (default `vehicle_trim`, so a recipe can give it the body's paint).
+  - `kind = "wiper"`: the pivot at the origin, lying in the XY plane (the glass) with +Z off the glass; `angle` (degrees about +Z from +X, default 0), `arm` (its length, default 0.85 × `length`), `length` (the blade, 0.55 m, centred on the arm's tip along it) and `width` (0.02 m).
+  - `kind = "exhaust"`: tips along -Z from z = 0 to -`length` (0.12 m), open at the back, centred on y = 0. `pattern`: `"single"` (one group at the centre, `count` default 1), `"twin"` (a group each side at ±`split` / 2, `count` default 1), `"quad"` (one group, `count` default 4) or `"split-quad"` (a group each side, `count` default 2); `count` (1 to 8) is the tips in each group, side by side `spacing` apart (default 1.25 × `diameter`, at least 1.02 × it); `split` (1.0 m) between the two groups' centres; `shape = "round"` or `"oval"` (`aspect`, height over width, 0.6); `diameter` (0.09 m, the tip's width), `wall` (0.004 m); a dark bore fills each tip from 3 cm inside it (at most half its length).
+  - `kind = "extrusion"`: a profile swept along a path, for a splitter, a side skirt or diffuser fins: the params and the build of [`manfred/sweep-profile`](#manfredsweep-profile), with `material` defaulting to `vehicle_trim`.
+- **Pieces:** a lamp's `<object>.housing`, `<object>.lens` and `<object>.bars` (none when `bars = []`); a mirror's `<object>.stalk`, `<object>.housing` and `<object>.glass`; a wiper's `<object>.arm` (with its pivot) and `<object>.blade`; exhausts' `<object>.tips` and `<object>.bores`; an extrusion's `<object>.extrusion`.
+- **Materials** it returns: `vehicle_housing` (dark plastic), `vehicle_lens` (clear glass), `vehicle_bar_<rrggbb>_<strength × 100>` (emissive, so lamps of different colours don't clash), `vehicle_trim` (dark plastic, the mirror's stalk and housing and an extrusion), `vehicle_mirror` (mirror metal), `vehicle_wiper`, `vehicle_rubber`, `vehicle_tip` (polished metal) and `vehicle_bore` (soot). A recipe's own `[materials.<name>]` of the same name replaces one.
+- **Facts:** `part = { kind, bounds = [[x, y, z], [x, y, z]], … }` in the part's frame, with a lamp's `role` and `light = { at, direction }`, a mirror's `side`, a wiper's `pivot` and `tip`, exhausts' `pattern`, `tips` (each tip's open end) and `diameter`, and an extrusion's `length` and `repeat`.
+- **Deterministic:** the same params give the same bytes; no part reads the seed.
 
 ### Levels of detail
 

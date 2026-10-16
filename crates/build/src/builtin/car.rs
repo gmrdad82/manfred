@@ -481,7 +481,7 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
     })
 }
 
-fn srgb(c: f64) -> f64 {
+pub(super) fn srgb(c: f64) -> f64 {
     if c <= 0.04045 {
         c / 12.92
     } else {
@@ -499,7 +499,7 @@ fn lacquer(base: [f64; 3]) -> Value {
     })
 }
 
-fn hex(text: &str) -> Option<[u8; 3]> {
+pub(super) fn hex(text: &str) -> Option<[u8; 3]> {
     let digits = text.strip_prefix('#')?;
     if digits.len() != 6 || !digits.chars().all(|c| c.is_ascii_hexdigit()) {
         return None;
