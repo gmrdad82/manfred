@@ -141,12 +141,12 @@ Every count that sizes a mesh (`segments`, `rings`, `ring`, `grid`, `bevel.segme
 - **`sweep`**: `path = [[x, y, z], …]`, `radius` or `radii = [r, …]`, `ring = 16`, `closed`, `caps`. Beads and tubes. Caps are n-gon fans, as Blender's.
   - `along = { outline = <outline>, offset, depth }` replaces `path`. The ring is swept along an outline in the plate frame, pushed out by `offset` along the outline's outward normal, at `depth`. It is closed and capless, with one `radius`. The ring starts on the outward normal and turns toward the camera: a lip round a pocket, a bezel round a slot. Its outline is one contour, with no hole.
 - **`mesh`**: `path = "file.glb"`, optional `node`. Imported geometry, glTF only. Without `node`, every node of the file's scene is read into the one object, with its transforms applied, so a GLB of many parts is one mesh. It keeps the file's material names, one slot per material, unless the object sets `material`; its normals come from the object's `smooth` or `smooth_angle`, and it is flat without either. It keeps the file's morph targets, and `morph` sets their weights; see [Morph targets](#morph-targets). It keeps the file's material texture maps, and the recipe's `[materials]` set or replace them; see [Texture maps](#texture-maps).
-- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings) and [`manfred/furniture`](#manfredfurniture). The window builds it through the same registry and lets you place it.
+- **`generator`**: `generator = "app/birds"`, `params = { … }`. Built by a function an app registers under that name, in the app's build binary, which calls `manfred::cli::main` with its registry and behaves as `manfred` does (`docs/apps.md`). Manfred itself registers only its built-ins, named `manfred/…`: [`manfred/road`](#manfredroad), [`manfred/buildings`](#manfredbuildings), [`manfred/furniture`](#manfredfurniture) and [`manfred/car`](#manfredcar). The window builds it through the same registry and lets you place it.
   - The generator gets the object, its `params`, the recipe's folder and a seed: the recipe's `seed` mixed with the object's index in the file (`manfred::build::seed`), so two objects never share one.
   - It returns one or more pieces, each a named mesh; each becomes a node with the piece's name. A piece may share its own object's name, never another object's or another piece's.
   - The object's transform, `parent`, `keep_transform`, `shadow`, `two_sided` and `hidden` apply to every piece. The pieces keep their own material slots, normals and UVs unless the object sets `material` (or one name in `materials`), `smooth` or `smooth_angle`, or `uv`.
   - It may also return named materials in the engine's material form, which merge under the recipe's `[materials]`: a recipe entry of the same name wins, and `manfred build` prints a line when the entry differs from the one the generator returned. Two generators returning one name with different values is an error naming both objects. They reach the GLB's material names, `manfred shot`, `manfred render` and the window as the recipe's own do, but never the recipe file. A recipe with a `[bake]` refuses them as it refuses its own.
-  - An unknown name is an error that lists the registered generators, or, when no app generator is registered and the name isn't a `manfred/` one, says that the app's own build binary builds it; a generator's own error is reported under `object[<name>].generator`.
+  - An unknown name is an error that lists the registered generators of its kind (the built-in ones for a `manfred/` name, the app's otherwise), or, when the app registers none, says that the app's own build binary builds it; a generator's own error is reported under `object[<name>].generator`.
 - **`card`**: `size = [w, h]`, `image = "file.png"` or `slot = "name"`, `face_camera = false`, `alpha_cutoff = 0.5`. A flat surface with content; it casts shadows. The 2D and 2.5D building block.
   - **The quad** lies in the object's XY plane facing +Z, and its UVs span the image: (0, 0) at the top left, (1, 1) at the bottom right. A card keeps these UVs whatever its `uv` says. The GLB carries the plain quad in the card's `material`.
   - **`image`** is a PNG or JPEG path relative to the recipe, read by its first bytes. `manfred shot` and the window decode every card image once per build, pack them with the engine's `ContentAtlas` into content slot 0, and give each card its crop, so the whole image lands on the quad. Cards that name one file share one cell. The image is the card's albedo, laid `Over` its material: where it is opaque it replaces the material's colour, where it is clear the material shows. A missing or unreadable image is an error naming the card.
@@ -177,6 +177,29 @@ A `mesh` object keeps the morph targets of the file's triangle primitives:
 - **Refused:** `morph` on any kind but `mesh` when the recipe is read; a weight that is not a finite number; and at build, a name the file has no target of, in one line naming the object, the file and its targets: `` object[face].morph.smile: head.glb has no morph target `smile`, expected one of: up, wide ``.
 - **The GLB** keeps the positions and normals neutral, gives every primitive of the mesh one target per name, in the same order, with its POSITION deltas (with `min` and `max`, as glTF asks) and NORMAL deltas, and carries the object's weights as the mesh's `weights` and the names as its `extras.targetNames`, so a runtime blends them live.
 - **`manfred shot`, `manfred render` and the window** draw the mesh posed at those weights, applied on the CPU when it is built; bakes, bounds and proxies read the posed mesh too. A recipe without morph targets builds the same bytes as before.
+
+### Texture maps
+
+A material carries texture maps, kept from a `mesh` object's file or set under `[materials.<name>]`. A recipe without them builds the same bytes as before.
+
+- **What is kept from a mesh file:** for each glTF material the read primitives use, its `baseColorTexture`, `normalTexture` with its `scale`, `metallicRoughnessTexture` and `occlusionTexture` with its `strength`, each with its `texCoord` set, its sampler (filters and wrap) and, on the base and metallic-roughness textures, its `KHR_texture_transform`; and with them the material's `baseColorFactor`, `metallicFactor` and `roughnessFactor`. An image is kept when it is a PNG or a JPEG, embedded in the file's buffers or a file beside it, and its bytes are kept as they are, never decoded or encoded again. A texture whose image is neither, or a `data:` URI, is not kept. A material with no kept map writes as before, factors included. The maps follow the file's material names, so an object that sets `material` draws its own material and leaves them behind.
+- **The keys,** beside the material's engine keys (`base`, `roughness`, `metalness` and the rest), spelled after the engine's own names:
+
+  | key | glTF slot | default |
+  |---|---|---|
+  | `base_map = "tex/face.png"` | `baseColorTexture` | |
+  | `normal_map` | `normalTexture` | |
+  | `normal_scale` | `normalTexture.scale` | 1.0 |
+  | `roughness_map` | `metallicRoughnessTexture`: roughness in G, metalness in B, as glTF packs them | |
+  | `occlusion_map` | `occlusionTexture` | |
+  | `occlusion_strength` | `occlusionTexture.strength`, from 0 to 1 | 1.0 |
+  | `detail_normal_map` | the material's `extras.detailNormalTexture`, on TEXCOORD_1 | |
+  | `detail_normal_scale` | its `scale` | 1.0 |
+
+  A path is relative to the recipe; a map the recipe sets is on TEXCOORD_0 with no sampler (glTF's repeat and the viewer's filters), except the detail normal map on TEXCOORD_1, which `detail_uv` makes. A map the recipe sets replaces the file's map of that slot; a slot it doesn't set keeps the file's. `normal_scale`, `occlusion_strength` and `detail_normal_scale` set the scale of the slot's map, the file's or the recipe's. The keys never reach the engine's material: `manfred check` and the scene file read the rest of the table as before.
+- **Refused:** a key whose value is not a path or a number (a strength outside 0 to 1) when the recipe is read; and at build, at the key (`materials.skin.base_map`), a file that cannot be read, a file that is not a PNG (read by its first bytes), and an image too large for a card, read from its header alone as a card's is: a side whose 16-texel cell with its gutters passes 16384. A mesh file's image past that size is refused at the object's `path`.
+- **The GLB** embeds every image once in its binary chunk, in a buffer view of its own, with its `mimeType`; images are read once per build, and two maps of the same bytes share one image. Samplers and textures are shared the same way. A material with maps has the file's factors, or without a file 1.0 base colour under a base map, metalness and roughness 1.0 under a roughness map, and Manfred's 0.8 grey, 0 and 0.5 otherwise. `KHR_texture_transform` is listed in `extensionsUsed` when a map carries it. The same inputs give the same bytes.
+- **The views:** `manfred shot` and the window draw the base, normal and roughness maps through the engine's material maps (`Renderer::set_maps`), which multiply the material's `base`, `roughness` and `metalness` (glTF's factor times texture, with the recipe's material as the factor) and bend the normal toward the map's by `normal_scale`, clamped to 0..1. They read TEXCOORD_0, repeat as glTF's default sampler does, and ignore a map's sampler and transform. Each kind's maps are resized to the largest of them, at most 4096 texels a side. `manfred render` draws the base map alone, as content multiplied over the material's `base`, once over UV 0..1. The occlusion and detail normal maps are only carried in the GLB: no view draws them, and `manfred render` draws no normal or roughness map, as the engine's tracer reads none.
 
 ### manfred/road
 
@@ -258,28 +281,31 @@ params = { route = "main", spacing = [22, 30], crosswalks = [120.0, 310.0] }
 - **Lights:** each lit lamp is a spot light under its head, `<object>.lamp<n>` counted from the route's start, pointing down and a little over the road, with no shadow. The scene writes them as `[[light]]` tables with `kind = "spot"`, `position`, `direction`, `cone`, `color`, `intensity`, `range` and `shadow`, after the recipe's own lights, while the engine has room (4 local lights with pfx today); `manfred build` prints a line naming the ones left out.
 - **Deterministic:** the same route, params and seed build the same bytes.
 
-### Texture maps
+### manfred/car
 
-A material carries texture maps, kept from a `mesh` object's file or set under `[materials.<name>]`. A recipe without them builds the same bytes as before.
+`generator = "manfred/car"` builds an original car, a sports hero or a traffic car, in the object's own frame: the origin on the ground under the car's centre, +Z forward, +Y up, metres. The body is lofted through parametric cross-sections along Z, with wheel arches and wells, a shoulder over each wheel, a cabin whose greenhouse is glass, light bars front and back, and for `sports` a rear valance, diffuser, exhausts and a wing.
 
-- **What is kept from a mesh file:** for each glTF material the read primitives use, its `baseColorTexture`, `normalTexture` with its `scale`, `metallicRoughnessTexture` and `occlusionTexture` with its `strength`, each with its `texCoord` set, its sampler (filters and wrap) and, on the base and metallic-roughness textures, its `KHR_texture_transform`; and with them the material's `baseColorFactor`, `metallicFactor` and `roughnessFactor`. An image is kept when it is a PNG or a JPEG, embedded in the file's buffers or a file beside it, and its bytes are kept as they are, never decoded or encoded again. A texture whose image is neither, or a `data:` URI, is not kept. A material with no kept map writes as before, factors included. The maps follow the file's material names, so an object that sets `material` draws its own material and leaves them behind.
-- **The keys,** beside the material's engine keys (`base`, `roughness`, `metalness` and the rest), spelled after the engine's own names:
+```toml
+[[object]]
+name = "hero"
+kind = "generator"
+generator = "manfred/car"
+params = { style = "sports", paint = "#c8102e" }
+```
 
-  | key | glTF slot | default |
-  |---|---|---|
-  | `base_map = "tex/face.png"` | `baseColorTexture` | |
-  | `normal_map` | `normalTexture` | |
-  | `normal_scale` | `normalTexture.scale` | 1.0 |
-  | `roughness_map` | `metallicRoughnessTexture`: roughness in G, metalness in B, as glTF packs them | |
-  | `occlusion_map` | `occlusionTexture` | |
-  | `occlusion_strength` | `occlusionTexture.strength`, from 0 to 1 | 1.0 |
-  | `detail_normal_map` | the material's `extras.detailNormalTexture`, on TEXCOORD_1 | |
-  | `detail_normal_scale` | its `scale` | 1.0 |
-
-  A path is relative to the recipe; a map the recipe sets is on TEXCOORD_0 with no sampler (glTF's repeat and the viewer's filters), except the detail normal map on TEXCOORD_1, which `detail_uv` makes. A map the recipe sets replaces the file's map of that slot; a slot it doesn't set keeps the file's. `normal_scale`, `occlusion_strength` and `detail_normal_scale` set the scale of the slot's map, the file's or the recipe's. The keys never reach the engine's material: `manfred check` and the scene file read the rest of the table as before.
-- **Refused:** a key whose value is not a path or a number (a strength outside 0 to 1) when the recipe is read; and at build, at the key (`materials.skin.base_map`), a file that cannot be read, a file that is not a PNG (read by its first bytes), and an image too large for a card, read from its header alone as a card's is: a side whose 16-texel cell with its gutters passes 16384. A mesh file's image past that size is refused at the object's `path`.
-- **The GLB** embeds every image once in its binary chunk, in a buffer view of its own, with its `mimeType`; images are read once per build, and two maps of the same bytes share one image. Samplers and textures are shared the same way. A material with maps has the file's factors, or without a file 1.0 base colour under a base map, metalness and roughness 1.0 under a roughness map, and Manfred's 0.8 grey, 0 and 0.5 otherwise. `KHR_texture_transform` is listed in `extensionsUsed` when a map carries it. The same inputs give the same bytes.
-- **The views:** `manfred shot` and the window draw the base, normal and roughness maps through the engine's material maps (`Renderer::set_maps`), which multiply the material's `base`, `roughness` and `metalness` (glTF's factor times texture, with the recipe's material as the factor) and bend the normal toward the map's by `normal_scale`, clamped to 0..1. They read TEXCOORD_0, repeat as glTF's default sampler does, and ignore a map's sampler and transform. Each kind's maps are resized to the largest of them, at most 4096 texels a side. `manfred render` draws the base map alone, as content multiplied over the material's `base`, once over UV 0..1. The occlusion and detail normal maps are only carried in the GLB: no view draws them, and `manfred render` draws no normal or roughness map, as the engine's tracer reads none.
+- **Params,** every one optional; an unknown one is an error naming the params there are:
+  - `style`: `"sports"` (the default), `"sedan"`, `"hatch"` or `"van"`.
+  - `seed`: a whole number; the object's seed when absent. It picks the paint when `paint` is absent (a vivid colour for `sports`, a plain one for the others) and wobbles the deck line by up to 2%.
+  - `length`, `width`, `height`: metres, from 2 to 12, 1 to 3 and 0.8 to 3.5. Defaults: sports 4.4, 1.9, 1.2; sedan 4.7, 1.82, 1.45; hatch 4.1, 1.78, 1.5; van 4.9, 1.95, 1.95.
+  - `wheel_radius`: the tyre's outer radius, from 0.15 to 0.35 × `height`; sports 0.34, sedan 0.32, hatch 0.31, van 0.33.
+  - `wheelbase`: axle to axle, from 0.4 to 0.8 × `length`; about 0.6 × `length` by default.
+  - `track`: wheel centre to wheel centre across, from 0.5 × `width` to `width` less the tyre; by default the width less the tyre and the arches' flare.
+  - `paint`: `"#rrggbb"` (sRGB), `[r, g, b]` (linear, 0 to 1) or the name of a material the recipe or the app defines.
+  - `lights`: `true` (the default) makes the head and tail lights emissive; `false` leaves them unlit lenses.
+- **Pieces,** named after the object: `<object>.body` (paint, with trim on the underside, wells, grille and valances, and rim metal on the exhausts), `<object>.glass`, `<object>.wheel_fl`, `<object>.wheel_fr`, `<object>.wheel_rl`, `<object>.wheel_rr` (each the tyre, the rim and a dark backing in one piece, three material slots), `<object>.headlights` and `<object>.taillights`. Left is +X, the car's left as it faces +Z. A sports car is about 16,000 triangles, a traffic car about 7,000, and three build in about 20 ms.
+- **Materials** it returns, in the engine's form: `car_paint_<rrggbb>` for a `"#rrggbb"` paint and `car_paint_linear_<rrggbb>` for an `[r, g, b]` one (lacquer with a clear coat), `car_glass` (tinted, transmissive), `car_tyre`, `car_rim` (metal), `car_trim` (dark plastic), and `car_head` and `car_tail` (emissive warm white and red), or `car_head_off` and `car_tail_off` with `lights = false`. A recipe's own `[materials.<name>]` of the same name replaces one.
+- **Facts,** in the car's own frame (before the object's `at`, `rotate` and `scale`): `style`, `length`, `width`, `height`, `wheelbase`, `track`, and `wheels = { fl = { centre = [x, y, z], radius, axle = [1, 0, 0] }, fr = …, rl = …, rr = … }`, the point and axis each wheel spins and steers about.
+- **Deterministic:** the same params and seed give the same bytes. `showcase/car.toml` shows a sports car, a sedan and a van on a floor.
 
 ## Includes and uses
 

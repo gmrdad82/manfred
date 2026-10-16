@@ -1,3 +1,5 @@
+pub const NAME: &str = "manfred/road";
+
 use crate::{Call, Generated, Piece};
 use manfred_mesh::Mesh;
 use manfred_motion::{Frame, Route};

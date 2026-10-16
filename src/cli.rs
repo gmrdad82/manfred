@@ -368,7 +368,11 @@ mod tests {
     }
 
     fn echo(args: &[String], registry: &Registry) -> ExitCode {
-        if args == ["ok", "--loud"] && registry.names().next().is_none() {
+        if args == ["ok", "--loud"]
+            && registry
+                .names()
+                .all(|name| name.starts_with(manfred_build::BUILTIN))
+        {
             ExitCode::from(7)
         } else {
             ExitCode::from(9)

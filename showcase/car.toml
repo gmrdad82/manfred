@@ -1,0 +1,67 @@
+# Manfred's own car showcase: the built-in manfred/car generator, a sports hero and two traffic styles on a floor.
+manfred = 1
+name = "car"
+seed = 9
+
+[[object]]
+name = "floor"
+kind = "plane"
+size = [30.0, 30.0]
+material = "asphalt"
+
+[[object]]
+name = "hero"
+kind = "generator"
+generator = "manfred/car"
+params = { style = "sports", paint = "#c8102e" }
+
+[[object]]
+name = "sedan"
+kind = "generator"
+generator = "manfred/car"
+at = [-3.2, 0.0, 3.5]
+rotate = [0.0, 8.0, 0.0]
+params = { style = "sedan", seed = 4 }
+
+[[object]]
+name = "van"
+kind = "generator"
+generator = "manfred/car"
+at = [3.4, 0.0, 5.0]
+params = { style = "van", paint = "#f4f4f2" }
+
+[[camera]]
+name = "main"
+position = [4.6, 1.3, -5.2]
+target = [-0.2, 0.7, 1.4]
+fov_y_deg = 40.0
+
+[[camera]]
+name = "side"
+position = [7.5, 1.2, 0.4]
+target = [0.0, 0.6, 0.4]
+fov_y_deg = 35.0
+
+[[camera]]
+name = "chase"
+position = [0.0, 1.05, -6.5]
+target = [0.0, 0.75, 0.0]
+fov_y_deg = 42.0
+
+[sun]
+model = "authored"
+toward = [-0.5, 0.35, -0.8]
+radius_deg = 0.8
+color = [1.0, 0.78, 0.55]
+irradiance = 3.0
+
+[sky]
+kind = "analytic"
+intensity = 0.8
+
+[look]
+exposure = 1.0
+
+[materials.asphalt]
+base = [0.06, 0.06, 0.065]
+roughness = 0.75

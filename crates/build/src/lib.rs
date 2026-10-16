@@ -33,6 +33,8 @@ pub use timeline::{Animates, Bake, Baker, camera_track, lens, pose, time_refusal
 
 pub const GENERATOR: &str = concat!("manfred ", env!("CARGO_PKG_VERSION"));
 
+pub const BUILTIN: &str = "manfred/";
+
 pub struct Call<'a> {
     pub object: &'a Object,
     pub params: &'a BTreeMap<String, serde_json::Value>,
@@ -680,9 +682,12 @@ fn generate(
         return Ok(Generated::default());
     };
     let Some(&entry) = registry.generators.get(generator) else {
-        let known: Vec<&str> = registry.names().collect();
-        let app = known.iter().any(|name| !name.starts_with("manfred/"));
-        let text = if !app && !generator.starts_with("manfred/") {
+        let builtin = generator.starts_with(BUILTIN);
+        let known: Vec<&str> = registry
+            .names()
+            .filter(|name| name.starts_with(BUILTIN) == builtin)
+            .collect();
+        let text = if known.is_empty() {
             format!(
                 "`{generator}` is built by the app's own build binary, which registers it through the Manfred library"
             )

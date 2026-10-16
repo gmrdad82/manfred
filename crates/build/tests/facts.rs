@@ -103,7 +103,10 @@ fn plain_generators_add_no_facts_and_both_kinds_are_registered() {
     assert!(registry.get("test/sheet").is_none());
     assert!(registry.get_with_facts("test/sheet").is_some());
     assert!(registry.contains("test/sheet") && registry.contains("test/plain"));
-    let names: Vec<&str> = registry.names().collect();
+    let names: Vec<&str> = registry
+        .names()
+        .filter(|name| !name.starts_with(manfred_build::BUILTIN))
+        .collect();
     assert_eq!(
         names,
         ["test/broken", "test/edges", "test/plain", "test/sheet"]
