@@ -7,7 +7,7 @@ publish.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Manfred's motion: routes as centripetal Catmull-Rom splines with an arc-length table, and seeded smooth noise"
+description = "Manfred's motion: routes as centripetal Catmull-Rom splines with an arc-length table, seeded smooth noise, the timeline, and poses as translation, rotation and scale with their interpolation"
 
 [dependencies]
 glam.workspace = true
