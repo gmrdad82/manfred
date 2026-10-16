@@ -158,7 +158,12 @@ fn the_same_recipe_writes_the_same_bytes() {
 fn graded(exposure: f32, bloom: f32, vignette: f32, saturation: f32, warmth: f32) -> Vec<Pass> {
     vec![
         Pass::Exposure(exposure),
-        Pass::Bloom(Bloom::pyramid(bloom, 0.9, 0.7, 0.6, 0.15, 12, 50.0, 2)),
+        Pass::Bloom(Bloom {
+            knee: 0.7,
+            knee_width: 0.6,
+            soft: 0.15,
+            ..Bloom::tent(bloom, 0.9, 12, 50.0, 2)
+        }),
         Pass::Vignette(Vignette::power(vignette, 2.4, 0.8, 1.28)),
         Pass::Saturation(Saturation::rec709(saturation)),
         Pass::Warmth(Warmth::linear(warmth)),
