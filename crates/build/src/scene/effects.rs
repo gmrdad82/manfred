@@ -26,7 +26,7 @@ pub(super) fn format_1_key(recipe: &Recipe) -> Option<String> {
 
 pub(super) fn file(paths: &Paths, base: &Path, file: &str, key: &str) -> Result<String, Error> {
     let path = base.join(file);
-    if !path.is_file() {
+    if !manfred_recipe::files::is_file(&path) {
         return Err(Error::new(
             key,
             format!(

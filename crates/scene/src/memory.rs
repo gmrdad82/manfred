@@ -98,7 +98,7 @@ impl Memory {
         let stamp = match held {
             Some(content) => content,
             None => file
-                .and_then(|file| std::fs::read(file).ok())
+                .and_then(|file| manfred_recipe::files::read(file).ok())
                 .map(|bytes| (bytes.len(), digest(&bytes))),
         };
         let mut kept = self.kept();

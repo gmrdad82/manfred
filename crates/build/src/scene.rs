@@ -158,6 +158,15 @@ pub(crate) fn text(
     glb: &Path,
     base: &Path,
 ) -> Result<Written, Error> {
+    text_named(built, recipe, (scene, glb, None), base)
+}
+
+pub(crate) fn text_named(
+    built: &Built,
+    recipe: &Recipe,
+    (scene, glb, named): (&Path, &Path, Option<&str>),
+    base: &Path,
+) -> Result<Written, Error> {
     let format = recipe.output.scene_format;
     if format > 1 {
         return Err(Error::new(
@@ -210,7 +219,10 @@ pub(crate) fn text(
     let whole = effects::whole(recipe, built, format, glb);
     lights(&mut out, recipe, built, whole.as_deref())?;
     effects::particles(&mut out, recipe, built, whole.as_deref())?;
-    let glb_name = paths.relative(glb, "output.glb")?;
+    let glb_name = match named {
+        Some(name) => name.to_string(),
+        None => paths.relative(glb, "output.glb")?,
+    };
     match &whole {
         Some(name) => animated(
             &mut out,
@@ -396,7 +408,7 @@ fn card(
         return Ok(None);
     };
     let file = base.join(image);
-    let bytes = std::fs::read(&file)
+    let bytes = manfred_recipe::files::read(&file)
         .map_err(|e| Error::new(format!("{at}.image"), format!("{}: {e}", file.display())))?;
     png_header(&bytes).map_err(|e| {
         Error::new(
@@ -702,7 +714,7 @@ fn mix(
     let capped = capped(sky)?;
     let tint = grey_tint(sky, light)?;
     let file = base.join(path);
-    let bytes = std::fs::read(&file)
+    let bytes = manfred_recipe::files::read(&file)
         .map_err(|e| Error::new("sky.path", format!("{}: {e}", file.display())))?;
     let mut daylight = Sky::parse(&bytes)
         .map_err(|e| Error::new("sky.path", format!("{}: {e}", file.display())))?;
@@ -995,7 +1007,7 @@ fn finish(
     let copy = match recipe.look.as_ref().and_then(|look| look.lut.as_ref()) {
         Some(lut) => {
             let from = base.join(lut);
-            let bytes = std::fs::read(&from).map_err(|e| {
+            let bytes = manfred_recipe::files::read(&from).map_err(|e| {
                 Error::new(
                     "look.lut",
                     format!(

@@ -347,7 +347,7 @@ pub(crate) fn imported(
     node: Option<&str>,
 ) -> Result<(Mesh, Morph, manfred_glb::Looks), Error> {
     let file = base.join(path);
-    let bytes = std::fs::read(&file)
+    let bytes = manfred_recipe::files::read(&file)
         .map_err(|e| fail(object, "path", format!("cannot read {path}: {e}")))?;
     let parsed = gltf::Gltf::from_slice(&bytes)
         .map_err(|e| fail(object, "path", format!("{path} is not glTF: {e}")))?;

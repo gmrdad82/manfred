@@ -20,22 +20,12 @@ pub fn save(l: &Loaded) -> Result<(), Error> {
 }
 
 fn replace(path: &Path, text: &str) -> Result<(), Error> {
-    let name = path.file_name().map_or_else(
-        || "recipe".to_string(),
-        |n| n.to_string_lossy().into_owned(),
-    );
-    let temp = path.with_file_name(format!(".{name}.manfred-tmp"));
-    let fail = |what: &str, e: std::io::Error| {
+    crate::files::replace(path, text.as_bytes()).map_err(|e| {
         Error::new(
             path.display().to_string(),
             None,
-            format!("cannot {what}: {e}"),
+            format!("cannot replace the recipe: {e}"),
         )
-    };
-    std::fs::write(&temp, text).map_err(|e| fail("write the recipe", e))?;
-    std::fs::rename(&temp, path).map_err(|e| {
-        let _ = std::fs::remove_file(&temp);
-        fail("replace the recipe", e)
     })
 }
 
@@ -49,7 +39,7 @@ pub fn save_to(l: &Loaded, path: &Path) -> Result<(), Error> {
             continue;
         };
         let target = base.join(name);
-        if std::fs::read_to_string(&target).ok().as_deref() != Some(text) {
+        if crate::files::read_to_string(&target).ok().as_deref() != Some(text) {
             replace(&target, text)?;
         }
     }
@@ -154,7 +144,7 @@ pub fn apply_all(l: &mut Loaded, patches: &[Patch]) -> Result<Vec<Patch>, Error>
 
 fn start_of(l: &Loaded, name: &str) -> Option<String> {
     let base = l.recipe.base.as_deref()?;
-    let disk = std::fs::read_to_string(base.join(name)).ok();
+    let disk = crate::files::read_to_string(&base.join(name)).ok();
     let memory = l.recipe.files.text_of(name);
     match (l.recipe.files.changed.get(name), disk) {
         (Some(was), Some(disk)) if *was == disk => memory.map(str::to_string),
@@ -179,7 +169,7 @@ fn routed(l: &mut Loaded, patches: &[Patch]) -> Result<Vec<Patch>, Error> {
     for (name, was) in &l.recipe.files.changed {
         let disk = base
             .as_deref()
-            .and_then(|b| std::fs::read_to_string(b.join(name)).ok());
+            .and_then(|b| crate::files::read_to_string(&b.join(name)).ok());
         let kept = match &disk {
             Some(disk) if disk == was => was.clone(),
             Some(disk) => disk.clone(),

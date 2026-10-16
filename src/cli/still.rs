@@ -9,7 +9,7 @@ use super::{pair, refuse, seconds, size};
 #[derive(clap::Args, Debug, PartialEq)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to draw")]
-    recipe: PathBuf,
+    pub(super) recipe: PathBuf,
     #[arg(
         long,
         value_name = "name",
@@ -55,6 +55,27 @@ fn still(args: &Args, registry: &Registry) -> Result<Vec<u8>, Error> {
     )?;
     let gpu = manfred_scene::headless()?;
     manfred_scene::shoot(&gpu, &recipe, &built.parts, &args.camera, args.size)
+}
+
+const THUMB: [u32; 2] = [320, 200];
+
+pub(super) fn thumbnail(
+    recipe: &std::path::Path,
+    png: &std::path::Path,
+    registry: &Registry,
+) -> Result<(), String> {
+    let shot = || -> Result<(), Error> {
+        let (recipe, built) = manfred_scene::load_at(recipe, None, &[], registry, None)?;
+        let camera = recipe
+            .cameras
+            .first()
+            .map(|camera| camera.name.clone())
+            .ok_or_else(|| Error("the recipe has no camera to draw a thumbnail through".into()))?;
+        let gpu = manfred_scene::headless()?;
+        let rgba = manfred_scene::shoot(&gpu, &recipe, &built.parts, &camera, THUMB)?;
+        manfred_scene::write_png(png, THUMB, &rgba)
+    };
+    shot().map_err(|e| e.to_string())
 }
 
 pub fn run(args: &Args, registry: &Registry) -> ExitCode {

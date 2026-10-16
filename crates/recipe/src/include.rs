@@ -1041,7 +1041,7 @@ pub(crate) fn disk_reader(
     let Some(base) = base else {
         return Err("a recipe read from text has no folder to read it from".to_string());
     };
-    std::fs::read_to_string(base.join(name)).map_err(|e| match e.kind() {
+    crate::files::read_to_string(&base.join(name)).map_err(|e| match e.kind() {
         std::io::ErrorKind::NotFound => "no such file".to_string(),
         std::io::ErrorKind::PermissionDenied => "permission denied".to_string(),
         _ => e.to_string(),

@@ -75,8 +75,8 @@ impl Fonts {
             return Ok(name.clone());
         }
         let file = base.join(path);
-        let bytes =
-            std::fs::read(&file).map_err(|e| format!("cannot read the font {path}: {e}"))?;
+        let bytes = manfred_recipe::files::read(&file)
+            .map_err(|e| format!("cannot read the font {path}: {e}"))?;
         let name = family_name(&bytes)
             .ok_or_else(|| format!("{path} is not a font with a family name"))?;
         self.engine

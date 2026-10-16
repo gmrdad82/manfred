@@ -11,6 +11,7 @@ mod bake;
 pub mod builtin;
 pub mod carve;
 pub mod detail_uv;
+pub mod document;
 mod extras;
 mod facts;
 mod holes;
@@ -24,6 +25,8 @@ mod timeline;
 mod uv;
 
 pub use bake::rig::hermite as track_value;
+pub use document::Document;
+pub use manf;
 pub use manfred_glb::{
     CameraFacts, DaylightFacts, FACTS, GradeFacts, LampFacts, LookFacts, MoverFacts, RoomFacts,
     SceneFacts, SidecarWriter, SkyFacts, SunFacts, facts as facts_sidecar, merge, mover_json,
@@ -33,6 +36,7 @@ pub use manfred_glb::{Lens, Track};
 pub use manfred_motion::{Route, Timeline, Trs, matrix, sample, trs_from_matrix};
 pub use manfred_recipe::NO_SIDECAR;
 pub use manfred_recipe::{apply_only as only, apply_stage as staged};
+pub use manfred_recipe::files;
 pub use maps::{LARGEST_IMAGE, image, image_fits};
 pub use scene::object_ids;
 pub use timeline::{Animates, Bake, Baker, camera_track, lens, pose, pose_cameras, time_refusal};
@@ -294,6 +298,10 @@ impl Built {
 
     pub fn glb(&self) -> Vec<u8> {
         self.try_glb().unwrap_or_default()
+    }
+
+    pub fn object_facts(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.facts_by_object
     }
 
     pub fn try_glb(&self) -> Result<Vec<u8>, Error> {
@@ -1245,6 +1253,19 @@ fn target(recipe_path: Option<&str>, fallback: String, base: &Path, out: Option<
         (None, Some(path)) => base.join(path),
         (None, None) => base.join(fallback),
     }
+}
+
+pub fn glb_path(recipe: &Recipe, base: &Path, out: Option<&Path>) -> PathBuf {
+    target(
+        recipe.output.glb.as_deref(),
+        format!("{}.glb", recipe.name),
+        base,
+        out,
+    )
+}
+
+pub fn put_file(path: &Path, bytes: &[u8]) -> Result<(), Error> {
+    put(path, bytes)
 }
 
 fn put(path: &Path, bytes: &[u8]) -> Result<(), Error> {

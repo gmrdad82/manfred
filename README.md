@@ -205,6 +205,19 @@ manfred gui desk.toml                                           opens the window
 
 [docs/recipe.md](docs/recipe.md) is the whole schema, and [showcase/](showcase/README.md) has bigger scenes to open and render.
 
+## .manf files
+
+A `.manf` is Manfred's document, the way a `.blend` is Blender's: one file holding the recipe, its includes and every file it reads (LUTs, HDRs, PNG maps, mesh GLBs), the built glTF, the pfx scene it builds, the facts of every object, a map of nodes and an optional thumbnail. It is a private container that only Manfred and pfx open, built for speed: a chunk table at the front, so a reader takes the thumbnail or the facts without touching the meshes, and an unchanged document opens without a rebuild. It is not a zip, which would make every open inflate and scan it, and not a GLB, which has no room for the recipe that made it. Blender and other tools exchange GLB files with Manfred, never `.manf`.
+
+```
+manfred save showcase/chase.toml --manf chase.manf
+manfred build chase.manf                  # reuses the stored glTF while nothing changed
+manfred route chase.manf set --route main --at 2 --point 4,0,30
+manfred unpack chase.manf chase/          # the recipe and its files again, as plain files
+```
+
+When pfx edits the scene inside a `.manf`, Manfred notices on open and rebuilds nothing over it until `manfred fold` folds the edits into the recipe (`--apply`) or keeps them as overrides on every later build (`--keep`). [The .manf guide](docs/site/guides/documents.md) has the details.
+
 ## Commands
 
 ```
@@ -256,9 +269,14 @@ manfred list <recipe> [<table>] [--json]                     the recipe's entrie
 manfred key <recipe> <path> <t> <value> [--interp linear|smooth|step] [--json]
                                                           set or insert a key of a property over the timeline, as object.hero.at 2 0,0,12, in the file
 manfred unkey <recipe> <path> [<t>] [--json]             remove the property's key at t, or every key of it, in the file
+manfred save <recipe> --manf <out.manf> [--thumb] [--json]   packs the recipe, its includes and every file it reads, its build and its pfx scene into one .manf
+manfred unpack <file.manf> <dir> [--json]                    writes a .manf's recipe and files into a folder, so building it there gives the same GLB
+manfred fold <file.manf> [--apply | --keep] [--json]         lists the scene edits pfx made in a .manf, folds them into the recipe or keeps them as overrides
 ```
 
 `add`, `remove` and `duplicate` write the recipe file through the window's own edits, keeping its comments, check the recipe again after the write, and put the file back byte for byte when it no longer checks.
+
+Every command that takes a recipe also takes a `.manf`: it reads the recipe and its files from the document in memory, and `route` (and every other command that edits the recipe) writes the edit and a fresh build back into the `.manf`.
 
 `manfred --help` and `manfred help <command>` print the whole help. A line Manfred cannot parse gets clap's short error on stderr and exits 2; a recipe, camera or file it refuses after that is one line on stderr, `manfred <command>: …`, and exits 1.
 

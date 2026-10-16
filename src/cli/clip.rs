@@ -33,7 +33,7 @@ fn video(text: &str) -> Result<PathBuf, String> {
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to film")]
-    recipe: PathBuf,
+    pub(super) recipe: PathBuf,
     #[arg(
         long,
         value_name = "name",

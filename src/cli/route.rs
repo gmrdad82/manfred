@@ -33,7 +33,7 @@ pub(super) struct Args {
         value_name = "recipe",
         help = "The recipe whose routes to list or edit"
     )]
-    recipe: String,
+    pub(super) recipe: String,
     #[arg(
         value_enum,
         value_name = "action",

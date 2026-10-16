@@ -5,6 +5,7 @@ use std::path::PathBuf;
 mod constraint;
 mod curve;
 mod entries;
+pub mod files;
 mod include;
 mod keyframes;
 mod patch;

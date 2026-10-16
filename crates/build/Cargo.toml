@@ -18,13 +18,14 @@ pfx-materials.workspace = true
 pfx-core.workspace = true
 pfx-load.workspace = true
 pfx-scene.workspace = true
+manf.workspace = true
+sha2.workspace = true
 toml = "1.1"
 serde_json.workspace = true
 glam.workspace = true
 gltf = { workspace = true, features = ["extras", "KHR_texture_transform"] }
 png.workspace = true
 pfx-trace.workspace = true
-sha2.workspace = true
 
 [dev-dependencies]
 pfx-post.workspace = true
