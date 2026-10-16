@@ -252,3 +252,59 @@ fn a_timeline_scene_is_one_animated_object_whose_lights_and_particles_ride_its_n
     let lines: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
     assert!(lines.is_empty(), "{}", lines.join("\n"));
 }
+
+#[test]
+fn a_timeline_car_writes_its_lights_first_riding_its_body_and_pfx_scene_finds_nothing_wrong() {
+    let root = project(
+        "effects-car-lights",
+        &[
+            (
+                "kind = \"box\"\nat = [0.0, 0.5, 0.0]\nsize = [1.8, 0.8, 4.2]\nmaterial = \"paint\"\n",
+                "kind = \"generator\"\ngenerator = \"manfred/car\"\nparams = { style = \"sports\", seed = 1 }\n",
+            ),
+            (
+                "[[camera]]\nname = \"chase\"\nposition = [0.0, 2.0, -8.0]\ntarget = [0.0, 0.5, 0.0]\nfov_y_deg = 50.0\n",
+                "[timeline]\nfps = 30\nframes = 6\nsize = [1080, 1920]\n\n[[route]]\nname = \"main\"\npoints = [[0.0, 0.0, 0.0], [0.0, 0.0, 20.0], [6.0, 0.0, 40.0]]\n\n[[follow]]\nobject = \"car\"\nroute = \"main\"\nspeed = [[0.0, 10.0]]\n\n[[camera]]\nname = \"chase\"\nfov_y_deg = 50.0\n\n[camera.rig]\nfollow = \"car\"\n",
+            ),
+        ],
+    );
+    emit(&root, &[]).unwrap();
+    let made = std::fs::read_to_string(root.join("scenes/street.scene.toml")).unwrap();
+    let scene: manfred_recipe::toml_edit::DocumentMut = made.parse().unwrap();
+    let lights = scene["light"].as_array_of_tables().unwrap();
+    let names: Vec<&str> = lights.iter().map(|l| l["name"].as_str().unwrap()).collect();
+    assert_eq!(
+        names,
+        [
+            "lamp",
+            "headlight",
+            "car.headlight_l",
+            "car.headlight_r",
+            "car.taillight_l",
+            "car.taillight_r"
+        ]
+    );
+    let riding: Vec<_> = lights.iter().skip(2).collect();
+    for light in &riding {
+        assert_eq!(light["parent"].as_str(), Some("street"), "{light}");
+        assert_eq!(light["node"].as_str(), Some("car.body"), "{light}");
+        assert_eq!(light["kind"].as_str(), Some("spot"), "{light}");
+        assert!(
+            light.contains_key("at") && !light.contains_key("position"),
+            "{light}"
+        );
+    }
+    let z = |light: &manfred_recipe::toml_edit::Table| {
+        light["at"]
+            .as_array()
+            .unwrap()
+            .get(2)
+            .unwrap()
+            .as_float()
+            .unwrap()
+    };
+    assert!(z(riding[0]) > 2.0 && z(riding[2]) < -2.0);
+    let diagnostics = Project::open(&root).unwrap().check();
+    let lines: Vec<String> = diagnostics.iter().map(ToString::to_string).collect();
+    assert!(lines.is_empty(), "{}", lines.join("\n"));
+}

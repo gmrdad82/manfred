@@ -186,8 +186,10 @@ pub(super) fn wet(settings: &Settings) -> Wet {
     wet
 }
 
-pub(super) fn unplaced(text: String, recipe: &Recipe) -> String {
-    if recipe.lights.iter().all(|light| light.parent.is_none()) {
+pub(super) fn unplaced(text: String, recipe: &Recipe, built: &Built) -> String {
+    if recipe.lights.iter().all(|light| light.parent.is_none())
+        && built.lights.iter().all(|light| light.parent.is_none())
+    {
         return text;
     }
     let Ok(mut doc) = text.parse::<manfred_recipe::toml_edit::DocumentMut>() else {

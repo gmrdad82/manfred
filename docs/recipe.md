@@ -274,7 +274,7 @@ params = { route = "main", spacing = [22, 30], crosswalks = [120.0, 310.0] }
 | `extras` | `true` | at each crosswalk, a traffic signal and four bollards on each side; signs between poles |
 | `signs` | `0.2` | the chance of a sign between two neighbouring poles, away from crosswalks |
 | `crosswalks` | `[]` | distances along the route, as numbers or tables with `at` (or `distance`), such as a street generator's facts; a pole within 3.5 m of one moves past it |
-| `max_lights` | `24` | the most spot lights it returns, the ones nearest the route's start first |
+| `max_lights` | `128` | the most spot lights it returns, the ones nearest the route's start first |
 | `intensity` | `60` | each lamp's intensity |
 | `range` | `24` | each lamp's range in metres |
 | `color` | `[1.0, 0.72, 0.42]` | each lamp's linear colour, a warm sodium white |
@@ -283,7 +283,7 @@ params = { route = "main", spacing = [22, 30], crosswalks = [120.0, 310.0] }
 
 - **Pieces:** `<object>.poles` (posts, plinths, arms and head shells), `<object>.wires`, `<object>.lamps` (the lenses, emissive warm when lit) and `<object>.extras` (signals, bollards and signs); a piece with nothing in it is left out.
 - **Materials** it returns: `furniture_metal`, `furniture_wire`, `furniture_lamp` (emissive) or `furniture_lamp_off`, `furniture_sign` and `furniture_signal` (the lit red lamp); a recipe entry of the same name wins.
-- **Lights:** each lit lamp is a spot light under its head, `<object>.lamp<n>` counted from the route's start, pointing down and a little over the road, with no shadow. The scene writes them as `[[light]]` tables with `kind = "spot"`, `position`, `direction`, `cone`, `color`, `intensity`, `range` and `shadow`, after the recipe's own lights, while the engine has room (1028 local lights with pfx 2.2: 4 shadowed and 1024 clustered); `manfred build` prints a line naming the ones left out.
+- **Lights:** each lit lamp is a spot light under its head, `<object>.lamp<n>` counted from the route's start, pointing down and a little over the road, with no shadow. The scene writes them as `[[light]]` tables with `kind = "spot"`, `position`, `direction`, `cone`, `color`, `intensity`, `range` and `shadow`, after the recipe's own lights and the lights that ride a car, while the engine has room (1028 local lights with pfx 2.2: 4 shadowed and 1024 clustered); `manfred build` prints a line naming the ones left out.
 - **Deterministic:** the same route, params and seed build the same bytes.
 
 ### manfred/car
@@ -306,7 +306,7 @@ params = { style = "sports", paint = "#c8102e" }
   - `wheelbase`: axle to axle, from 0.4 to 0.8 × `length`; about 0.6 × `length` by default.
   - `track`: wheel centre to wheel centre across, from 0.5 × `width` to `width` less the tyre; by default the width less the tyre and the arches' flare.
   - `paint`: `"#rrggbb"` (sRGB), `[r, g, b]` (linear, 0 to 1) or the name of a material the recipe or the app defines.
-  - `lights`: `true` (the default) makes the head and tail lights emissive; `false` leaves them unlit lenses.
+  - `lights`: `true` (the default) makes the head and tail lights emissive and returns four spot lights riding `<object>.body`: `<object>.headlight_l` and `_r` at the headlamps, pointing forward and a little down, cone [20, 40], warm white, range 40 m, and `<object>.taillight_l` and `_r` at the tail lamps, pointing back, cone [30, 60], red, range 6 m and dimmer; `false` leaves them unlit lenses with no lights. The scene writes a car's lights first, with `parent` and `node = "<object>.body"` and `at` in the car's frame on a timeline scene (or the body's own scene object without one), so they move with the car.
 - **Pieces,** named after the object: `<object>.body` (paint, with trim on the underside, wells, grille and valances, and rim metal on the exhausts), `<object>.glass`, `<object>.wheel_fl`, `<object>.wheel_fr`, `<object>.wheel_rl`, `<object>.wheel_rr` (each the tyre, the rim and a dark backing in one piece, three material slots), `<object>.headlights` and `<object>.taillights`. Left is +X, the car's left as it faces +Z. A sports car is about 16,000 triangles, a traffic car about 7,000, and three build in about 20 ms.
 - **Materials** it returns, in the engine's form: `car_paint_<rrggbb>` for a `"#rrggbb"` paint and `car_paint_linear_<rrggbb>` for an `[r, g, b]` one (lacquer with a clear coat), `car_glass` (tinted, transmissive), `car_tyre`, `car_rim` (metal), `car_trim` (dark plastic), and `car_head` and `car_tail` (emissive warm white and red), or `car_head_off` and `car_tail_off` with `lights = false`. A recipe's own `[materials.<name>]` of the same name replaces one.
 - **Facts,** in the car's own frame (before the object's `at`, `rotate` and `scale`): `style`, `length`, `width`, `height`, `wheelbase`, `track`, and `wheels = { fl = { centre = [x, y, z], radius, axle = [1, 0, 0] }, fr = …, rl = …, rr = … }`, the point and axis each wheel spins and steers about.

@@ -176,7 +176,7 @@ impl Params {
             })?,
         };
         let max_lights = match params.get("max_lights") {
-            None => 24,
+            None => 128,
             Some(value) => value.as_u64().ok_or_else(|| {
                 format!("params.max_lights: expected a whole number 0 or more, found {value}")
             })? as usize,
@@ -452,6 +452,7 @@ fn light(name: String, pole: &Pole, p: &Params) -> GeneratedLight {
         color: p.color,
         intensity: p.intensity,
         shadow: false,
+        parent: None,
     }
 }
 
@@ -706,7 +707,7 @@ mod tests {
     #[test]
     fn lights_are_capped_nearest_the_start_first() {
         let all = furnish(&route(), "f", &params(json!({}))).lights;
-        assert!(all.len() > 5 && all.len() <= 24);
+        assert!(all.len() > 5 && all.len() <= 128);
         let capped = furnish(&route(), "f", &params(json!({"max_lights": 5}))).lights;
         assert_eq!(capped.len(), 5);
         assert_eq!(capped[..], all[..5]);

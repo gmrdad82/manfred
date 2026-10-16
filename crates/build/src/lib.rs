@@ -81,6 +81,7 @@ pub struct GeneratedLight {
     pub color: [f64; 3],
     pub intensity: f64,
     pub shadow: bool,
+    pub parent: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -835,7 +836,10 @@ fn key(
     Some(format!("{:?}", (object, base, entry, cuts, matrix, eye)))
 }
 
-fn placed(light: GeneratedLight, matrix: DMat4) -> GeneratedLight {
+fn placed(light: GeneratedLight, matrix: DMat4, kept: bool) -> GeneratedLight {
+    if kept && light.parent.is_some() {
+        return light;
+    }
     let direction = matrix
         .transform_vector3(DVec3::from(light.direction))
         .normalize_or(DVec3::NEG_Y);
@@ -902,7 +906,7 @@ fn make(
     let matrix = matrix?;
     made.lights = lights
         .into_iter()
-        .map(|light| placed(light, matrix))
+        .map(|light| placed(light, matrix, object.keep_transform))
         .collect();
     for Piece { name, mut mesh } in pieces {
         let mut morph = morph.take();

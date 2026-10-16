@@ -1,4 +1,4 @@
-use crate::{Call, Generated, Piece};
+use crate::{Call, Generated, GeneratedLight, Piece};
 use glam::{DMat4, DQuat, DVec2, DVec3};
 use manfred_mesh::{self as mesh, Mesh, Slot};
 use serde_json::{Map, Value, json};
@@ -456,10 +456,10 @@ pub fn generate(call: &Call) -> Result<Generated, String> {
         unreachable!()
     };
     Ok(Generated {
+        lights: if lights { car.lights(name) } else { Vec::new() },
         pieces,
         facts,
         materials,
-        ..Generated::default()
     })
 }
 
@@ -909,56 +909,102 @@ impl Car {
         )
     }
 
-    fn headlights(&self, material: &str) -> Mesh {
+    fn heads(&self) -> ([f64; 2], [DVec3; 2]) {
         let (hw, lo, hi) = self.cap(1.0);
         let y = lo + (hi - lo) * 0.78;
-        let mut m = Mesh::default();
         let (w, h) = if self.style == Style::Sports {
             (0.42, 0.045)
         } else {
             (0.34, 0.1)
         };
-        for side in [-1.0, 1.0] {
-            m.append(&self.lamp(1.0, [w, h, 0.02], side * (hw - w * 0.5 - 0.04), y, material));
+        let z = self.length * 0.5 + 0.004;
+        let at = |side: f64| DVec3::new(side * (hw - w * 0.5 - 0.04), y, z);
+        ([w, h], [at(1.0), at(-1.0)])
+    }
+
+    fn headlights(&self, material: &str) -> Mesh {
+        let (hw, _, _) = self.cap(1.0);
+        let ([w, h], lamps) = self.heads();
+        let mut m = Mesh::default();
+        for at in [lamps[1], lamps[0]] {
+            m.append(&self.lamp(1.0, [w, h, 0.02], at.x, at.y, material));
         }
         if self.style == Style::Sports {
             m.append(&self.lamp(
                 1.0,
                 [2.0 * (hw - w - 0.04), 0.012, 0.016],
                 0.0,
-                y + h * 0.25,
+                lamps[0].y + h * 0.25,
                 material,
             ));
         }
         m
     }
 
-    fn taillights(&self, material: &str) -> Mesh {
+    fn tails(&self) -> ([f64; 2], [DVec3; 2]) {
         let (hw, lo, hi) = self.cap(-1.0);
+        let (size, x, y) = match self.style {
+            Style::Sports => ([0.24, 0.08], hw - 0.16, 0.8),
+            Style::Sedan | Style::Hatch => ([0.34, 0.11], hw - 0.19, 0.72),
+            Style::Van => ([0.13, 0.42], hw - 0.08, 0.42),
+        };
+        let y = lo + (hi - lo) * y;
+        let z = -(self.length * 0.5 + 0.004);
+        (size, [DVec3::new(x, y, z), DVec3::new(-x, y, z)])
+    }
+
+    fn taillights(&self, material: &str) -> Mesh {
+        let (hw, _, _) = self.cap(-1.0);
+        let ([w, h], lamps) = self.tails();
+        let y = lamps[0].y;
         let mut m = Mesh::default();
         match self.style {
             Style::Sports => {
-                let y = lo + (hi - lo) * 0.8;
                 m.append(&self.lamp(-1.0, [2.0 * hw - 0.08, 0.035, 0.016], 0.0, y, material));
-                for side in [-1.0, 1.0] {
-                    m.append(&self.lamp(-1.0, [0.24, 0.08, 0.02], side * (hw - 0.16), y, material));
-                }
             }
             Style::Sedan | Style::Hatch => {
-                let y = lo + (hi - lo) * 0.72;
                 m.append(&self.lamp(-1.0, [2.0 * hw - 0.6, 0.02, 0.016], 0.0, y, material));
-                for side in [-1.0, 1.0] {
-                    m.append(&self.lamp(-1.0, [0.34, 0.11, 0.02], side * (hw - 0.19), y, material));
-                }
             }
-            Style::Van => {
-                let y = lo + (hi - lo) * 0.42;
-                for side in [-1.0, 1.0] {
-                    m.append(&self.lamp(-1.0, [0.13, 0.42, 0.02], side * (hw - 0.08), y, material));
-                }
-            }
+            Style::Van => {}
+        }
+        for at in [lamps[1], lamps[0]] {
+            m.append(&self.lamp(-1.0, [w, h, 0.02], at.x, y, material));
         }
         m
+    }
+
+    fn lights(&self, name: &str) -> Vec<GeneratedLight> {
+        let body = format!("{name}.body");
+        let (_, heads) = self.heads();
+        let (_, tails) = self.tails();
+        let mut out = Vec::new();
+        for (side, at) in ["l", "r"].into_iter().zip(heads) {
+            out.push(GeneratedLight {
+                name: format!("{name}.headlight_{side}"),
+                position: (at + DVec3::Z * 0.06).to_array(),
+                direction: DVec3::new(0.0, -0.06, 1.0).normalize().to_array(),
+                cone: [20.0, 40.0],
+                range: 40.0,
+                color: [1.0, 0.93, 0.82],
+                intensity: 90.0,
+                shadow: false,
+                parent: Some(body.clone()),
+            });
+        }
+        for (side, at) in ["l", "r"].into_iter().zip(tails) {
+            out.push(GeneratedLight {
+                name: format!("{name}.taillight_{side}"),
+                position: (at - DVec3::Z * 0.06).to_array(),
+                direction: DVec3::new(0.0, -0.15, -1.0).normalize().to_array(),
+                cone: [30.0, 60.0],
+                range: 6.0,
+                color: [1.0, 0.06, 0.03],
+                intensity: 6.0,
+                shadow: false,
+                parent: Some(body.clone()),
+            });
+        }
+        out
     }
 
     fn trim(&self, body: &mut Mesh, paint: &str) {

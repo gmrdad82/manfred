@@ -1014,7 +1014,7 @@ fn lights(
     }
     let room = MAX_LIGHTS.saturating_sub(recipe.lights.len());
     let generated: Vec<manfred_recipe::Light> =
-        built.lights.iter().take(room).map(generated).collect();
+        ordered(&built.lights).take(room).map(generated).collect();
     for light in recipe.lights.iter().chain(&generated) {
         let at = format!("light[{}]", light.name);
         let parent = match &light.parent {
@@ -1061,7 +1061,10 @@ fn generated(light: &GeneratedLight) -> manfred_recipe::Light {
         name: light.name.clone(),
         kind: LightKind::Spot,
         position: light.position,
-        parent: None,
+        parent: light
+            .parent
+            .as_ref()
+            .map(|node| (node.clone(), light.position)),
         direction: Some(light.direction),
         cone: Some(light.cone),
         color: light.color,
@@ -1072,11 +1075,15 @@ fn generated(light: &GeneratedLight) -> manfred_recipe::Light {
     }
 }
 
+fn ordered(lights: &[GeneratedLight]) -> impl Iterator<Item = &GeneratedLight> {
+    let riding = lights.iter().filter(|light| light.parent.is_some());
+    riding.chain(lights.iter().filter(|light| light.parent.is_none()))
+}
+
 pub(crate) fn lights_left_out(recipe: &Recipe, generated: &[GeneratedLight]) -> Option<String> {
     recipe.output.scene.as_ref()?;
     let room = MAX_LIGHTS.saturating_sub(recipe.lights.len());
-    let left: Vec<&str> = generated
-        .iter()
+    let left: Vec<&str> = ordered(generated)
         .skip(room)
         .map(|light| light.name.as_str())
         .collect();
@@ -1704,7 +1711,7 @@ fn one(
         particles.id = next(&mut ids, None, "particles", &particles.name);
     }
     let text = toml::to_string(&scene).map_err(|e| refused("output.scene", &e))?;
-    let text = effects::unplaced(text, recipe);
+    let text = effects::unplaced(text, recipe, built);
     let mut fonts = written.files;
     if let Some((file, stands)) = stands {
         let owned: Vec<Id> = stands
