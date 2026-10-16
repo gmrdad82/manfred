@@ -111,7 +111,7 @@ fn the_table_writes_a_format_1_scene_and_the_engine_opens_it() {
         panic!("the table's sky is analytic");
     };
     assert!((sky.ambient - 0.9).abs() < 1e-6);
-    let camera = scene.camera.unwrap();
+    let camera = scene.camera.clone().unwrap();
     assert_eq!(camera.projection, Projection::Perspective { fov: 32.0 });
     assert_eq!(camera.at, [0.0, 0.34, 0.62]);
     assert!(camera.near > 0.0 && camera.far > camera.near);
@@ -158,7 +158,12 @@ fn the_same_recipe_writes_the_same_bytes() {
 fn graded(exposure: f32, bloom: f32, vignette: f32, saturation: f32, warmth: f32) -> Vec<Pass> {
     vec![
         Pass::Exposure(exposure),
-        Pass::Bloom(Bloom::pyramid(bloom, 0.9, 0.7, 0.6, 0.15, 12, 50.0, 2)),
+        Pass::Bloom(Bloom {
+            knee: 0.7,
+            knee_width: 0.6,
+            soft: 0.15,
+            ..Bloom::tent(bloom, 0.9, 12, 50.0, 2)
+        }),
         Pass::Vignette(Vignette::power(vignette, 2.4, 0.8, 1.28)),
         Pass::Saturation(Saturation::rec709(saturation)),
         Pass::Warmth(Warmth::linear(warmth)),
@@ -442,7 +447,7 @@ fn the_cameras_lens_round_trips_through_the_scene_and_matches_the_stages() {
     let (r, scene) = lensed("scene-lens-focus", |r| high(r).focus_m = Some(1.1));
     let camera = r.cameras.iter().find(|c| c.name == "high").unwrap();
     let scene_camera = scene.camera.unwrap();
-    let depth = scene_camera.depth_of_field.unwrap();
+    let depth = scene_camera.depth_of_field.clone().unwrap();
     assert_eq!((depth.fstop, depth.distance), (4.0, 1.1));
     assert!((depth.focal - 0.05).abs() < 1e-7, "{depth:?}");
     let eye = Eye::from_camera(camera, aspect(&r));

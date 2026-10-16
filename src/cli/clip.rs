@@ -385,8 +385,14 @@ impl Renderer {
                 )?;
                 manfred_scene::write_frame(to, rendered.film.size, &rgba).map_err(|e| e.0)?;
                 let paced = rendered.paced;
+                let builds = reel.builds().map_or(String::new(), |builds| {
+                    format!(
+                        ", the trace's {} bottom and {} top builds",
+                        builds.bottom, builds.top
+                    )
+                });
                 Ok(format!(
-                    "{} submissions, the longest {:.2} ms, {:.0} ms on the GPU",
+                    "{} submissions, the longest {:.2} ms, {:.0} ms on the GPU{builds}",
                     paced.submissions, paced.longest_ms, paced.gpu_ms
                 ))
             }

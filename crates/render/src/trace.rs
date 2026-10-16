@@ -1,5 +1,5 @@
 use crate::picture::{Film, Reach};
-use crate::staging::{Staging, View, eyepiece};
+use crate::staging::{IDENTITY, Staging, View, eyepiece};
 use crate::text::Overlay;
 use manfred_build::{Built, Registry};
 use manfred_recipe::{Camera, Recipe};
@@ -9,6 +9,7 @@ use pfx_gpu::Gpu;
 use pfx_gpu::pace::{Pacer, Stats};
 use pfx_live::frame::Matrix;
 use pfx_post::Chain;
+use pfx_trace::gpu::Builds;
 use pfx_trace::sky::Environment;
 use pfx_trace::sobol::Sampler;
 use pfx_trace::stage::Staged;
@@ -476,6 +477,13 @@ pub struct Reel {
     staging: Staging,
     gpu: Gpu,
     denoiser: Option<Denoiser>,
+    kept: Option<Kept>,
+}
+
+struct Kept {
+    trace: Trace,
+    size: [u32; 2],
+    samples: u32,
 }
 
 impl Reel {
@@ -499,7 +507,12 @@ impl Reel {
             staging,
             gpu,
             denoiser: None,
+            kept: None,
         })
+    }
+
+    pub fn builds(&self) -> Option<Builds> {
+        self.kept.as_ref().map(|kept| kept.trace.builds())
     }
 
     pub fn timeline(&self) -> Option<manfred_recipe::Timeline> {
@@ -507,9 +520,13 @@ impl Reel {
     }
 
     pub fn pose(&mut self, time: f64) -> Result<(), Fault> {
-        let (recipe, built) = manfred_scene::posed(&self.base, &self.built, time)?;
-        self.staging = Staging::of(&recipe, &built.parts)?;
-        self.recipe = recipe;
+        self.recipe = manfred_build::pose_cameras(&self.base, &self.built, time)
+            .map_err(|e| Fault::Failed(e.to_string()))?;
+        let fps = self.base.timeline.map_or(1, |t| t.fps);
+        let posed = manfred_scene::poses(&self.built, fps, time);
+        for (model, piece) in self.staging.posed.iter_mut().zip(&self.staging.pieces) {
+            *model = posed.get(&piece.name).copied().unwrap_or(IDENTITY);
+        }
         Ok(())
     }
 
@@ -541,24 +558,48 @@ impl Reel {
         }
         progress(Step::Stage);
         let mut turn = turn_reporting;
-        let mut staged = self.staging.stage(eyepiece(camera, View::Lens, size)?)?;
-        staged.detail.sampler = Sampler::Sobol { samples };
+        let lens = eyepiece(camera, View::Lens, size)?;
+        let failed = |e: String| Fault::Failed(format!("the tracer: {e}"));
+        let mut kept = match self.kept.take() {
+            Some(mut kept) if kept.size == size && kept.samples == samples => {
+                let models: Vec<Matrix> = self
+                    .staging
+                    .placements(&lens.eye)
+                    .iter()
+                    .map(|placement| placement.model)
+                    .collect();
+                kept.trace
+                    .set_instance_transforms(&self.gpu, &models)
+                    .map_err(failed)?;
+                kept.trace.set_projection(lens.projection).map_err(failed)?;
+                kept.trace.set_lens(lens.lens).map_err(failed)?;
+                kept.trace.set_camera(lens.camera).map_err(failed)?;
+                kept
+            }
+            _ => {
+                let mut staged = self.staging.stage(lens)?;
+                staged.detail.sampler = Sampler::Sobol { samples };
+                Kept {
+                    trace: Region::whole(size).open(&self.gpu, &staged)?,
+                    size,
+                    samples,
+                }
+            }
+        };
         turn(Report::default());
         if self.denoiser.is_none() {
             self.denoiser = Some(denoiser(&self.gpu)?);
         }
-        let (film, paced) = trace_in(
+        let traced = traced(
             &self.gpu,
-            &staged,
-            Shot {
-                region: Region::whole(size),
-                seed: self.seed,
-                denoiser: self.denoiser.as_mut(),
-            },
+            &mut kept.trace,
+            (size, self.seed, self.denoiser.as_mut()),
             samples,
             progress,
             &mut turn,
-        )?;
+        );
+        self.kept = Some(kept);
+        let (film, paced) = traced?;
         Ok(Rendered {
             film,
             overlay: Overlay::of(&self.staging.text),
@@ -616,11 +657,29 @@ fn trace_in(
         denoiser,
     } = shot;
     let mut trace = region.open(gpu, staged)?;
+    traced(
+        gpu,
+        &mut trace,
+        (region.size, seed, denoiser),
+        samples,
+        progress,
+        turn,
+    )
+}
+
+fn traced(
+    gpu: &Gpu,
+    trace: &mut Trace,
+    (size, seed, denoiser): ([u32; 2], u32, Option<&mut Denoiser>),
+    samples: u32,
+    progress: &mut dyn FnMut(Step),
+    turn: &mut dyn FnMut(Report),
+) -> Result<(Film, Paced), Fault> {
     let mut turns = Turns::new(turn);
     let paced = sampled(samples, &mut turns, progress, |pacer, between| {
         trace.sample_paced(gpu, 1, seed, pacer, between)
     })?;
-    let film = developed(gpu, &trace, region.size, samples, denoiser)?;
+    let film = developed(gpu, trace, size, samples, denoiser)?;
     turns.now();
     Ok((film, paced))
 }
