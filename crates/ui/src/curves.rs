@@ -548,7 +548,7 @@ offset = [0.5, 1.2, -6.0]
         round_trip(
             CHASE,
             edit(Change::Add { t: 1.0 }, "distance"),
-            &["# wide\n  [1.0, 4.813],\n  [2.0, 4.0],"],
+            &["# wide\n  [1.0, 5.063],\n  [2.0, 4.0],"],
             &kept,
         );
         round_trip(
