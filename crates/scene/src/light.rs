@@ -409,8 +409,8 @@ fn hdr(recipe: &Recipe, sky: &manfred_recipe::Sky) -> Result<Sky, Error> {
     let Some(file) = hdr_file(recipe, sky) else {
         return Err(Error("sky.path: an HDR sky needs a path".into()));
     };
-    let bytes =
-        std::fs::read(&file).map_err(|e| Error(format!("sky.path: {}: {e}", file.display())))?;
+    let bytes = manfred_recipe::files::read(&file)
+        .map_err(|e| Error(format!("sky.path: {}: {e}", file.display())))?;
     let parsed =
         Sky::parse(&bytes).map_err(|e| Error(format!("sky.path: {}: {e}", file.display())))?;
     let balance = sky.balance.map(|b| b.map(|v| v as f32));

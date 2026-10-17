@@ -4,7 +4,7 @@ use std::path::Path;
 
 pub fn read_json(base: &Path, path: &str, label: &str) -> Result<Value, String> {
     let file = base.join(path);
-    let text = std::fs::read_to_string(&file)
+    let text = manfred_build::files::read_to_string(&file)
         .map_err(|e| format!("{label}: cannot read {}: {e}", file.display()))?;
     serde_json::from_str(&text).map_err(|e| format!("{label}: {} is not JSON: {e}", file.display()))
 }

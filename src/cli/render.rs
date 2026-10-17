@@ -62,7 +62,7 @@ fn output(text: &str) -> Result<PathBuf, String> {
 #[derive(clap::Args, Clone, Debug, PartialEq)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to render")]
-    recipe: PathBuf,
+    pub(super) recipe: PathBuf,
     #[arg(
         long,
         value_name = "name",

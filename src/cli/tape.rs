@@ -217,9 +217,9 @@ fn copied(path: &Path, work: &Path, skip: &Path) -> Result<PathBuf, String> {
 
 fn following(
     shell: Shell,
-    recipe: PathBuf,
     (registry, pick): (&Registry, &super::Picks),
 ) -> (Shell, Option<Viewer>) {
+    let recipe = PathBuf::from(shell.recipe_path());
     let viewer = Viewer::with(super::gui::picked(
         Follow::idle_with(recipe, Mode::Stage, registry.clone()),
         pick,
@@ -240,12 +240,12 @@ fn opened(
             let recipe = manfred_ui::start_recipe(work)
                 .map_err(|error| format!("the start scene is not written: {error}"))?;
             let recipe = recipe.strip_prefix(work).unwrap_or(&recipe).to_path_buf();
-            following(Shell::start(&text(&recipe)), recipe, (registry, pick))
+            following(Shell::start(&text(&recipe)), (registry, pick))
         }
         Place::Folder(folder) => (Shell::browse(&text(&copied(folder, work, skip)?)), None),
         Place::Recipe(recipe) => {
             let recipe = copied(recipe, work, skip)?;
-            following(Shell::open(&text(&recipe)), recipe, (registry, pick))
+            following(Shell::open(&text(&recipe)), (registry, pick))
         }
         Place::Scene(scene) => {
             let scene = copied(scene, work, skip)?;

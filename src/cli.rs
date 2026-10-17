@@ -3,8 +3,11 @@ mod check;
 mod clip;
 mod curve;
 mod diff;
+mod document;
 mod entries;
+mod export;
 mod gui;
+mod import;
 mod key;
 mod library;
 mod library_add;
@@ -128,6 +131,22 @@ enum Verb {
     Duplicate(entries::Duplicate),
     #[command(about = "List the recipe's entries and their names")]
     List(entries::List),
+    #[command(about = "Pack a recipe, its files and its build into one .manf document")]
+    Save(document::SaveArgs),
+    #[command(about = "Write a .manf document's recipe and files into a folder")]
+    Unpack(document::UnpackArgs),
+    #[command(
+        about = "List the scene edits pfx made in a .manf, fold them into the recipe or keep them"
+    )]
+    Fold(document::FoldArgs),
+    #[command(
+        about = "Read a glTF 2.0 binary into a .manf document with its recipe and detected facts"
+    )]
+    Import(import::Args),
+    #[command(
+        about = "Write a .manf or a recipe as a standalone glTF 2.0 binary with no Manfred extras"
+    )]
+    Export(export::Args),
 }
 
 fn line(host: &Host) -> clap::Command {
@@ -315,6 +334,25 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Err(error) => return answer(&error),
     };
     let rest = args.get(1..).unwrap_or_default();
+    let mut verb = verb;
+    let opened = match document::swap(&mut verb) {
+        Ok(opened) => opened,
+        Err((name, e)) => return refuse(name, &e),
+    };
+    let code = run_verb(verb, rest, registry, host, installed);
+    match opened.map(|opened| opened.finish(registry)) {
+        Some(Err(e)) => refuse("document", &e),
+        _ => code,
+    }
+}
+
+fn run_verb(
+    verb: Verb,
+    rest: &[String],
+    registry: &Registry,
+    host: &Host,
+    installed: bool,
+) -> ExitCode {
     match verb {
         Verb::Build(parsed) => build::run(&parsed, registry),
         Verb::Check(parsed) => check::run(&parsed, registry),
@@ -337,6 +375,11 @@ fn route(args: &[String], registry: &Registry, host: &Host, installed: bool) -> 
         Verb::Remove(parsed) => entries::remove(&parsed),
         Verb::Duplicate(parsed) => entries::duplicate(&parsed),
         Verb::List(parsed) => entries::list(&parsed),
+        Verb::Save(parsed) => document::save(&parsed, registry),
+        Verb::Unpack(parsed) => document::unpack(&parsed),
+        Verb::Fold(parsed) => document::fold(&parsed, registry),
+        Verb::Import(parsed) => import::run(&parsed, registry),
+        Verb::Export(parsed) => export::run(&parsed, registry),
     }
 }
 

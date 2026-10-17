@@ -102,7 +102,10 @@ fn source(
         }
         gltf::image::Source::Uri { uri, .. } if !uri.starts_with("data:") => {
             let file = folder.join(uri);
-            Some(std::fs::read(&file).map_err(|e| format!("cannot read {uri}: {e}"))?)
+            Some(
+                manfred_recipe::files::read(&file)
+                    .map_err(|e| format!("cannot read {uri}: {e}"))?,
+            )
         }
         gltf::image::Source::Uri { .. } => None,
     })
@@ -210,7 +213,8 @@ impl Pool {
             return Ok(found.clone());
         }
         let fail = |text: String| Error::new(format!("materials.{name}.{key}"), text);
-        let bytes = std::fs::read(&file).map_err(|e| fail(format!("cannot read {path}: {e}")))?;
+        let bytes = manfred_recipe::files::read(&file)
+            .map_err(|e| fail(format!("cannot read {path}: {e}")))?;
         if Mime::of(&bytes) != Some(Mime::Png) {
             return Err(fail(format!("{path} is not a PNG")));
         }

@@ -20,6 +20,91 @@ pub fn field_id() -> Id {
     Id::new("manfred open path")
 }
 
+pub fn name_id() -> Id {
+    Id::new("manfred save name")
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Purpose {
+    #[default]
+    Open,
+    Import,
+    SaveAs,
+    Export,
+}
+
+impl Purpose {
+    fn saves(self) -> bool {
+        matches!(self, Purpose::SaveAs | Purpose::Export)
+    }
+
+    fn title(self) -> &'static str {
+        match self {
+            Purpose::Open => "OPEN",
+            Purpose::Import => "IMPORT GLTF",
+            Purpose::SaveAs => "SAVE AS .MANF",
+            Purpose::Export => "EXPORT GLTF",
+        }
+    }
+
+    fn verb(self) -> &'static str {
+        match self {
+            Purpose::Open => "open",
+            Purpose::Import => "import",
+            Purpose::SaveAs => "save",
+            Purpose::Export => "export",
+        }
+    }
+
+    fn hint(self) -> &'static str {
+        match self {
+            Purpose::Open => "path of a recipe, a scene, a .manf or a .glb",
+            Purpose::Import => "path of a .glb",
+            Purpose::SaveAs | Purpose::Export => "folder",
+        }
+    }
+
+    fn accepts(self, path: &Path) -> bool {
+        let kind = crate::file::kind(path);
+        path.is_file()
+            && visible_name(path).is_some()
+            && match self {
+                Purpose::Open => kind.is_some(),
+                Purpose::Import | Purpose::Export => kind == Some(crate::file::Kind::Glb),
+                Purpose::SaveAs => kind == Some(crate::file::Kind::Manf),
+            }
+    }
+}
+
+#[derive(Clone, Default)]
+struct Thumbs(std::collections::BTreeMap<PathBuf, Option<egui::TextureHandle>>);
+
+impl std::fmt::Debug for Thumbs {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list().entries(self.0.keys()).finish()
+    }
+}
+
+impl Thumbs {
+    fn get(&mut self, ctx: &Context, path: &Path) -> Option<egui::TextureId> {
+        if crate::file::kind(path) != Some(crate::file::Kind::Manf) {
+            return None;
+        }
+        self.0
+            .entry(path.to_path_buf())
+            .or_insert_with(|| {
+                let image = crate::file::decode(&crate::file::thumb(path)?)?;
+                Some(ctx.load_texture(
+                    format!("thumb {}", path.display()),
+                    image,
+                    egui::TextureOptions::LINEAR,
+                ))
+            })
+            .as_ref()
+            .map(egui::TextureHandle::id)
+    }
+}
+
 pub fn state_dir() -> PathBuf {
     state_dir_from(
         std::env::var_os("XDG_STATE_HOME").as_deref(),
@@ -120,14 +205,19 @@ pub fn known(
     out
 }
 
+#[cfg(test)]
 pub fn recipes(folder: &Path) -> Vec<PathBuf> {
+    files(folder, Purpose::Open)
+}
+
+fn files(folder: &Path, purpose: Purpose) -> Vec<PathBuf> {
     let mut found = Vec::new();
     let Ok(entries) = std::fs::read_dir(folder) else {
         return found;
     };
     for entry in entries.flatten() {
         let path = entry.path();
-        if is_recipe(&path) {
+        if purpose.accepts(&path) {
             found.push(path);
         }
     }
@@ -135,7 +225,12 @@ pub fn recipes(folder: &Path) -> Vec<PathBuf> {
     found
 }
 
+#[cfg(test)]
 pub fn complete(typed: &str) -> Vec<PathBuf> {
+    complete_for(typed, Purpose::Open)
+}
+
+fn complete_for(typed: &str, purpose: Purpose) -> Vec<PathBuf> {
     if typed.is_empty() {
         return Vec::new();
     }
@@ -152,7 +247,7 @@ pub fn complete(typed: &str) -> Vec<PathBuf> {
         if !name.starts_with(&prefix) {
             continue;
         }
-        if path.is_dir() || is_recipe(&path) {
+        if path.is_dir() || purpose.accepts(&path) {
             found.push(path);
         }
     }
@@ -204,13 +299,23 @@ impl Listed {
     }
 }
 
+#[cfg(test)]
 pub fn listed(query: &str, recent: &[PathBuf], folders: &[(String, PathBuf)]) -> Listed {
+    listed_for(query, recent, folders, Purpose::Open)
+}
+
+fn listed_for(
+    query: &str,
+    recent: &[PathBuf],
+    folders: &[(String, PathBuf)],
+    purpose: Purpose,
+) -> Listed {
     let query = query.trim();
     if !query.is_empty() {
         return Listed {
             recent: Vec::new(),
             groups: Vec::new(),
-            matches: complete(query)
+            matches: complete_for(query, purpose)
                 .into_iter()
                 .map(|path| {
                     if path.is_dir() {
@@ -223,10 +328,15 @@ pub fn listed(query: &str, recent: &[PathBuf], folders: &[(String, PathBuf)]) ->
         };
     }
     Listed {
-        recent: recent.iter().take(LIMIT).cloned().collect(),
+        recent: recent
+            .iter()
+            .filter(|_| purpose == Purpose::Open)
+            .take(LIMIT)
+            .cloned()
+            .collect(),
         groups: folders
             .iter()
-            .map(|(title, folder)| (title.clone(), recipes(folder)))
+            .map(|(title, folder)| (title.clone(), files(folder, purpose)))
             .collect(),
         matches: Vec::new(),
     }
@@ -386,6 +496,9 @@ impl Book {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Act {
     Open(PathBuf),
+    Import(PathBuf),
+    SaveAs(PathBuf),
+    Export(PathBuf, bool),
     Close,
 }
 
@@ -408,6 +521,10 @@ pub struct Picker {
     held: Option<Held>,
     fallback: Option<PathBuf>,
     own: bool,
+    purpose: Purpose,
+    name: String,
+    selected: Option<bool>,
+    thumbs: Thumbs,
 }
 
 impl Picker {
@@ -436,6 +553,27 @@ impl Picker {
     }
 
     pub fn show(&mut self) {
+        if self.purpose != Purpose::Open {
+            self.close();
+        }
+        self.shown = true;
+        self.focus = true;
+    }
+
+    pub fn show_for(
+        &mut self,
+        purpose: Purpose,
+        folder: Option<PathBuf>,
+        name: String,
+        selected: Option<bool>,
+    ) {
+        self.close();
+        self.purpose = purpose;
+        if let Some(folder) = folder.filter(|folder| folder.is_dir()) {
+            self.browse_to(folder);
+        }
+        self.name = name;
+        self.selected = selected;
         self.shown = true;
         self.focus = true;
     }
@@ -448,6 +586,9 @@ impl Picker {
         self.cursor = 0;
         self.focus = false;
         self.held = None;
+        self.purpose = Purpose::Open;
+        self.name.clear();
+        self.selected = None;
     }
 
     pub fn fail(&mut self, error: String) {
@@ -500,7 +641,7 @@ impl Picker {
         } else {
             (Vec::new(), Vec::new())
         };
-        let listed = listed(&self.query, &recent, &folders);
+        let listed = listed_for(&self.query, &recent, &folders, self.purpose);
         self.held = Some(Held {
             query: self.query.clone(),
             anchor: self.anchor.clone(),
@@ -509,20 +650,49 @@ impl Picker {
     }
 
     fn contents(&mut self, ui: &mut Ui, live: bool, path: &str, book: &Book) -> Option<Act> {
+        let purpose = self.purpose;
         if self.focus {
-            ui.memory_mut(|memory| memory.request_focus(field_id()));
+            let id = if purpose.saves() {
+                name_id()
+            } else {
+                field_id()
+            };
+            ui.memory_mut(|memory| memory.request_focus(id));
             if !ui.is_sizing_pass() {
                 self.focus = false;
             }
         }
-        title(ui);
-        let response = text_field(
+        title(ui, purpose);
+        let mut response = text_field(
             ui,
             &mut self.query,
-            "path of a recipe or a scene",
+            purpose.hint(),
             ui.available_width(),
             Some(field_id()),
         );
+        if purpose.saves() {
+            let hint = if purpose == Purpose::SaveAs {
+                "name.manf"
+            } else {
+                "name.glb"
+            };
+            let named = text_field(
+                ui,
+                &mut self.name,
+                hint,
+                ui.available_width(),
+                Some(name_id()),
+            );
+            if named.has_focus() || named.lost_focus() {
+                response = named;
+            }
+            if let Some(selected) = self.selected.as_mut() {
+                ui.checkbox(
+                    selected,
+                    small(ui, "the selected object only", TEXT_SECONDARY),
+                );
+            }
+        }
         if self.query != self.seen {
             self.cursor = 0;
             self.seen.clone_from(&self.query);
@@ -554,6 +724,7 @@ impl Picker {
         let cursor = self.cursor;
         let empty = self.query.trim().is_empty();
         let mut clicked = None;
+        let thumbs = &mut self.thumbs;
         if let Some(held) = self.held.as_ref() {
             let listed = &held.listed;
             egui::ScrollArea::vertical()
@@ -564,12 +735,14 @@ impl Picker {
                     ui.spacing_mut().item_spacing.y = 0.0;
                     if empty {
                         let mut index = 0;
-                        heading(ui, "recent");
-                        if listed.recent.is_empty() {
-                            muted(ui, "none yet");
+                        if purpose == Purpose::Open {
+                            heading(ui, "recent");
+                            if listed.recent.is_empty() {
+                                muted(ui, "none yet");
+                            }
                         }
                         for path in &listed.recent {
-                            if recipe_row(ui, index == cursor, path).clicked() {
+                            if recipe_row(ui, index == cursor, path, thumbs).clicked() {
                                 clicked = Some(index);
                             }
                             index += 1;
@@ -577,11 +750,11 @@ impl Picker {
                         for (title, recipes) in &listed.groups {
                             heading(ui, title);
                             if recipes.is_empty() {
-                                muted(ui, "no recipes");
+                                muted(ui, "none here");
                                 continue;
                             }
                             for path in recipes {
-                                if recipe_row(ui, index == cursor, path).clicked() {
+                                if recipe_row(ui, index == cursor, path, thumbs).clicked() {
                                     clicked = Some(index);
                                 }
                                 index += 1;
@@ -594,7 +767,7 @@ impl Picker {
                         }
                         for (index, row) in listed.matches.iter().enumerate() {
                             let response = match row {
-                                Row::Recipe(path) => recipe_row(ui, index == cursor, path),
+                                Row::Recipe(path) => recipe_row(ui, index == cursor, path, thumbs),
                                 Row::Dir(path) => dir_row(ui, index == cursor, path),
                             };
                             if response.clicked() {
@@ -604,7 +777,7 @@ impl Picker {
                     }
                 });
         }
-        let (enter_clicked, escape_clicked) = footer(ui, live);
+        let (enter_clicked, escape_clicked) = footer(ui, live, purpose);
         let enter = enter || enter_clicked;
         if escape || escape_clicked {
             if live && self.shown {
@@ -623,18 +796,14 @@ impl Picker {
         }
         let index = clicked.unwrap_or(self.cursor);
         let chosen = self.held.as_ref().and_then(|held| held.listed.get(index));
+        if purpose.saves() {
+            return self.save_choice(clicked.is_some(), chosen);
+        }
         match choose(&self.query, chosen.as_ref()) {
+            Some(Choice::Open(path)) if purpose == Purpose::Import => Some(Act::Import(path)),
             Some(Choice::Open(path)) => Some(Act::Open(path)),
             Some(Choice::Browse(path)) => {
-                self.anchor = Some(path.clone());
-                let mut text = path.display().to_string();
-                if !text.ends_with('/') {
-                    text.push('/');
-                }
-                self.query = text;
-                self.seen.clone_from(&self.query);
-                self.cursor = 0;
-                self.error = None;
+                self.browse_to(path);
                 self.focus = true;
                 None
             }
@@ -643,25 +812,81 @@ impl Picker {
                 self.error = Some(if query.is_empty() {
                     "type a path".to_string()
                 } else {
-                    format!("no recipe at {query}")
+                    format!("nothing to {} at {query}", purpose.verb())
                 });
                 None
             }
         }
     }
+
+    fn browse_to(&mut self, path: PathBuf) {
+        let mut text = path.display().to_string();
+        if !text.ends_with('/') {
+            text.push('/');
+        }
+        self.anchor = Some(path);
+        self.query = text;
+        self.seen.clone_from(&self.query);
+        self.cursor = 0;
+        self.error = None;
+    }
+
+    fn save_choice(&mut self, clicked: bool, chosen: Option<Row>) -> Option<Act> {
+        match chosen.filter(|_| clicked) {
+            Some(Row::Dir(path)) => {
+                self.browse_to(path);
+                return None;
+            }
+            Some(Row::Recipe(path)) => {
+                self.name = file_name(&path);
+                if let Some(parent) = path.parent() {
+                    self.browse_to(parent.to_path_buf());
+                }
+                return None;
+            }
+            None => {}
+        }
+        let name = self.name.trim();
+        if name.is_empty() {
+            self.error = Some("type a name".to_string());
+            return None;
+        }
+        let query = self.query.trim();
+        let folder = if query.is_empty() {
+            self.anchor.clone().unwrap_or_else(|| PathBuf::from("."))
+        } else {
+            expand_home(query, std::env::var_os("HOME").as_deref())
+        };
+        if !folder.is_dir() {
+            self.error = Some(format!("no folder at {}", folder.display()));
+            return None;
+        }
+        let target = folder.join(name);
+        Some(match self.purpose {
+            Purpose::Export => Act::Export(target, self.selected.unwrap_or(false)),
+            _ => Act::SaveAs(target),
+        })
+    }
 }
 
-fn title(ui: &mut Ui) {
+fn title(ui: &mut Ui, purpose: Purpose) {
     ui.horizontal(|ui| {
         ui.label(
-            RichText::new("OPEN")
+            RichText::new(purpose.title())
                 .font(Theme::of(ui.ctx()).bold_font(SIZE_BODY))
                 .color(TEXT_SECONDARY),
         );
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            ui.label(small(ui, "open", TEXT_SECONDARY));
-            ui.add(KeyCap::new("ctrl o"));
-        });
+        let keys = match purpose {
+            Purpose::Open => Some("ctrl o"),
+            Purpose::SaveAs => Some("ctrl ⇧ s"),
+            Purpose::Import | Purpose::Export => None,
+        };
+        if let Some(keys) = keys {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.label(small(ui, purpose.verb(), TEXT_SECONDARY));
+                ui.add(KeyCap::new(keys));
+            });
+        }
     });
 }
 
@@ -674,12 +899,12 @@ fn muted(ui: &mut Ui, line: &str) {
     ui.label(code(ui, line, TEXT_MUTED));
 }
 
-fn footer(ui: &mut Ui, live: bool) -> (bool, bool) {
+fn footer(ui: &mut Ui, live: bool, purpose: Purpose) -> (bool, bool) {
     ui.add_space(4.0);
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 4.0;
         let enter = ui.add(KeyCap::new("enter").button()).clicked();
-        ui.label(small(ui, "open", TEXT_SECONDARY));
+        ui.label(small(ui, purpose.verb(), TEXT_SECONDARY));
         ui.add_space(8.0);
         let escape = ui.add(KeyCap::new("esc").button()).clicked();
         ui.label(small(
@@ -695,20 +920,37 @@ fn footer(ui: &mut Ui, live: bool) -> (bool, bool) {
     .inner
 }
 
-fn recipe_row(ui: &mut Ui, selected: bool, path: &Path) -> egui::Response {
+fn recipe_row(ui: &mut Ui, selected: bool, path: &Path, thumbs: &mut Thumbs) -> egui::Response {
     let name = file_name(path);
     let parent = path
         .parent()
         .map(|parent| parent.display().to_string())
         .unwrap_or_default();
-    entry(ui, selected, (FILE, INFO), &name, &detail(path, &parent))
+    let thumb = thumbs.get(ui.ctx(), path);
+    let icon = if thumb.is_some() { "" } else { FILE };
+    let response = entry(ui, selected, (icon, INFO), &name, &detail(path, &parent));
+    if let Some(texture) = thumb {
+        let side = response.rect.height() - 4.0;
+        let at = egui::Rect::from_min_size(
+            response.rect.left_top() + Vec2::new(2.0, 2.0),
+            Vec2::splat(side),
+        );
+        ui.painter().image(
+            texture,
+            at,
+            egui::Rect::from_min_max(egui::Pos2::ZERO, egui::Pos2::new(1.0, 1.0)),
+            Color32::WHITE,
+        );
+    }
+    response
 }
 
 pub fn detail(path: &Path, parent: &str) -> String {
-    if crate::watched::is_scene(path) {
-        format!("scene  {}", tail_text(parent, 35))
-    } else {
-        tail_text(parent, 42)
+    match crate::file::kind(path) {
+        Some(crate::file::Kind::Scene) => format!("scene  {}", tail_text(parent, 35)),
+        Some(crate::file::Kind::Manf) => format!("manf  {}", tail_text(parent, 36)),
+        Some(crate::file::Kind::Glb) => format!("glb  {}", tail_text(parent, 37)),
+        _ => tail_text(parent, 42),
     }
 }
 
@@ -750,12 +992,6 @@ fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default()
-}
-
-fn is_recipe(path: &Path) -> bool {
-    path.is_file()
-        && path.extension().is_some_and(|ext| ext == "toml")
-        && visible_name(path).is_some()
 }
 
 fn visible_name(path: &Path) -> Option<String> {
@@ -809,7 +1045,7 @@ fn same_path(a: &Path, b: &Path) -> bool {
     }
 }
 
-fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }

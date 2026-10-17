@@ -10,7 +10,7 @@ use super::{print_problems, read_failure};
 #[derive(clap::Args)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to check")]
-    recipe: String,
+    pub(super) recipe: String,
 }
 
 pub fn run(args: &Args, registry: &Registry) -> ExitCode {

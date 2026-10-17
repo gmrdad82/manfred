@@ -14,7 +14,7 @@ use super::{print_problems, read_failure, refuse};
 #[derive(clap::Args)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe whose timeline to report")]
-    recipe: String,
+    pub(super) recipe: String,
     #[arg(long, help = "Print one JSON object")]
     json: bool,
 }

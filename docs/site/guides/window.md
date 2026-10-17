@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-`manfred gui` opens a recipe in a window drawn by the engine's live renderer. Every edit you make goes straight back into the recipe file, keeping its comments and formatting; there is nothing to save, and Ctrl+Z puts an edit back.
+`manfred gui` opens a recipe in a window drawn by the engine's live renderer. Every edit you make goes straight back into the recipe file, keeping its comments and formatting; there is nothing to save, and Ctrl+Z puts an edit back. A `.manf` document keeps its edits until you save it.
 
 ![Manfred's window on the workshop scene: a click picks the mirror ball and its move gizmo slides it along x; a click picks the vase and its material list makes it brass; Ctrl+Z twice puts both back.](../images/edit.gif)
 
@@ -18,6 +18,19 @@ manfred gui                    # the start scene, Manfred's own mark on a floor 
 ```
 
 Ctrl+O opens the picker over the viewport at any time; Esc closes it. The window watches the recipe and every file it includes: an edit made outside, by an editor or an agent, shows at once.
+
+## Files
+
+The File menu in the top bar opens, saves, imports and exports, through the window's own file picker:
+
+- **Open** (Ctrl+O) takes a recipe, a scene, a `.manf` document or a `.glb`, which opens as a new document holding that model.
+- **Save** (Ctrl+S) writes the open `.manf`. A `.toml` recipe needs no save: every edit is written as you make it. A `.manf` keeps its edits aside until you save, and shows ● after its name, in the top bar and the window's title, until then.
+- **Save As .manf** (Ctrl+Shift+S) packs the recipe and the files it uses into one `.manf`.
+- **Import glTF** adds a `.glb` to the scene as a new mesh object at the origin; in a `.manf` the file goes inside the document.
+- **Export glTF** writes the scene, or the selected object, as a standalone `.glb` for other tools.
+
+Drop a file on the window to open it, or hold Shift as you drop a `.glb` to import it. The recent list keeps `.manf` documents with their thumbnails.
+
 
 ## Move around
 

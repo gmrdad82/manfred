@@ -100,6 +100,7 @@ serde_json.workspace = true
 clap.workspace = true
 gltf.workspace = true
 sha2.workspace = true
+toml = "1.1"
 
 [dev-dependencies]
 pfx.workspace = true

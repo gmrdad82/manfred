@@ -3167,7 +3167,7 @@ fn read_volume(cx: &mut Cx, t: &dyn TableLike, index: usize, line: usize) -> Res
 
 fn load_params(base: &Path, file: &str) -> Result<serde_json::Value, Error> {
     let at = base.join(file);
-    let text = std::fs::read_to_string(&at).map_err(|e| {
+    let text = crate::files::read_to_string(&at).map_err(|e| {
         Error::new(
             "params",
             None,
@@ -3223,7 +3223,7 @@ pub fn materials(text: &str) -> Result<BTreeMap<String, serde_json::Value>, Erro
 }
 
 pub fn load(path: &Path) -> Result<Loaded, Error> {
-    let text = std::fs::read_to_string(path).map_err(|e| {
+    let text = crate::files::read_to_string(path).map_err(|e| {
         Error::new(
             path.display().to_string(),
             None,

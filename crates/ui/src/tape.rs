@@ -14,6 +14,7 @@ use pfx_gpu::pace::Turns;
 use pfx_gpu::{Gpu, wgpu};
 
 use crate::Manfred;
+use crate::file::Step as FileStep;
 use crate::theme::Theme;
 
 const VERBS: [&str; 9] = [
@@ -129,6 +130,7 @@ enum Beat {
         seconds: f32,
     },
     Seek(String),
+    File(FileStep),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -400,9 +402,15 @@ impl Tape {
                 script.push('\n');
                 continue;
             }
+            if let Some(step) = crate::file::step(command, rest) {
+                let step = step.map_err(|why| Error(format!("line {number}: {why}")))?;
+                order.push((number, Some(Beat::File(step))));
+                script.push('\n');
+                continue;
+            }
             if !VERBS.contains(&command) {
                 return Err(Error(format!(
-                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe, curve, stage, view, camera, select, orbit, dolly, reveal, region, strip, clay, shade and seek"
+                    "line {number}: {command} is not a step; a tape's steps are key, text, click, move, press, release, drag, scroll, frame, wait, wireframe, curve, stage, view, camera, select, orbit, dolly, reveal, region, strip, clay, shade, seek, open, save, save-as, import, export and drop"
                 )));
             }
             order.push((number, None));
@@ -486,6 +494,19 @@ fn centred(size: [u32; 2], drawn: [u32; 2], ground: Color32, rgba: Vec<u8>) -> V
     frame
 }
 
+#[derive(Debug)]
+struct Dropped(PathBuf);
+
+impl egui::DroppedFile for Dropped {
+    fn path(&self) -> &Path {
+        &self.0
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|error| format!("{}: {error}", self.0.display()))
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Frame {
     step: Option<usize>,
@@ -499,6 +520,8 @@ struct Frame {
     acts: Vec<Act>,
     clay: Option<f32>,
     seek: Option<String>,
+    file: Option<FileStep>,
+    dropped: Option<(PathBuf, bool)>,
 }
 
 fn modifiers_of(mods: Mods) -> Modifiers {
@@ -558,6 +581,8 @@ impl Plan {
             acts: Vec::new(),
             clay: None,
             seek: None,
+            file: None,
+            dropped: None,
         });
     }
 
@@ -582,6 +607,16 @@ impl Plan {
             let before = f64::from(curve((step - 1) as f32 / frames as f32));
             let now = f64::from(curve(step as f32 / frames as f32));
             self.act(make(before, now));
+        }
+    }
+
+    fn file(&mut self, step: &FileStep) {
+        self.frame(Vec::new());
+        if let Some(last) = self.frames.last_mut() {
+            match step {
+                FileStep::Drop { path, shift } => last.dropped = Some((path.clone(), *shift)),
+                step => last.file = Some(step.clone()),
+            }
         }
     }
 
@@ -812,6 +847,7 @@ fn plan_from(
                     last.seek = Some(to.clone());
                 }
             }
+            Beat::File(step) => plan.file(step),
         }
         if plan.full() {
             return Err(Error(format!(
@@ -914,7 +950,19 @@ impl Player<'_, '_> {
                 ..ViewportInfo::default()
             },
         );
+        if let Some((path, shift)) = &frame.dropped {
+            input.dropped_files.push(Arc::new(Dropped(path.clone())));
+            if *shift {
+                input.events.push(Event::ModifiersChanged(Modifiers {
+                    shift: true,
+                    ..frame.modifiers
+                }));
+            }
+        }
         let app = &mut *self.app;
+        if let Some(step) = &frame.file {
+            app.file(step);
+        }
         if let Some(amount) = frame.wire {
             app.set_wireframe(amount);
         }
@@ -987,6 +1035,8 @@ impl Player<'_, '_> {
         let quiet = Frame {
             events: Vec::new(),
             acts: Vec::new(),
+            file: None,
+            dropped: None,
             ..frame.clone()
         };
         let (mut last, mut more) = first;
@@ -1473,6 +1523,40 @@ mod tests {
                 .unwrap_err()
                 .0
                 .starts_with("line 1: a shade fade wants seconds")
+        );
+    }
+
+    #[test]
+    fn the_file_steps_are_tape_beats_one_frame_each() {
+        let tape = Tape::parse(
+            "open a.manf\nsave\nsave-as b.manf\nimport car.glb\nexport out.glb --selected\ndrop car.glb shift\n",
+        )
+        .unwrap();
+        assert_eq!(
+            tape.beats,
+            vec![
+                Beat::File(FileStep::Open("a.manf".into())),
+                Beat::File(FileStep::Save),
+                Beat::File(FileStep::SaveAs("b.manf".into())),
+                Beat::File(FileStep::Import("car.glb".into())),
+                Beat::File(FileStep::Export {
+                    path: "out.glb".into(),
+                    selected: true
+                }),
+                Beat::File(FileStep::Drop {
+                    path: "car.glb".into(),
+                    shift: true
+                }),
+            ]
+        );
+        let frames = plan(&tape, 30, [200.0, 100.0]).unwrap();
+        assert_eq!(frames.len(), 7);
+        assert_eq!(frames[2].file, Some(FileStep::Save));
+        assert_eq!(frames[6].file, None);
+        assert_eq!(frames[6].dropped, Some(("car.glb".into(), true)));
+        assert_eq!(
+            Tape::parse("frame\nsave-as\n").unwrap_err().0,
+            "line 2: save-as wants a path"
         );
     }
 

@@ -8,6 +8,7 @@ mod cli_link;
 mod curves;
 mod document;
 mod edit;
+mod file;
 mod fixture;
 mod follow;
 mod gizmo;

@@ -277,7 +277,7 @@ fn found(recipe: &Recipe, pieces: &[Piece], memory: &Memory) -> Result<Found, Er
                         match memory.kept_picture(file, stamp) {
                             Some(kept) => kept,
                             None => {
-                                let bytes = std::fs::read(file).map_err(|e| {
+                                let bytes = manfred_recipe::files::read(file).map_err(|e| {
                                     Error(format!(
                                         "object[{}].image: cannot read {}: {e}",
                                         object.name,

@@ -19,7 +19,7 @@ const IEND: [u8; 12] = [0, 0, 0, 0, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x
 #[derive(clap::Args)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to build and shoot")]
-    recipe: String,
+    pub(super) recipe: String,
     #[arg(
         long,
         value_name = "dir",

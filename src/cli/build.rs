@@ -10,7 +10,7 @@ use super::{pair, print_problems, read_failure};
 #[derive(clap::Args)]
 pub(super) struct Args {
     #[arg(value_name = "recipe", help = "The recipe to build")]
-    recipe: String,
+    pub(super) recipe: String,
     #[arg(
         long,
         value_name = "name",
@@ -71,6 +71,9 @@ fn run_with(
     err: &mut dyn Write,
 ) -> u8 {
     let file = args.recipe.as_str();
+    if manfred_build::document::is_manf(Path::new(file)) {
+        return document(args, registry, out, err);
+    }
     let recipes = match load(Path::new(file)).and_then(|loaded| recipes(loaded, args)) {
         Ok(recipes) => recipes,
         Err(e) => {
@@ -111,6 +114,67 @@ fn run_with(
             }
         }
     }
+    0
+}
+
+fn document(args: &Args, registry: &Registry, out: &mut dyn Write, err: &mut dyn Write) -> u8 {
+    let manf = Path::new(&args.recipe);
+    let fail = |err: &mut dyn Write, e: &str| {
+        let _ = writeln!(err, "manfred build: {e}");
+        1
+    };
+    let opened = match super::document::open(manf) {
+        Ok(opened) => opened,
+        Err(e) => return fail(err, &e),
+    };
+    if args.variant.is_some()
+        || args.all_variants
+        || !args.set.is_empty()
+        || args.pick != super::Picks::default()
+    {
+        let inner = Args {
+            recipe: opened.recipe.display().to_string(),
+            variant: args.variant.clone(),
+            all_variants: args.all_variants,
+            set: args.set.clone(),
+            out: args.out.clone(),
+            pick: args.pick.clone(),
+        };
+        return run_with(&inner, registry, true, out, err);
+    }
+    let loaded = match load(&opened.recipe) {
+        Ok(loaded) => loaded,
+        Err(e) => return fail(err, &read_failure(&args.recipe, &e)),
+    };
+    let problems = validate(&loaded.recipe);
+    if !problems.is_empty() {
+        print_problems(out, &args.recipe, &problems);
+        return 1;
+    }
+    let mut doc = opened.doc;
+    let reused = doc.fresh();
+    if reused {
+        let _ = writeln!(
+            err,
+            "{}: unchanged since its build; its glTF is reused",
+            manf.display()
+        );
+    } else if let Err(e) = doc.rebuild(manf, registry).and_then(|()| doc.write(manf)) {
+        return fail(err, &e);
+    }
+    let base = opened
+        .recipe
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let glb = manfred_build::glb_path(&loaded.recipe, base, args.out.as_deref());
+    if let Err(e) = manfred_build::put_file(&glb, &doc.glb()) {
+        return fail(err, &e.to_string());
+    }
+    if !reused {
+        let _ = writeln!(out, "{}", manf.display());
+    }
+    let _ = writeln!(out, "{}", glb.display());
     0
 }
 
