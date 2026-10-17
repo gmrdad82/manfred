@@ -235,9 +235,11 @@ manfred save showcase/chase.toml --manf chase.manf
 manfred build chase.manf                  # reuses the stored glTF while nothing changed
 manfred route chase.manf set --route main --at 2 --point 4,0,30
 manfred unpack chase.manf chase/          # the recipe and its files again, as plain files
+manfred import model.glb --out model.manf  # a glTF 2.0 binary (a Blender export too) as a new document
+manfred export chase.manf --glb chase.glb # a document or a recipe as one standalone GLB
 ```
 
-When pfx edits the scene inside a `.manf`, Manfred notices on open and rebuilds nothing over it until `manfred fold` folds the edits into the recipe (`--apply`) or keeps them as overrides on every later build (`--keep`). [The .manf guide](docs/site/guides/documents.md) has the details.
+When pfx edits the scene inside a `.manf`, Manfred notices on open and rebuilds nothing over it until `manfred fold` folds the edits into the recipe (`--apply`) or keeps them as overrides on every later build (`--keep`). [The .manf guide](docs/site/guides/documents.md) has the details. [glTF in and out](docs/site/guides/gltf.md) covers import and export, and the file type, its icon and the launcher are registered by each installer (Linux: `bin/register-filetypes`; Windows: the setup; macOS: `Manfred.app`).
 
 ## Commands
 
