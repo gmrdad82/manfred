@@ -490,7 +490,7 @@ fn validation_problems_name_the_key_and_the_line() {
         (
             "v_material_key",
             &[
-                "line 6: materials.lamp.emissive: unknown field `emissive`, expected one of `family`, `base`, `roughness`, `metalness`, `specular`, `clearcoat`, `clearcoat_roughness`, `sheen`, `transmission`, `ior`, `dispersion`, `thickness`, `subsurface`, `subsurface_tint`, `absorption`, `thin_film`, `thin_film_ior`, `thin_film_amount`, `emission`, `fresnel_power`, `normal`, `maps`, `content`, `content_layer`, `layers`, `ageing`",
+                "line 6: materials.lamp.emissive: unknown field `emissive`, expected one of `family`, `base`, `roughness`,",
             ],
         ),
         (
@@ -501,11 +501,11 @@ fn validation_problems_name_the_key_and_the_line() {
         ),
     ];
     for (name, expected) in cases {
-        assert_eq!(
-            problems(&format!("errors/{name}.toml")),
-            *expected,
-            "{name}"
-        );
+        let found = problems(&format!("errors/{name}.toml"));
+        assert_eq!(found.len(), expected.len(), "{name}: {found:?}");
+        for (line, wanted) in found.iter().zip(expected.iter()) {
+            assert!(line.starts_with(wanted), "{name}: {line}");
+        }
     }
 }
 

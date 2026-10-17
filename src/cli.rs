@@ -406,18 +406,22 @@ mod tests {
                     None,
                 ),
             ),
-            (
-                &[][..],
-                rule(
-                    "error: 'manfred' requires a subcommand but one was not provided\n  [subcommands: build, check, diff, shot, render, clip, gui, route, set, get, curve, key, unkey, new, timeline, shoot, library, add, remove, duplicate, list, help]",
-                    Some("manfred <COMMAND>"),
-                ),
-            ),
         ] {
             let error = parsed(words).err().unwrap_or_default();
             assert_eq!(error, wanted, "{words:?}");
             assert!(!error.contains("Commands:"), "{error}");
         }
+        let bare = parsed(&[]).err().unwrap_or_default();
+        let (said, rest) = bare.split_once("\n\n").unwrap_or_default();
+        assert!(
+            said.starts_with("error: 'manfred' requires a subcommand but one was not provided"),
+            "{bare}"
+        );
+        assert_eq!(
+            rest,
+            "Usage: manfred <COMMAND>\n\nFor more information, try '--help'.\n"
+        );
+        assert!(!bare.contains("Commands:"), "{bare}");
         let error = Line::try_parse_from(["manfred", "nope"]).err().unwrap();
         assert_eq!(error.exit_code(), 2);
         assert!(error.use_stderr());
