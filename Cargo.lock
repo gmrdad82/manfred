@@ -1610,7 +1610,7 @@ dependencies = [
 [[package]]
 name = "manf"
 version = "0.1.0"
-source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.5.0#76eabe11aa659056c36fc03d9573617d3e7488c4"
+source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.6.0#4b5e12dfc758bc90672a911050d596fb8432af1a"
 dependencies = [
  "miniz_oxide 0.9.1",
 ]
@@ -1662,7 +1662,7 @@ dependencies = [
  "pfx-load",
  "pfx-materials",
  "pfx-post",
- "pfx-scene 1.5.0",
+ "pfx-scene 1.6.0",
  "pfx-trace",
  "png",
  "serde_json",
@@ -1724,7 +1724,7 @@ dependencies = [
  "manfred-mesh",
  "manfred-motion",
  "pfx-materials",
- "pfx-scene 1.5.0",
+ "pfx-scene 1.6.0",
  "serde",
  "serde_json",
  "toml_edit",
@@ -1812,7 +1812,7 @@ dependencies = [
  "pfx-live",
  "pfx-load",
  "pfx-materials",
- "pfx-scene 1.5.0",
+ "pfx-scene 1.6.0",
  "png",
  "serde_json",
  "toml_edit",
@@ -2538,8 +2538,8 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 
 [[package]]
 name = "pfx"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "libc",
  "serde",
@@ -2548,8 +2548,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-bake"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "block_compression",
  "bytemuck",
@@ -2570,13 +2570,13 @@ dependencies = [
 
 [[package]]
 name = "pfx-core"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 
 [[package]]
 name = "pfx-denoise"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "bytemuck",
  "pfx-gpu",
@@ -2585,8 +2585,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-editor-shell"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -2599,16 +2599,16 @@ dependencies = [
 
 [[package]]
 name = "pfx-editor-style"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "egui",
 ]
 
 [[package]]
 name = "pfx-geom"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "i_overlay",
  "lyon_tessellation",
@@ -2619,8 +2619,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-gpu"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "serde",
  "toml 0.9.12+spec-1.1.0",
@@ -2630,8 +2630,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-live"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "bytemuck",
  "half",
@@ -2651,15 +2651,15 @@ dependencies = [
 
 [[package]]
 name = "pfx-load"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "gltf",
  "notify",
  "pfx-core",
  "pfx-materials",
  "pfx-post",
- "pfx-scene 1.2.0",
+ "pfx-scene 1.4.0",
  "pfx-text",
  "png",
  "serde",
@@ -2671,8 +2671,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-materials"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "bytemuck",
  "serde",
@@ -2681,8 +2681,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-physics"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "bytemuck",
  "half",
@@ -2695,8 +2695,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-post"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "bytemuck",
  "pfx-gpu",
@@ -2707,8 +2707,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-scene"
-version = "1.2.0"
-source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.2.0#f15524a7fbfe725aef13181526968aaa3310bfcb"
+version = "1.4.0"
+source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.4.0#53239774a48df28890bb4dc58cc273b63cbd6ab2"
 dependencies = [
  "serde",
  "toml 1.1.6+spec-1.1.0",
@@ -2717,8 +2717,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-scene"
-version = "1.5.0"
-source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.5.0#76eabe11aa659056c36fc03d9573617d3e7488c4"
+version = "1.6.0"
+source = "git+https://github.com/gmrdad82/pfx-scene?tag=v1.6.0#4b5e12dfc758bc90672a911050d596fb8432af1a"
 dependencies = [
  "manf",
  "serde",
@@ -2728,8 +2728,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-text"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "cosmic-text",
  "swash",
@@ -2739,8 +2739,8 @@ dependencies = [
 
 [[package]]
 name = "pfx-trace"
-version = "2.4.0"
-source = "git+https://github.com/gmrdad82/pfx?tag=v2.4.0#10deb48242a5ee77160e16a2aad7b00741591a50"
+version = "2.6.0"
+source = "git+https://github.com/gmrdad82/pfx?tag=v2.6.0#4afe575f2fb3b09bdb4ec27c5bd2b513ade1dafe"
 dependencies = [
  "bytemuck",
  "pfx-core",
