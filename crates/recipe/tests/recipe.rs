@@ -920,10 +920,10 @@ fn saving_into_a_missing_folder_is_an_error_that_names_the_file() {
     let dir = scratch("save_missing");
     let target = dir.join("gone/x.toml");
     let e = save_to(&l, &target).unwrap_err();
-    assert!(
-        e.to_string()
-            .starts_with(&format!("{}: cannot replace the recipe: ", target.display()))
-    );
+    assert!(e.to_string().starts_with(&format!(
+        "{}: cannot replace the recipe: ",
+        target.display()
+    )));
     assert!(!target.exists());
 }
 
